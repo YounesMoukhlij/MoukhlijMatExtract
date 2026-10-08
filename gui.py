@@ -18,7 +18,7 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 from typing import List, Optional
 
 from main import _CREDIT_TEXT, _PROJECT_DESCRIPTION, run_extraction
-from models import PaperData
+from models import ExtractedField, PaperData
 
 _DONE_SENTINEL = object()
 
@@ -34,6 +34,17 @@ _HIGHLIGHT_PROPERTIES = [
     ("mechanical", "Bulk_Modulus"),
     ("structural", "Density"),
 ]
+
+
+def _describe_context(field: ExtractedField) -> str:
+    """What a value was obtained for, under which conditions, and where in the paper it sits:
+    "Li6PS5Cl, cubic | argyrodite, 298.1 K, experimental — Table 2, p.5"."""
+    known = [v for v in (field.material_formula, field.structure, field.temperature, field.pressure)
+             if v != "NONE"]
+    if field.data_origin not in ("NONE", "unspecified"):
+        known.append(field.data_origin)
+    where = field.source_label if field.source_label != "NONE" else field.source_type
+    return f"{', '.join(known)} — {where}, p.{field.source_page}" if known else f"{where}, p.{field.source_page}"
 
 
 def _summarize_paper(paper: PaperData) -> str:
@@ -54,9 +65,10 @@ def _summarize_paper(paper: PaperData) -> str:
         candidates = (getattr(paper, cat_field, {}) or {}).get(prop, [])
         if candidates:
             found_any_property = True
-            best = candidates[0]
-            ea_label = f" [{best.ea_type}]" if best.ea_type != "NONE" else ""
+            best = next((c for c in candidates if c.material_formula != "NONE"), candidates[0])
+            ea_label = f" [{best.transport_component}]" if best.transport_component != "NONE" else ""
             lines.append(f"    {prop}: {best.normalized_value}{ea_label} (confidence {best.confidence:.2f})")
+            lines.append(f"        {_describe_context(best)}")
     if not found_any_property:
         lines.append("    No headline properties (activation energy, conductivity, ...) matched.")
 

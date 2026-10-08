@@ -34,8 +34,8 @@ class Ranker:
         relations: List[Relation] = extracted_data.get("relations", [])
         # id()-based identity set: extractor.py appends the SAME ExtractedField object both to
         # results[cat][prop] and into its Relation, so this cheaply flags "was this linked".
-        linked_field_ids = {id(r.property_value) for r in relations
-                             if r.extraction_method in ("dependency_parse", "table_row")}
+        linked_field_ids = {id(r.property_value) for r in relations if r.extraction_method in (
+            "apposition", "named_with_quantity", "dependency_parse", "table_row", "list_alignment")}
 
         for cat in SchemaConfig.SCHEMA:
             final[cat] = {}
@@ -77,20 +77,23 @@ class Ranker:
             c.confidence = max(0.01, min(0.99, c.confidence + boost))
 
         ranked = sorted(candidates, key=lambda x: x.confidence, reverse=True)
-        seen: Set[str] = set()
+        seen: Set[Tuple[str, str, str]] = set()
         unique: List[ExtractedField] = []
-        kept_per_type: Dict[str, int] = {}
+        kept_per_group: Dict[Tuple[str, str], int] = {}
         for c in ranked:
-            key = f"{c.normalized_value}|{c.ea_type}"  # same Ea value of a different type is not a duplicate
+            # The same value for another material, or of another transport type, is not a duplicate.
+            group = (c.material_id, c.transport_component)
+            key = (c.normalized_value, *group)
             if key in seen:
                 continue
-            # Top-K is applied per activation-energy type ("NONE" for every other property), so
-            # a paper's bulk / grain-boundary / surface / total values don't crowd each other out.
-            if kept_per_type.get(c.ea_type, 0) >= TOP_K:
+            # Top-K is applied per material and per transport type ("NONE" when a value has
+            # neither), so one material's values — or a paper's bulk / grain-boundary / surface /
+            # total values — don't crowd the others out.
+            if kept_per_group.get(group, 0) >= TOP_K:
                 continue
             seen.add(key)
             unique.append(c)
-            kept_per_type[c.ea_type] = kept_per_type.get(c.ea_type, 0) + 1
+            kept_per_group[group] = kept_per_group.get(group, 0) + 1
         return unique
 
     @staticmethod

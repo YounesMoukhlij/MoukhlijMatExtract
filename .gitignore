@@ -1,2 +1,8 @@
 .papers
 .output
+
+# API keys and your email live here, never in git
+.env
+
+# PDFs fetched by the web project: someone else's copyright, not for a repository
+papers/web/

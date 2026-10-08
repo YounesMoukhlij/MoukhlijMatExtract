@@ -5,11 +5,45 @@ from typing import Dict, List, Pattern, Tuple
 
 # Generic numeric fragment: plain decimals, python-style scientific notation ("1.2e-3"),
 # and "coefficient x 10^exponent" scientific notation ("1.2x10^-3", "1.2×10−3"), including
-# the unicode minus sign (U+2212) commonly produced by PDF text extraction.
+# the unicode minus sign (U+2212) and the en dash that PDF text extraction produces for the
+# exponent's sign.
 # The lookbehind stops a match starting inside a longer number or right after "±" (so "216±31 meV"
 # yields 216, not the uncertainty 31); an optional trailing "±err" is consumed and ignored.
-NUM = (r'(?<![\d.±])([-−]?\d+(?:\.\d+)?(?:\s*(?:[eE][-−+]?\d+|[xX×\*]\s*10\^?[-−]?\d+))?)'
-       r'(?:\s*(?:±|\+/-|\+-)\s*\d+(?:\.\d+)?)?')
+#
+# A power of ten also stands alone ("10−4 S/cm", "10^-4"). PDF text has no superscripts, so read
+# digit by digit "10−4 S/cm" would be 4 S/cm. But a bare "10−N" is written exactly like a range
+# ("10–20 mS/cm"). With a caret or a one-digit exponent it can only be a power — nobody writes a
+# range downwards — and that is all NUM accepts. NUM_MAGNITUDE also takes a two-digit exponent, for
+# the quantities quoted as bare orders of magnitude that small (conductivities, diffusion
+# coefficients); there normalizer._readings keeps whichever reading is physically possible. It also
+# takes the space a PDF sometimes puts after the lost superscript's sign ("10- 4 S cm-1").
+_DECIMAL = r'[-−]?\d+(?:\.\d+)?(?:\s*(?:[eE][-−+]?\d+|[xX×\*]\s*10\^?[-−–]?\d+))?'
+_UNCERTAINTY = r'(?:\s*(?:±|\+/-|\+-)\s*\d+(?:\.\d+)?)?'
+NUM = rf'(?<![\d.±])(10\^[-−–]?\d+|10[-−–]\d(?!\d)|{_DECIMAL}){_UNCERTAINTY}'
+# A conductivity or a diffusion coefficient spans many orders of magnitude, and its power of ten
+# comes out of a PDF in many shapes: "10−12", "10- 4", "10 –4", "1.06×10 –4", "5·10−9" and "5.10-9"
+# (a point for the multiplication sign).
+_TIMES_TEN = r'[xX×\*·⋅]\s*10(?:\^?\s?[-−–]\s?\d{1,2}(?!\d)|\^?\d+)'
+_POINT_TIMES_TEN = r'[1-9]\d*(?:\.\d+)?\.10\^?[-−–]\d{1,2}(?!\d)'
+NUM_MAGNITUDE = (rf'(?<![\d.±])(10\^[-−–]?\d+|10\s?[-−–]\s?\d{{1,2}}(?!\d)|{_POINT_TIMES_TEN}'
+                 rf'|[-−]?\d+(?:\.\d+)?(?:\s*(?:[eE][-−+]?\d+|{_TIMES_TEN}))?){_UNCERTAINTY}')
+
+
+def _per(numerator: str, denominator: str) -> str:
+    """Pattern for a "numerator per denominator" unit the ways papers print it: "S/cm", "S / cm",
+    "S cm−1", "S·cm–1", "S.cm-1", "S cm^-1" — and "S cm1", where the PDF dropped the exponent's
+    minus sign. normalizer._canonical_unit folds them all back onto "S/cm"."""
+    gap = rf'[\s{chr(0xAD)}]*'  # whitespace, or the invisible soft hyphen a PDF leaves at a line break
+    return (rf'{numerator}{gap}(?:/{gap}{denominator}(?![\w^])'
+            rf'|[·⋅.]?{gap}{denominator}(?:{gap}\^?{gap}[-−–]{gap}1|1)(?!\d))')
+
+
+_SIEMENS_PER_CM = _per(r'(?:m|μ|µ|u)?S', 'cm')
+_AREA_PER_SECOND = _per(r'c?m\^?2', r's(?:ec)?')
+# An energy of one hop: per particle (eV, meV) or per mole ("kJ/mol", "kJ mol−1", "kJ per mol").
+# Not an energy per atom or per length ("25 meV/atom" is a stability, "0.01 eV/Å" a force).
+_ENERGY = (rf'(?:meV|eV|{_per("k(?:J|cal)", "mol")}|k(?:J|cal)\s+per\s+mol)'
+           r'(?![A-Za-z])(?!\s*(?:/|per\s)\s*(?:atom|f\.?\s?u|Å|A\b|nm|cell|site)|\s*Å|\s*atom)')
 
 # Bounded, non-greedy "skip up to N characters" used between a keyword and its value. Digits
 # are deliberately NOT excluded — a chemical formula routinely sits between the keyword and the
@@ -19,15 +53,58 @@ NUM = (r'(?<![\d.±])([-−]?\d+(?:\.\d+)?(?:\s*(?:[eE][-−+]?\d+|[xX×\*]\s*10
 GAP = r'.{0,80}?'
 
 
-# Activation-energy (Ea) types, checked per keyword hit by proximity to the extracted value.
-# Order only breaks ties. "unspecified" is used when the text names none of them.
-EA_PROPERTIES = ("Activation_Energy", "Migration_Barrier")
-EA_TYPE_PATTERNS: List[Tuple[str, str]] = [
-    ("grain boundary", r'(?i)grain[\s-]*boundar(?:y|ies)|inter-?granular|\bGBs?\b|\bE\s*_?\s*a\s*[,_(\[]\s*gb\b'),
-    ("surface", r'(?i)\bsurfaces?\b|\bsurfacic\b|\bE\s*_?\s*a\s*[,_(\[]\s*(?:s|surf|surface)\b'),
-    ("bulk", r'(?i)\bbulk\b|\bintra-?granular|\bgrain\s+interior|\bE\s*_?\s*a\s*[,_(\[]\s*(?:b|bulk|g|grain)\b'),
-    ("total", r'(?i)\btotal\b|\boverall\b|\bE\s*_?\s*a\s*[,_(\[]\s*(?:t|tot|total)\b'),
-]
+# Activation-energy (Ea) properties, and every ion-transport property that can be split into
+# bulk / grain-boundary / surface / total; their transport component is typed by transport.py.
+EA_PROPERTIES = ("Activation_Energy",)
+TRANSPORT_PROPERTIES = EA_PROPERTIES + ("Ionic_Conductivity", "Diffusion_Coefficient")
+# Property names of earlier versions, still accepted in a job file.
+PROPERTY_ALIASES = {"Migration_Barrier": "Activation_Energy"}
+
+# The names papers give the energy an ion has to overcome to move. They are one quantity and one
+# property here; which name a paper used is kept with each value (ExtractedField.reported_as).
+#  - "activation energy / barrier / enthalpy", "free energy of activation";
+#  - any "... barrier": "migration barrier", "hopping barrier", "diffusion energy barrier",
+#    "energy barrier", a bare "barrier" — but not the barriers that are something else (a Schottky
+#    or tunnelling barrier, a "barrier layer");
+#  - "migration energy", "hopping energy", "jump energy", "migration enthalpy";
+#  - the symbols "Ea", "E_a", "E a", "EA", "Eact", "Em", "Emig": case-sensitive and words of their
+#    own, since case-insensitively "ea" is also how "area" ends.
+_BARRIER_KIND = (r'(?:migration|hopping|diffusion|jump|kinetic|reaction|percolation|intercalation|transport|'
+                 r'conduction|charge[\s-]transfer|potential[\s-]energy|rotation(?:al)?|reorientation(?:al)?|'
+                 r'activation|energy)')
+EA_TERM = (
+    rf'(?:(?:apparent\s+)?activation\s+(?:energ(?:y|ies)|enthalp(?:y|ies))(?:\s+barriers?)?'
+    rf'|(?:gibbs\s+)?free\s+energy\s+of\s+activation|activation\s+free\s+energy|enthalpy\s+of\s+activation'
+    rf'|(?:{_BARRIER_KIND}[\s-]+){{0,2}}'
+    rf'(?<!schottky\s)(?<!tunneling\s)(?<!tunnelling\s)(?<!injection\s)(?<!blocking\s)'
+    rf'barriers?(?!\s+(?:layers?|coatings?|films?|heights?|widths?|thickness|propert\w+))(?:\s+energ(?:y|ies))?'
+    rf'|(?:migration|hopping|jump)\s+(?:energ(?:y|ies)|enthalp(?:y|ies))'
+    rf'|desolvation\s+energ(?:y|ies)'
+    rf'|(?-i:\bE\s?_?\s?(?:a|A|act)\b|\bE_?(?:m|mig)\b))')
+COMPILED_EA_TERM = re.compile(rf'(?i){EA_TERM}')
+
+# What names the other transport quantities. A conductivity that is not called electronic is the
+# ionic one; "σ" on its own too, "σe" / "σel" not.
+ELECTRONIC_TERM = (r'(?:electronic|electron)\s+(?:\w+\s+)?conductivit(?:y|ies)'
+                   r'|σ\s?_?\s?(?:e|el|elec|electronic|electron|eon)(?![A-Za-z])')
+CONDUCTIVITY_TERM = (r'(?<!thermal\s)(?<!electronic\s)(?<!electron\s)conductivit(?:y|ies)'
+                     r'|σ(?!\s?_?\s?(?:e|el|elec|electronic|electron|eon)(?![A-Za-z]))')
+DIFFUSION_TERM = (r'(?<!thermal\s)(?:diffusion\s+coefficients?|diffusivit(?:y|ies))'
+                  r'|(?-i:(?<![A-Za-z])D\s?_?(?:Li|Na|K|Mg|Ca|Zn|Al|H|tr|self|σ|\*)?(?![A-Za-z]))')
+
+# The properties read value-first (quantities.py): every number with their unit in a sentence is a
+# candidate, and the wording around it decides which quantity it is. Keyed by normalizer category.
+QUANTITY_VALUES = {
+    "energy": rf'{NUM}\s*({_ENERGY})',
+    "conductivity": rf'{NUM_MAGNITUDE}\s*({_SIEMENS_PER_CM})',
+    "diffusion": rf'{NUM_MAGNITUDE}\s*({_AREA_PER_SECOND})',
+}
+QUANTITY_PROPERTIES = EA_PROPERTIES + ("Ionic_Conductivity", "Electronic_Conductivity", "Diffusion_Coefficient")
+
+# Categories whose values are measured or computed for a material, as opposed to the paper-level
+# DFT/AIMD/ML/synthesis settings. Only their numeric values get a measurement context (context.py).
+MATERIAL_CATEGORIES = ("ELECTROCHEMICAL", "THERMODYNAMIC", "MECHANICAL", "STRUCTURAL", "ELECTRONIC",
+                       "THERMAL", "SPECTROSCOPY")
 
 
 class SchemaConfig:
@@ -63,21 +140,14 @@ class SchemaConfig:
 
     SCHEMA: Dict[str, Dict[str, Tuple[str, str]]] = {
         "ELECTROCHEMICAL": {
-            # Both properties describe the same underlying quantity (the energy barrier an ion
-            # must overcome to hop/migrate) — papers use a wide range of near-synonymous names
-            # for it, so both keyword lists are deliberately generous. exporter.py pools both
-            # properties into the dedicated activation_energy.csv/sheet.
-            "Activation_Energy": (rf'(?i)(?:(?:apparent\s+)?activation\s+energ(?:y|ies)|'
-                                   rf'(?:gibbs\s+)?free\s+energy\s+of\s+activation|activation\s+free\s+energy|'
-                                   rf'enthalpy\s+of\s+activation|activation\s+enthalpy|E\s*_?a)'
-                                   rf'\b{GAP}{NUM}\s*(eV|meV|kJ/mol|kcal/mol)', 'energy'),
-            "Migration_Barrier": (rf'(?i)(?:(?:migration|hopping|diffusion|kinetic|reaction|percolation|'
-                                   rf'intercalation|charge[- ]transfer|potential\s+energy)\s+barriers?|'
-                                   rf'energy\s+barriers?|migration\s+energ(?:y|ies)|hopping\s+energ(?:y|ies)|'
-                                   rf'desolvation\s+energ(?:y|ies))\b{GAP}{NUM}\s*(eV|meV|kJ/mol|kcal/mol)', 'energy'),
-            "Diffusion_Coefficient": (rf'(?i)(?:diffusion coefficient|diffusivity|D\s*_?(?:Li|Na|K|Mg|Ca|Zn|Al|H)?)\b{GAP}{NUM}\s*(cm2/?s|cm\^?2\s*/?\s*s|m2/?s|m\^?2\s*/?\s*s)', 'diffusion'),
-            "Ionic_Conductivity": (rf'(?i)(?:ionic conductivity|total conductivity|σ\s*(?:ion|total|Li|Na)?)\b{GAP}{NUM}\s*(mS/?cm|μS/?cm|uS/?cm|S/?cm)', 'conductivity'),
-            "Electronic_Conductivity": (rf'(?i)electronic conductivity\b{GAP}{NUM}\s*(mS/?cm|μS/?cm|uS/?cm|S/?cm)', 'conductivity'),
+            # The four transport quantities are read value-first (see QUANTITY_VALUES and
+            # quantities.py); their entry here is the wording that names them, not a value pattern.
+            # One property for the activation energy, whatever the paper calls it (see EA_TERM);
+            # always normalized to eV. exporter.py lists its values in activation_energy.csv/sheet.
+            "Activation_Energy": (rf'(?i){EA_TERM}', 'energy'),
+            "Diffusion_Coefficient": (rf'(?i){DIFFUSION_TERM}', 'diffusion'),
+            "Ionic_Conductivity": (rf'(?i){CONDUCTIVITY_TERM}', 'conductivity'),
+            "Electronic_Conductivity": (rf'(?i){ELECTRONIC_TERM}', 'conductivity'),
             "Redox_Potential": (rf'(?i)redox potential\b{GAP}{NUM}\s*(V|mV)', 'voltage'),
             "Stability_Window": (rf'(?i)(?:electrochemical stability window|ESW)\b{GAP}{NUM}\s*(V|mV)', 'voltage'),
             "Voltage": (rf'(?i)(?:average voltage|operating voltage|voltage plateau|voltage)\b{GAP}{NUM}\s*(V|mV)', 'voltage'),
@@ -122,6 +192,9 @@ class SchemaConfig:
             "Particle_Size": (rf'(?i)particle size\b{GAP}{NUM}\s*(nm|μm|um|mm)', 'length'),
             "Porosity": (rf'(?i)porosity\b{GAP}{NUM}\s*(%|percent)', 'percent'),
             "Relative_Density": (rf'(?i)relative density\b{GAP}{NUM}\s*(%|percent)', 'percent'),
+            # Radii the paper itself quotes; the Shannon radii of every material's own ions are
+            # computed separately (chemistry.ionic_radii).
+            "Ionic_Radius": (rf'(?i)ionic radi(?:us|i)\b{GAP}{NUM}\s*(Å|nm|pm|Angstrom)', 'length'),
         },
         "ELECTRONIC": {
             "Band_Gap": (rf'(?i)band\s*gap\b{GAP}{NUM}\s*(eV)', 'energy'),

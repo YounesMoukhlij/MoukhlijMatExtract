@@ -1,0 +1,55 @@
+# Job file for the web project (Project 2).
+#
+#   python main.py web --job configs/sse.yaml                 search, screen, then stop for your review
+#   python main.py web --job configs/sse.yaml --stage fetch   after the review: fetch what you approved, extract it
+#   python main.py web --job configs/sse.yaml --check        test the setup first
+#
+# Everything has a default; only `search` is required.
+
+name: sse
+
+# Sent to OpenAlex and Unpaywall as the contact for polite use of their free APIs (Unpaywall requires it).
+# Put your own address here, or set AUTOMATEXTRACT_EMAIL in .env. Left empty, Unpaywall is skipped.
+contact_email: ""
+
+search:
+  queries:
+    - "solid electrolyte ionic conductivity activation energy"
+    - "argyrodite lithium ion conductor"
+    - "garnet LLZO solid electrolyte lithium migration"
+    - "NASICON sodium solid electrolyte ionic conductivity"
+    - "halide solid electrolyte lithium ionic conductivity"
+    - "sulfide solid electrolyte migration barrier"
+    - "machine learning solid-state electrolyte ionic conductivity"
+  # ids_file: configs/dois.txt   # papers you already know: one DOI, DOI link or arXiv id per line
+  years: [2014, 2026]
+  sources: [openalex, arxiv]
+  max_per_query: 200             # per source and query
+  include_preprints: true
+
+screen:
+  # A paper is proposed when it scores at least min_score and mentions one topic word AND one property word.
+  # A word in the title counts 2, in the abstract 1; each exclude word costs 3.
+  topic_words: [solid electrolyte, solid-state electrolyte, solid-state battery, ionic conductor, superionic,
+                argyrodite, garnet, NASICON, LLZO, sulfide electrolyte, halide electrolyte]
+  property_words: [activation energy, migration barrier, energy barrier, ionic conductivity, diffusion coefficient,
+                   Arrhenius]
+  exclude_words: [supercapacitor, photocatalyst, solar cell]
+  min_score: 2
+  review: true                   # stop after screening so you can check candidates.csv before anything is fetched
+
+fetch:
+  folder: papers/web
+  # Where a legal copy is looked for, in this order. elsevier needs ELSEVIER_API_KEY (and only applies to
+  # Elsevier papers); unpaywall needs a contact email.
+  sources: [elsevier, openalex, unpaywall, arxiv]
+  workers: 3
+  max_pdf_mb: 60
+
+extract:
+  # The wished data: only these properties are exported. Leave the list out for every property.
+  # Activation_Energy is the energy barrier of an ion hop under every name a paper gives it
+  # (activation energy, Ea, migration barrier, hopping barrier, energy barrier, ...).
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true         # a value that cannot be tied to a material is dropped

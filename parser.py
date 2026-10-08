@@ -9,10 +9,15 @@ import pymupdf as fitz
 import pdfplumber
 
 from config import SchemaConfig
-from normalizer import normalize_scientific_text
+from normalizer import normalize_scientific_text, repair_hyphenation
 from ocr import run_ocr
 
-_CAPTION_REF_REGEX = re.compile(r'^(Fig(?:ure)?s?|Table)\.?\s*(\d+)', re.IGNORECASE)
+# "Fig. 3", "Figure S5", "TABLE II" — arabic, supplementary (S-prefixed) or roman numbering. A
+# label that runs straight into a lowercase word ("Fig. 3 shows ...", "Figure 3d,e highlight ...",
+# "Table 2 lists ...", "Fig. 2~c! that ..." — the old APS fonts print "(c)" as "~c!") is a
+# sentence referring to the figure, not its caption; a lone panel letter ("Fig. 6 a ...") is fine.
+_CAPTION_REF_REGEX = re.compile(
+    r'^((?i:Fig(?:ure)?|Table))\.?\s*((?i:S?\d+|[IVX]+(?![\w-])))(?!~?[a-z]?!?(?:\s?[,&–-]\s?[a-z])*\s+[a-z]{2,})')
 _REFERENCE_START_REGEX = re.compile(r'^\[?\d{1,3}\]?\.?\s+\S')
 _DOI_REGEX = re.compile(r'\b10\.\d{4,9}/[-._;()/:A-Za-z0-9]+')
 _YEAR_CONTEXT_REGEX = re.compile(r'(?:©|Received|Published|Accepted|Copyright)[^\d]{0,20}(\d{4})', re.IGNORECASE)
@@ -23,6 +28,17 @@ _PROSE_STARTERS = ('the ', 'this ', 'in ', 'for ', 'we ', 'it ', 'these', 'when 
 
 # Generous, non-maintained sanity ceiling for extracted publication years.
 _MAX_PLAUSIBLE_YEAR = datetime.date.today().year + 1
+
+
+def repair_blocks(blocks: List[Dict[str, Any]]) -> None:
+    """Puts back together, in every text of a document, the words its line breaks split ("activa-
+    tion energy" -> "activation energy"): see normalizer.repair_hyphenation, which needs the whole
+    document to tell a printer's hyphen from an author's."""
+    holders = [(b, "text") for b in blocks if b.get("type") in ("Text", "Caption")]
+    holders += [(b, "caption") for b in blocks if b.get("type") == "Table" and b.get("caption", "NONE") != "NONE"]
+    texts = [normalize_scientific_text(block[key]) for block, key in holders]
+    for (block, key), text in zip(holders, repair_hyphenation(texts)):
+        block[key] = text
 
 
 class DocumentParser:
@@ -76,6 +92,7 @@ class DocumentParser:
 
         # Dedicated Table Extraction via pdfplumber (needs the Caption blocks above for numbering).
         blocks.extend(self._extract_tables(blocks))
+        repair_blocks(blocks)
 
         references = self._split_references(self._reference_lines)
 
@@ -99,7 +116,9 @@ class DocumentParser:
         text_blocks = [b for b in raw_blocks if len(b) >= 7 and b[6] == 0 and b[4].strip()]
         text_blocks.sort(key=lambda b: (0 if b[0] < midpoint else 1, round(b[1], 1)))
 
-        return "\n".join(b[4] for b in text_blocks)
+        # Blank line between layout blocks: _process_page_text relies on it to tell where a
+        # figure/table caption starts and ends.
+        return "\n\n".join(b[4].strip() for b in text_blocks)
 
     # ------------------------------------------------------------------
     # Page text -> typed blocks
@@ -114,10 +133,20 @@ class DocumentParser:
         page_blocks = []
         lines = text.split('\n')
         current_paragraph = ""
+        # A blank line separates layout blocks (PyMuPDF blocks, OCR paragraphs). A caption is
+        # always a block of its own, so it runs from its "Fig. N"/"Table N" line to the block's end.
+        at_block_start = True
+        open_caption: Optional[Dict[str, Any]] = None
 
         for line in lines:
             clean_line = line.strip()
             if not clean_line:
+                at_block_start, open_caption = True, None
+                continue
+            starts_block, at_block_start = at_block_start, False
+
+            if open_caption is not None:
+                open_caption["text"] += " " + clean_line
                 continue
 
             # A. Section Header Detection (checked first so a "References" header itself
@@ -137,8 +166,9 @@ class DocumentParser:
                 self._reference_lines.append(clean_line)
                 continue
 
-            # C. Figure and Table Caption Detection
-            caption_match = _CAPTION_REF_REGEX.match(clean_line)
+            # C. Figure and Table Caption Detection. Only at the start of a block: a body line that
+            # merely begins with "Fig. 2 shows ..." mid-paragraph is a reference, not a caption.
+            caption_match = _CAPTION_REF_REGEX.match(clean_line) if starts_block else None
             if caption_match:
                 if current_paragraph:
                     page_blocks.append(self._create_block(current_paragraph, page_num, "Text"))
@@ -146,8 +176,9 @@ class DocumentParser:
                 ref_kind = "Table" if caption_match.group(1).lower().startswith("table") else "Figure"
                 block = self._create_block(clean_line, page_num, "Caption")
                 block["ref_kind"] = ref_kind
-                block["ref_number"] = caption_match.group(2)
+                block["ref_number"] = caption_match.group(2).upper()
                 page_blocks.append(block)
+                open_caption = block
                 continue
 
             # D. Equation candidate: short, symbol-dense, not ordinary prose.

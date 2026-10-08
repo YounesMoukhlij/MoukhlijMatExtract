@@ -9,3 +9,5 @@ opencv-python-headless>=4.9
 Pillow
 numpy
 pint>=0.23
+requests>=2.31
+pyyaml>=6
