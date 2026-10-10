@@ -32,6 +32,9 @@ _MIN_TITLE_MATCH = 0.5
 _MIN_TEXT_TO_JUDGE = 800
 _STOPWORDS = {"with", "from", "that", "this", "using", "based", "into", "their", "toward", "towards", "through",
               "under", "over", "between", "after", "within", "study", "analysis", "approach", "new"}
+# A publisher's API that answers "too many requests" has used up an allowance that will not come
+# back in a few seconds: the source is switched off for the rest of the run.
+_ALLOWANCE = {"elsevier": "its weekly quota is used up", "wiley": "it allows no more requests for now"}
 
 
 @dataclass
@@ -139,15 +142,15 @@ class Downloader:
         """The bytes an option gives, or (None, why not)."""
         try:
             response = self.client.get(option.url, headers=option.headers or None, stream=True, api=option.api,
-                                       no_retry={429} if option.service == "elsevier" else ())
+                                       no_retry={429} if option.service in _ALLOWANCE else ())
         except Disallowed:
             return None, "robots.txt does not allow it"
         except requests.RequestException as error:
             return None, f"network error ({type(error).__name__})"
         try:
             status = response.status_code
-            if option.service == "elsevier" and status == 429:
-                self._disable("elsevier", "its weekly quota is used up")
+            if option.service in _ALLOWANCE and status == 429:
+                self._disable(option.service, _ALLOWANCE[option.service])
             if option.service == "elsevier" and status == 401:
                 self._disable("elsevier", "the API key was refused (is ELSEVIER_API_KEY right?)")
             if status != 200:

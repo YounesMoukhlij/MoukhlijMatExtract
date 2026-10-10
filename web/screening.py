@@ -1,7 +1,7 @@
 # web/screening.py
 """Which candidates are worth fetching. A transparent score from the title and abstract (so a person
 can see why a paper was proposed), plus the flags a reader wants before approving: a preprint, a
-review, a retraction, a duplicate of another candidate, no legal copy to be had."""
+review, a retraction, a duplicate of another candidate, no open copy known."""
 
 import logging
 import re
@@ -10,6 +10,7 @@ from typing import Dict, List, Tuple
 
 from web.elsevier import Elsevier
 from web.ids import normalize_title
+from web.wiley import Wiley
 from web.job import ScreenConfig
 from web.ledger import APPROVED, DOWNLOADED, EXTRACTED, NEW, NO, REJECTED, SCREENED, YES, Candidate, Ledger
 
@@ -40,12 +41,15 @@ def _hits(candidate: Candidate, words: List[Tuple[str, re.Pattern]]) -> Tuple[in
     return points, found
 
 
-def access_of(candidate: Candidate, elsevier_ok: bool) -> str:
-    """How a copy is expected to be had: from an open source, through Elsevier's API, or not at all."""
+def access_of(candidate: Candidate, elsevier_ok: bool, wiley_ok: bool = False) -> str:
+    """How a copy is expected to be had: from an open source, through its publisher's API, or — as
+    far as the search knows — not at all (a repository may still hold one: see `propose_closed`)."""
     if candidate.oa_urls or candidate.arxiv_id or candidate.oa_status in _OPEN:
         return "open"
     if elsevier_ok and Elsevier.applies(candidate):
         return "elsevier"
+    if wiley_ok and Wiley.applies(candidate):
+        return "wiley"
     return "closed"
 
 
@@ -60,7 +64,7 @@ def _flags(candidate: Candidate, access: str) -> List[str]:
     if not candidate.abstract:
         flags.append("no-abstract")
     if access == "closed":
-        flags.append("no-legal-copy")
+        flags.append("no-open-copy-known")
     return flags
 
 
@@ -86,7 +90,8 @@ def _mark_duplicates(ledger: Ledger) -> int:
     return marked
 
 
-def screen(ledger: Ledger, cfg: ScreenConfig, elsevier_ok: bool = False, approve: bool = False) -> Dict[str, int]:
+def screen(ledger: Ledger, cfg: ScreenConfig, elsevier_ok: bool = False, approve: bool = False,
+           wiley_ok: bool = False) -> Dict[str, int]:
     """Scores every candidate not yet scored and proposes a decision for it. With `approve` the
     proposals are final (no review): a yes is approved for fetching, a no is rejected."""
     topic = [(w, _pattern(w)) for w in cfg.topic_words]
@@ -98,10 +103,11 @@ def screen(ledger: Ledger, cfg: ScreenConfig, elsevier_ok: bool = False, approve
         prop_points, prop_found = _hits(candidate, prop)
         _, exclude_found = _hits(candidate, exclude)
         score = topic_points + prop_points + _EXCLUDE_POINTS * len(exclude_found)
-        access = access_of(candidate, elsevier_ok)
+        access = access_of(candidate, elsevier_ok, wiley_ok)
         flags = _flags(candidate, access)
         passes = (score >= cfg.min_score and (bool(topic_found) or not topic)
-                  and (bool(prop_found) or not prop) and not candidate.is_retracted and access != "closed")
+                  and (bool(prop_found) or not prop) and not candidate.is_retracted
+                  and (access != "closed" or cfg.propose_closed))
         why = "; ".join(part for part in (
             f"topic: {', '.join(topic_found)}" if topic_found else "",
             f"property: {', '.join(prop_found)}" if prop_found else "",

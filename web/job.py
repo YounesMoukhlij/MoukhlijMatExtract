@@ -5,7 +5,7 @@ being ignored — a misspelled `min_score` would otherwise quietly keep its defa
 
 import difflib
 import os
-from dataclasses import dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
@@ -13,12 +13,23 @@ import yaml
 from config import PROPERTY_ALIASES, SchemaConfig
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENV_PATH = os.path.join(_PROJECT_ROOT, ".env")
 DEFAULT_FOLDER = os.path.join("papers", "web")
+# What the .env file may hold, in the order the settings window shows it: (variable, what it is, secret?).
+ENV_SETTINGS = (
+    ("AUTOMATEXTRACT_EMAIL", "Contact email (sent to OpenAlex and Unpaywall, nowhere else)", False),
+    ("ELSEVIER_API_KEY", "Elsevier API key", True),
+    ("ELSEVIER_INSTTOKEN", "Elsevier institutional token (only if Elsevier gave you one)", True),
+    ("WILEY_TDM_TOKEN", "Wiley text-and-data-mining token", True),
+    ("OPENALEX_API_KEY", "OpenAlex API key (optional)", True),
+    ("SEMANTIC_SCHOLAR_API_KEY", "Semantic Scholar API key (optional)", True),
+)
 SOURCES = ("openalex", "arxiv")
-# Where a legal copy is looked for, in this order. "elsevier" only applies to Elsevier papers and
-# only when ELSEVIER_API_KEY is set; every other source needs nothing but a network connection
-# ("unpaywall" also wants a contact email).
-RESOLVERS = ("elsevier", "openalex", "unpaywall", "arxiv")
+# Where a legal copy is looked for, in this order (web/resolve.py says what each one is). "elsevier"
+# and "wiley" only apply to those publishers' papers and only with ELSEVIER_API_KEY / WILEY_TDM_TOKEN;
+# "unpaywall" wants a contact email; every other source needs nothing but a network connection.
+RESOLVERS = ("elsevier", "wiley", "aps", "openalex", "unpaywall", "arxiv", "pmc", "osti", "hal",
+             "semanticscholar", "openaire")
 
 
 @dataclass
@@ -40,6 +51,9 @@ class ScreenConfig:
     exclude_words: List[str] = field(default_factory=list)   # each one found costs points
     min_score: float = 2.0
     review: bool = True  # stop after screening so the list can be checked before anything is fetched
+    # Also propose a paper no open copy is known for yet: the fetch stage then asks the repositories
+    # for one, and lists the paper as closed (to get by hand) when none has it.
+    propose_closed: bool = False
 
 
 @dataclass
@@ -71,10 +85,11 @@ class Job:
         return self.contact_email or os.environ.get("AUTOMATEXTRACT_EMAIL", "")
 
 
-def load_env(path: str = os.path.join(_PROJECT_ROOT, ".env")) -> int:
+def load_env(path: str = ENV_PATH) -> int:
     """Puts the KEY=VALUE lines of a .env file into the environment; what is already set wins and an
     empty value is ignored. It is where the secrets live (ELSEVIER_API_KEY, ELSEVIER_INSTTOKEN,
-    OPENALEX_API_KEY) and the contact address (AUTOMATEXTRACT_EMAIL); the file is git-ignored.
+    WILEY_TDM_TOKEN, OPENALEX_API_KEY, SEMANTIC_SCHOLAR_API_KEY) and the contact address
+    (AUTOMATEXTRACT_EMAIL); the file is git-ignored.
     Returns how many variables it set."""
     if not os.path.exists(path):
         return 0
@@ -90,6 +105,60 @@ def load_env(path: str = os.path.join(_PROJECT_ROOT, ".env")) -> int:
                 os.environ[name] = value
                 count += 1
     return count
+
+
+def read_env(path: str = ENV_PATH) -> Dict[str, str]:
+    """The KEY=VALUE lines of a .env file as they stand, whatever the environment holds."""
+    values: Dict[str, str] = {}
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                name, found, value = line.strip().partition("=")
+                if found and name.strip() and not name.lstrip().startswith("#"):
+                    values[name.strip()] = value.strip().strip("\"'")
+    return values
+
+
+def save_env(values: Dict[str, str], path: str = ENV_PATH) -> None:
+    """Writes settings into a .env file and into the environment of this run: a line that names the
+    variable is replaced, a new variable is added at the end, every other line (and comment) is
+    kept; an empty value unsets the variable. The file is created readable by its owner only."""
+    for name, value in values.items():
+        if "\n" in value or "\r" in value or "=" in name or not name.strip():
+            raise ValueError(f"{name}: a setting is one line of text")
+    lines = ["# Keys and contact address of AutoMatExtract. This file is git-ignored: keep it to yourself."]
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    left = {name: value.strip() for name, value in values.items()}
+    for index, line in enumerate(lines):
+        name = line.partition("=")[0].strip()
+        if "=" in line and name in left:
+            lines[index] = f"{name}={left.pop(name)}"
+    lines += [f"{name}={value}" for name, value in left.items()]
+    part = path + ".part"
+    with open(os.open(part, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    os.replace(part, path)
+    for name, value in values.items():
+        if value.strip():
+            os.environ[name] = value.strip()
+        else:
+            os.environ.pop(name, None)
+
+
+def dump_job(job: Job) -> str:
+    """The job as the text of a job file: what `load_job` reads back as the same job. (A job file
+    written by hand may carry comments; they are not part of the job and are not kept.)"""
+    data: Dict[str, Any] = {"name": job.name, "contact_email": job.contact_email}
+    for section in ("search", "screen", "fetch", "extract"):
+        data[section] = asdict(getattr(job, section))
+    if job.search.years:
+        data["search"]["years"] = list(job.search.years)
+    else:
+        del data["search"]["years"]
+    return ("# Job file of AutoMatExtract's web project (see the README for every setting).\n"
+            + yaml.safe_dump(data, sort_keys=False, allow_unicode=True, default_flow_style=None, width=110))
 
 
 def _build(cls, data: Any, where: str):

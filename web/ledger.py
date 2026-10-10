@@ -19,6 +19,15 @@ NEW, SCREENED, APPROVED, REJECTED, DOWNLOADED, CLOSED, FAILED, EXTRACTED = (
     "new", "screened", "approved", "rejected", "downloaded", "closed", "failed", "extracted")
 
 YES, NO = "yes", "no"
+# What a person may write in the `decision` column of the review list.
+_YES_WORDS = {"yes", "y", "1", "true", "ok", "x", "approve", "approved"}
+_NO_WORDS = {"no", "n", "0", "false", "reject", "rejected"}
+
+
+def read_answer(text: str) -> Optional[str]:
+    """A decision cell as yes, no or "" (still waiting); None when it cannot be read."""
+    answer = (text or "").strip().lower()
+    return YES if answer in _YES_WORDS else NO if answer in _NO_WORDS else "" if not answer else None
 
 
 @dataclass
@@ -225,7 +234,8 @@ class Ledger:
     def _read_review(path: str) -> List[Dict[str, str]]:
         # A spreadsheet in a French or Moroccan locale saves "CSV" with ';' between the columns, and
         # older Excel versions in Windows-1252 rather than UTF-8: accept what they produce.
-        raw = open(path, "rb").read()
+        with open(path, "rb") as f:
+            raw = f.read()
         try:
             text = raw.decode("utf-8-sig")
         except UnicodeDecodeError:
@@ -245,11 +255,11 @@ class Ledger:
             candidate = self.get(key) if key else None
             if candidate is None or candidate.status not in (SCREENED, APPROVED, REJECTED):
                 continue
-            answer = (row.get("decision") or "").strip().lower()
-            if answer in ("yes", "y", "1", "true", "ok", "x", "approve", "approved"):
+            answer = read_answer(row.get("decision") or "")
+            if answer == YES:
                 self.update(key, decision=YES, status=APPROVED)
                 outcome["approved"] += 1
-            elif answer in ("no", "n", "0", "false", "reject", "rejected"):
+            elif answer == NO:
                 self.update(key, decision=NO, status=REJECTED)
                 outcome["rejected"] += 1
             elif answer == "":
@@ -257,3 +267,20 @@ class Ledger:
             else:
                 outcome["unreadable"] += 1
         return outcome
+
+    def take_decisions(self, path: str) -> int:
+        """Copies the decisions written in the review list into the ledger without making them
+        final — no paper is approved or rejected by it. It is what lets the window show a list
+        that was edited in a spreadsheet. Returns how many decisions changed."""
+        changed = 0
+        if not os.path.exists(path):
+            return changed
+        for row in self._read_review(path):
+            key = (row.get("key") or "").strip()
+            candidate = self.get(key) if key else None
+            answer = read_answer(row.get("decision") or "")
+            if candidate is not None and candidate.status in (SCREENED, APPROVED, REJECTED) \
+                    and answer in (YES, NO) and answer != candidate.decision:
+                self.update(key, decision=answer)
+                changed += 1
+        return changed

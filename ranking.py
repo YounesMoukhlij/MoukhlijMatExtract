@@ -7,6 +7,9 @@ from config import SchemaConfig
 from models import ExtractedField, Material, Relation
 
 TOP_K = 5  # return multiple ranked candidates per property, not just one (schema section 15)
+# ... and every value of a material: a paper that gives eight activation energies of Li3YCl6 gives
+# eight. (Still bounded, so that a table read wrongly cannot flood the database.)
+PER_MATERIAL = 25
 
 
 def _safe_int(value: str, default: int = 0) -> int:
@@ -86,10 +89,11 @@ class Ranker:
             key = (c.normalized_value, *group)
             if key in seen:
                 continue
-            # Top-K is applied per material and per transport type ("NONE" when a value has
+            # The limit is applied per material and per transport type ("NONE" when a value has
             # neither), so one material's values — or a paper's bulk / grain-boundary / surface /
-            # total values — don't crowd the others out.
-            if kept_per_group.get(group, 0) >= TOP_K:
+            # total values — don't crowd the others out. A material's own values are data rather
+            # than candidates, so their limit is only a guard against a mis-read table.
+            if kept_per_group.get(group, 0) >= (PER_MATERIAL if c.material_id != "NONE" else TOP_K):
                 continue
             seen.add(key)
             unique.append(c)

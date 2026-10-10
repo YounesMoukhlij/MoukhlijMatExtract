@@ -27,6 +27,7 @@ from web.resolve import Resolver
 from web.sidecar import read_provenance
 from web.sources.arxiv import ArXiv
 from web.sources.openalex import OpenAlex
+from web.wiley import Wiley
 
 STAGES = ("discover", "fetch", "extract")
 MAX_ATTEMPTS = 3  # a paper that fails this many times is given up on (status "closed"); a later run can retry it by hand
@@ -42,6 +43,7 @@ class Harvest:
         self.ledger = ledger or Ledger(os.path.join(self.folder, "ledger.sqlite"))
         self.review_path = os.path.join(self.folder, "candidates.csv")
         self.elsevier = Elsevier.from_env() if "elsevier" in job.fetch.sources else None
+        self.wiley = Wiley.from_env() if "wiley" in job.fetch.sources else None
 
     # ------------------------------------------------------------------
     # 1. Discover
@@ -101,7 +103,7 @@ class Harvest:
         """Scores what is new, proposes a decision for each paper and writes the review list.
         Returns how many papers wait for a decision."""
         screening.screen(self.ledger, self.job.screen, elsevier_ok=self.elsevier is not None,
-                         approve=approve or not self.job.screen.review)
+                         approve=approve or not self.job.screen.review, wiley_ok=self.wiley is not None)
         return self.ledger.write_review(self.review_path)
 
     # ------------------------------------------------------------------
@@ -119,9 +121,11 @@ class Harvest:
             self.ledger.update(candidate.key, status=CLOSED if gave_up else FAILED, error=outcome.error,
                                attempts=attempts)
 
-    def fetch(self, limit: Optional[int] = None, stop_event: Optional[threading.Event] = None) -> Dict[str, int]:
+    def fetch(self, limit: Optional[int] = None, stop_event: Optional[threading.Event] = None,
+              progress_callback: Optional[Callable[[Candidate, Outcome, int, int], None]] = None) -> Dict[str, int]:
         """Takes the review list's decisions, then fetches every approved paper (and retries the ones
-        that failed before). Returns how the fetched papers ended."""
+        that failed before). Returns how the fetched papers ended. `progress_callback` (optional) is
+        called after each paper as `callback(candidate, outcome, done, total)`."""
         decided = self.ledger.apply_decisions(self.review_path)
         logging.info(f"Review list: {decided['approved']} approved, {decided['rejected']} rejected, "
                      f"{decided['waiting']} still waiting for a decision.")
@@ -133,7 +137,7 @@ class Harvest:
             logging.info("Nothing to fetch.")
             return results
         logging.info(f"Fetching {len(todo)} paper(s) into {self.folder} ...")
-        resolver = Resolver(self.client, self.job.fetch.sources, self.job.email(), self.elsevier)
+        resolver = Resolver(self.client, self.job.fetch.sources, self.job.email(), self.elsevier, self.wiley)
         downloader = Downloader(self.folder, self.client, resolver, self.job.fetch.max_pdf_mb)
         with ThreadPoolExecutor(max_workers=self.job.fetch.workers) as pool:
             futures = {pool.submit(downloader.fetch, c): c for c in todo}
@@ -147,6 +151,11 @@ class Harvest:
                 results[outcome.status] = results.get(outcome.status, 0) + 1
                 detail = f"via {outcome.service}" if outcome.status == DOWNLOADED else outcome.error[:120]
                 logging.info(f"[{done}/{len(todo)}] {outcome.status}: {candidate.key} {detail}")
+                if progress_callback is not None:
+                    try:
+                        progress_callback(candidate, outcome, done, len(todo))
+                    except Exception as error:  # what shows the progress must not stop the run
+                        logging.warning(f"progress_callback raised for {candidate.key}: {error}")
                 if stop_event is not None and stop_event.is_set():
                     for pending in futures:
                         pending.cancel()

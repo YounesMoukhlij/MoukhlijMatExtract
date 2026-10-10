@@ -4,15 +4,18 @@
 Usage:
 	author - Younes Moukhlij
 	python main.py                                   (same as: python main.py local)
-	python main.py local --input papers --output output --workers 4
+	python main.py local --input papers --output local_output --workers 4
 	python main.py local --input /path/to/pdfs --output /path/to/database -v
-	python main.py --gui
+	python main.py gui                               (the window: local articles | web articles, side by side)
 	python main.py web --job configs/sse.yaml        (search the web, stop for your review)
 	python main.py web --job configs/sse.yaml --stage fetch
 	python main.py web --job configs/sse.yaml --check
-	python main.py both --job configs/sse.yaml       (the web project, then your own PDFs, into one database)
+	python main.py both --job configs/sse.yaml       (the web project, then your own PDFs)
 	python main.py both --job configs/sse.yaml --stage extract --rebuild
 	                                                 (extract everything again; fetches nothing, deletes nothing)
+
+The results of the two projects are kept apart: local_output/ for the articles of this computer,
+web_output/ for the articles fetched from the web.
 """
 
 import argparse
@@ -30,8 +33,8 @@ _CREDIT_TEXT = ("AutoMatExtract — Created by Younes Moukhlij "
 				"(Software Engineering student at 1337 Coding School, "
 				"PhD researcher at FPK, USMS)")
 
-# Shown alongside _CREDIT_TEXT at startup, in both the CLI banner and the GUI's header —
-# kept here (rather than duplicated in gui.py) so the two never drift apart.
+# Shown alongside _CREDIT_TEXT in the banner of the terminal gate. (The window, gui/, shows the
+# credit from here too, so the two never drift apart.)
 _PROJECT_DESCRIPTION = (
 	"Turns a folder of battery/materials-science PDFs into a structured, queryable database: "
 	"parses text, tables, figures and equations (with OCR fallback for scanned pages), extracts "
@@ -65,12 +68,25 @@ def _print_banner() -> None:
 	print("╰" + "─" * width + "╯")
 
 
-_COMMANDS = ("local", "web", "both")
+_COMMANDS = ("local", "web", "both", "gui")
+# Where each project writes its database unless told otherwise.
+LOCAL_OUTPUT, WEB_OUTPUT = "local_output", "web_output"
 
 
-def _add_common(parser: argparse.ArgumentParser) -> None:
-	parser.add_argument("--output", "-o", default="output",
-						help="Directory to write the extracted database into (default: output)")
+def _add_outputs(parser: argparse.ArgumentParser) -> None:
+	"""The two database folders, for the commands that run both projects."""
+	parser.add_argument("--local-output", default=LOCAL_OUTPUT,
+						help=f"Directory for the database of the local articles (default: {LOCAL_OUTPUT})")
+	parser.add_argument("--web-output", default=WEB_OUTPUT,
+						help=f"Directory for the database of the web articles (default: {WEB_OUTPUT})")
+
+
+def _add_common(parser: argparse.ArgumentParser, output: Optional[str]) -> None:
+	if output:
+		parser.add_argument("--output", "-o", default=output,
+							help=f"Directory to write the extracted database into (default: {output})")
+	else:
+		_add_outputs(parser)
 	parser.add_argument("--workers", "-w", type=int, default=4,
 						help="Number of PDFs to process in parallel (default: 4)")
 	parser.add_argument("--verbose", "-v", action="store_true",
@@ -107,26 +123,33 @@ def _add_web(parser: argparse.ArgumentParser) -> None:
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 	parser = argparse.ArgumentParser(
-		description="AutoMatExtract has two projects behind one gate. local: extract structured "
-					"battery-materials data from the PDFs in a folder. web: find papers online, fetch the "
-					"legal copies into papers/web/ and extract from them. both: run the two into one "
-					"database. Without a command, local runs.",
+		description="AutoMatExtract has two projects and two gates to them: this terminal and a window "
+					"(gui). local: extract structured battery-materials data from the PDFs in a folder. web: "
+					"find papers online, fetch the legal copies into papers/web/ and extract from them. both: "
+					"run the two into one database. gui: do either from a window. Without a command, local runs.",
 		epilog=_CREDIT_TEXT,
 	)
-	commands = parser.add_subparsers(dest="command", metavar="{local,web,both}")
+	commands = parser.add_subparsers(dest="command", metavar="{local,web,both,gui}")
 
-	local = commands.add_parser("local", help="Project 1: extract from the PDFs in a folder (the default)")
+	local = commands.add_parser("local", help=f"Project 1: extract from the PDFs in a folder into {LOCAL_OUTPUT}/ (the default)")
 	_add_local(local, gui=True)
-	_add_common(local)
+	_add_common(local, LOCAL_OUTPUT)
 
-	web = commands.add_parser("web", help="Project 2: search the web, fetch the papers, extract from them")
+	web = commands.add_parser("web", help=f"Project 2: search the web, fetch the papers, extract from them into {WEB_OUTPUT}/")
 	_add_web(web)
-	_add_common(web)
+	_add_common(web, WEB_OUTPUT)
 
-	both = commands.add_parser("both", help="Project 2 (up to your review), then Project 1, into one database")
+	both = commands.add_parser("both", help="Project 2 (up to your review), then Project 1, each into its own folder")
 	_add_local(both, gui=False)
 	_add_web(both)
-	_add_common(both)
+	_add_common(both, None)
+
+	window = commands.add_parser("gui", help="The window: local articles and web articles side by side")
+	window.add_argument("--input", "-i", default="papers", help="Folder of PDFs shown on the local side (default: papers)")
+	_add_outputs(window)
+	window.add_argument("--job", help="Job file shown on the web side (default: configs/sse.yaml if it exists)")
+	window.add_argument("--workers", "-w", type=int, default=4, help="Number of PDFs to read in parallel (default: 4)")
+	window.add_argument("--verbose", "-v", action="store_true", help="Enable debug-level logging")
 	return parser.parse_args(argv)
 
 
@@ -136,11 +159,11 @@ def run_extraction(input_dir: str, output_dir: str, max_workers: int = 4,
 					provenance: Optional[Callable[[str], Dict[str, str]]] = None,
 					properties: Optional[Iterable[str]] = None, require_material: bool = False,
 					origin: str = "local") -> int:
-	"""Shared pipeline entry point used by both the CLI (`main()`) and the GUI (`gui.py`), so
-	the two never drift into two different ways of running the same extraction.
+	"""Shared pipeline entry point used by both gates — the terminal (`main()`) and the window
+	(`gui/local_panel.py`) — so the two never drift into two different ways of running the same extraction.
 
 	`stop_event`/`progress_callback` are optional and unused by the plain CLI path — they exist
-	so the GUI can request an early stop and get live per-paper feedback. `provenance`,
+	so the window can request an early stop and get live per-paper feedback. `provenance`,
 	`properties`, `require_material` and `origin` are described in NaLiXPipeline.
 	"""
 	if not os.path.isdir(input_dir):
@@ -168,7 +191,7 @@ def _is_outdated(output_dir: str) -> bool:
 	return True
 
 
-def run_web(args: argparse.Namespace) -> int:
+def run_web(args: argparse.Namespace, output_dir: str) -> int:
 	"""Project 2: see web/harvest.py. Imported here so that running Project 1 never loads it."""
 	from web.doctor import check
 	from web.harvest import Harvest
@@ -185,9 +208,9 @@ def run_web(args: argparse.Namespace) -> int:
 		logging.error(f"{args.job}: {error}")
 		return 2
 	if args.check:
-		return check(job, PoliteClient(job.email()), args.probe_doi or "", os.path.join(args.output, "papers.csv"))
-	return Harvest(job, args.output).run(start=args.stage, approve=args.yes, limit=args.limit,
-										 workers=args.workers, job_path=args.job)
+		return check(job, PoliteClient(job.email()), args.probe_doi or "", os.path.join(output_dir, "papers.csv"))
+	return Harvest(job, output_dir).run(start=args.stage, approve=args.yes, limit=args.limit,
+										workers=args.workers, job_path=args.job)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -205,32 +228,40 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 	_print_banner()
 
+	# Each project has a database folder of its own; a command that runs one names it with --output.
+	local_output = getattr(args, "local_output", None) or (args.output if args.command == "local" else LOCAL_OUTPUT)
+	web_output = getattr(args, "web_output", None) or (args.output if args.command == "web" else WEB_OUTPUT)
+
+	# The second gate: the window runs the same projects (and asks about an older database itself).
+	if args.command == "gui" or getattr(args, "gui", False):
+		from gui import main as gui_main
+		gui_main(local_output=local_output, web_output=web_output, input_dir=args.input,
+				 job_path=getattr(args, "job", None), workers=args.workers)
+		return 0
+
+	written = {"local": [local_output], "web": [web_output], "both": [web_output, local_output]}[args.command]
 	if args.rebuild:
-		kept = StrictExporter.archive(args.output)
-		if kept:
-			print(f"--> Rebuilding the database; the previous one was moved to {kept}")
-	elif not getattr(args, "check", False) and not getattr(args, "gui", False) and _is_outdated(args.output):
+		for folder in written:
+			kept = StrictExporter.archive(folder)
+			if kept:
+				print(f"--> Rebuilding the database of {folder}; the previous one was moved to {kept}")
+	elif not getattr(args, "check", False) and any([_is_outdated(folder) for folder in written]):
 		return 1
 
 	if args.command == "web":
-		return run_web(args)
+		return run_web(args, web_output)
 
 	if args.command == "both":
-		code = run_web(args)
+		code = run_web(args, web_output)
 		if code:
 			return code
-		print(f"--> Processing papers from {args.input} to {args.output}")
-		return run_extraction(args.input, args.output, max_workers=args.workers)
+		print(f"--> Processing papers from {args.input} to {local_output}")
+		return run_extraction(args.input, local_output, max_workers=args.workers)
 
-	if args.gui:
-		from gui import main as gui_main
-		gui_main()
-		return 0
-
-	print(f"--> Processing papers from {args.input} to {args.output}")
+	print(f"--> Processing papers from {args.input} to {local_output}")
 	print(f"Using {args.workers} parallel workers")
 
-	return run_extraction(args.input, args.output, max_workers=args.workers)
+	return run_extraction(args.input, local_output, max_workers=args.workers)
 
 
 if __name__ == "__main__":

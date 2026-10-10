@@ -21,6 +21,10 @@ VERSION = "0.1"
 _MIN_INTERVAL = {
     "api.openalex.org": 0.2, "export.arxiv.org": 3.0, "api.unpaywall.org": 0.25,
     "api.elsevier.com": 0.5, "api.crossref.org": 0.25,
+    # Wiley allows 60 requests in 10 minutes; Semantic Scholar one a second, shared by everyone without a key.
+    "api.wiley.com": 10.0, "api.semanticscholar.org": 1.1,
+    "www.ebi.ac.uk": 0.3, "pmc-oa-opendata.s3.amazonaws.com": 0.2, "api.archives-ouvertes.fr": 0.3,
+    "api.openaire.eu": 0.6,
 }
 _DEFAULT_INTERVAL = 1.0
 _RETRY_STATUS = {429, 500, 502, 503, 504}

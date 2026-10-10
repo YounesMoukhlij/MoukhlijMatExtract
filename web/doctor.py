@@ -11,9 +11,22 @@ import requests
 from web.elsevier import Elsevier
 from web.http import PoliteClient
 from web.job import Job
+from web.resolve import APS, HAL, OPENAIRE, OSTI, PMC_CLOUD, SEMANTIC_SCHOLAR
 from web.sources.openalex import BASE as OPENALEX
+from web.wiley import Wiley
 
 _UNPAYWALL_TEST_DOI = "10.1038/nature12373"  # an open-access paper Unpaywall certainly knows
+_TEST_DOI = "10.1038/s41467-021-21488-7"     # an open-access paper every repository service can be asked about
+_WILEY_TEST_DOI = "10.1002/advs.202000196"   # an open-access Wiley article: any valid token fetches it
+# One small request per source of `fetch.sources` that needs no key: can it be reached from here?
+_PROBES = {
+    "pmc": ("PubMed Central (open-access set)", f"{PMC_CLOUD}/", {"list-type": "2", "prefix": "PMC7902639.", "max-keys": "1"}),
+    "osti": ("OSTI (US Department of Energy)", OSTI, {"doi": _TEST_DOI}),
+    "hal": ("HAL (France)", HAL, {"q": f'doiId_s:"{_TEST_DOI}"', "rows": 1, "wt": "json"}),
+    "semanticscholar": ("Semantic Scholar", f"{SEMANTIC_SCHOLAR}/DOI:{_TEST_DOI}", {"fields": "externalIds"}),
+    "openaire": ("OpenAIRE", OPENAIRE, {"pid": _TEST_DOI}),
+    "aps": ("APS (open-access articles)", f"{APS}/10.1103/PhysRevResearch.6.043210", None),
+}
 
 
 def _probe_doi(papers_csv: str) -> str:
@@ -25,8 +38,9 @@ def _probe_doi(papers_csv: str) -> str:
     return next((d for d in dois if d.lower().startswith("10.1016/")), "")
 
 
-def check(job: Job, client: PoliteClient, probe_doi: str = "", papers_csv: str = os.path.join("output", "papers.csv"),
-          elsevier: Optional[Elsevier] = None) -> int:
+def report(job: Job, client: PoliteClient, probe_doi: str = "", papers_csv: str = os.path.join("output", "papers.csv"),
+           elsevier: Optional[Elsevier] = None, wiley: Optional[Wiley] = None) -> List[Tuple[bool, str]]:
+    """What was tried and what came back, one (worked?, sentence) per line."""
     lines: List[Tuple[bool, str]] = []
 
     email = job.email()
@@ -64,6 +78,30 @@ def check(job: Job, client: PoliteClient, probe_doi: str = "", papers_csv: str =
             lines.append((True, f"Elsevier: key found (+ institutional token)" if elsevier.insttoken else "Elsevier: key found"))
             lines.extend((ok, f"Elsevier, {text}") for ok, text in elsevier.check(client, doi))
 
+    if "wiley" in job.fetch.sources:
+        wiley = wiley or Wiley.from_env()
+        if wiley is None:
+            lines.append((False, "Wiley: WILEY_TDM_TOKEN is not set, so Wiley papers can only come from other copies. "
+                                 "A token is free: sign in at https://onlinelibrary.wiley.com/library-info/resources/"
+                                 "text-and-datamining, then put WILEY_TDM_TOKEN=... in the .env file"))
+        else:
+            ok, text = wiley.check(client, _WILEY_TEST_DOI)
+            lines.append((ok, f"Wiley: {text}"))
+
+    for name in job.fetch.sources:
+        if name not in _PROBES:
+            continue
+        label, url, params = _PROBES[name]
+        try:
+            # A check says what it finds now: a service in trouble is reported, not waited for.
+            response = client.get(url, params=params, stream=True, no_retry={429, 500, 502, 503, 504},
+                                  headers={"Accept": "application/pdf"} if name == "aps" else None)
+            status = response.status_code
+            response.close()
+            lines.append((status == 200, f"{label}: {'reachable' if status == 200 else f'HTTP {status}'}"))
+        except requests.RequestException as error:
+            lines.append((False, f"{label}: no answer ({type(error).__name__})"))
+
     folder = job.fetch.folder
     try:
         os.makedirs(folder, exist_ok=True)
@@ -74,6 +112,13 @@ def check(job: Job, client: PoliteClient, probe_doi: str = "", papers_csv: str =
     except OSError as error:
         lines.append((False, f"download folder {folder}: {error}"))
 
+    return lines
+
+
+def check(job: Job, client: PoliteClient, probe_doi: str = "", papers_csv: str = os.path.join("output", "papers.csv"),
+          elsevier: Optional[Elsevier] = None, wiley: Optional[Wiley] = None) -> int:
+    """Prints the report; the exit code says whether the essentials (the search, the folder) are there."""
+    lines = report(job, client, probe_doi, papers_csv, elsevier, wiley)
     for ok, text in lines:
         print(f"  [{'ok' if ok else '!!'}] {text}")
     essential = [ok for ok, text in lines if text.startswith(("OpenAlex", "download folder"))]

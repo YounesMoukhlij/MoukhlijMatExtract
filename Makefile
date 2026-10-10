@@ -1,6 +1,6 @@
 
 
-all: clean
+all:
 	python3 main.py --gui
 
 clean:

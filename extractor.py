@@ -19,7 +19,7 @@ from context import (AMBIENT_PRESSURE, EXPERIMENTAL, NEARBY, ROOM_TEMPERATURE, S
                      value_context, without_type_labels)
 from models import EquationRecord, ExtractedField, FigureRecord, Material, Relation, TableRecord, WorkflowStep
 from normalizer import DataNormalizer
-from study import LOCAL_PROBE, STATIC, Study, is_quoted, names_interface, technique
+from study import DYNAMIC, LOCAL_PROBE, STATIC, Study, is_quoted, names_interface, technique
 from transport import classify_transport, classify_transport_contexts, components_in_order
 
 # SciSpaCy is preferred for scientific literature; falls back to the general English model.
@@ -159,6 +159,14 @@ _VARIANT = re.compile(
 # A paper that measures calls what it measured an activation energy; what it calls a barrier it
 # usually computed on the side (bond-valence or NEB estimates in an experimental paper).
 _BARRIER_WORD = re.compile(r'(?i)barrier|migration\s+energ')
+# ... and, where no method is named at all, the names a computed value usually goes by: a
+# migration, diffusion or energy barrier, a migration energy. (An "activation barrier" is as often
+# a measured activation energy.)
+_COMPUTED_NAME = re.compile(r'(?i)^(?!activation\b).*(?:barrier|(?:migration|hopping|jump)\s+(?:energ|enthalp))|^E_?m(?:ig)?$')
+# The temperatures molecular-dynamics studies of ion conductors are usually run at.
+_USUAL_MD_RANGE = "600-1200 K"
+# A value read off the temperature dependence of something: not a static barrier.
+_FITTED = re.compile(r'(?i)\barrhenius\b|\bfit(?:ted|ting|s)?\b|\bslope\b|temperature[\s-]dependen')
 
 
 class _Found(NamedTuple):
@@ -662,6 +670,71 @@ class ExtractorEngine:
                         f.transport_component = "total"
                         basis["component"] = "assumed (measured on a pellet: bulk and grain boundaries together)"
                 basis.setdefault("component", "not stated")
+            if prop in EA_PROPERTIES:
+                cls._leave_nothing_open(f, note, study, quoted)
+
+    @classmethod
+    def _leave_nothing_open(cls, f: ExtractedField, note: _Note, study: Study, quoted: bool) -> None:
+        """The last level, for activation energies: whatever the paper and the conventions above
+        left open is answered with the likeliest value, so that every row of the activation-energy
+        table can be filtered and compared on every column. Each such answer says "assumed" and
+        why in the value's basis — it is a default, not a statement of the paper."""
+        basis = f.basis
+        name = f.reported_as if f.reported_as != "NONE" else "activation energy"
+        computed_name = bool(_COMPUTED_NAME.search(name.split(" (")[0]))
+        own_paper = not quoted and not study.review
+
+        if f.data_origin in ("NONE", UNSPECIFIED):
+            if own_paper and study.kind == SIMULATION:
+                f.data_origin, why = SIMULATION, "a value of a computational paper, given without its method"
+            elif own_paper and study.kind == EXPERIMENTAL and not computed_name:
+                f.data_origin, why = EXPERIMENTAL, "a value of an experimental paper, given without its method"
+            elif computed_name:
+                f.data_origin, why = SIMULATION, f"called “{name}”, no method named: such a value is usually computed"
+            else:
+                f.data_origin, why = EXPERIMENTAL, f"called “{name}”, no method named: such a value is usually measured"
+            basis["origin"] = f"assumed ({why})"
+        origin = f.data_origin
+        # The method: what the value's own wording names, else the one kind this paper uses.
+        said = note.technique
+        usual = study.technique(origin) if own_paper else None
+        method = said or usual
+
+        if f.transport_component in ("NONE", UNSPECIFIED):
+            if note.rotation:
+                f.transport_component, why = "bulk", "a rotation inside the crystal, not a path through the sample"
+            elif origin == SIMULATION:
+                f.transport_component, why = "bulk", "a computed value: of the bulk unless a boundary or a surface is named"
+            elif method == LOCAL_PROBE:
+                f.transport_component, why = "bulk", "NMR and scattering probe the ion motion inside the grains"
+            else:
+                f.transport_component, why = "total", "a measured value: bulk and grain boundaries together unless one is named"
+            basis["component"] = f"assumed ({why})"
+
+        if f.pressure == "NONE":
+            f.pressure, basis["pressure"] = AMBIENT_PRESSURE, "assumed (no pressure is stated with this value)"
+
+        if f.temperature == "NONE":
+            given = study.any_temperature_range(origin, method) if own_paper else None
+            # A value called a barrier is a static one unless its own sentence speaks of dynamics or
+            # of a fit — even next to a sentence about trajectories, even in a paper that also runs
+            # molecular dynamics.
+            own_words = technique(f.source_sentence)
+            static = origin == SIMULATION and own_words != DYNAMIC and not _FITTED.search(f.source_sentence) and (
+                own_words == STATIC or computed_name or said == STATIC or (said is None and usual == STATIC))
+            if static:
+                f.temperature = "0 K"
+                basis["temperature"] = "assumed (a computed barrier: a static calculation unless the paper says otherwise)"
+            elif given:
+                f.temperature = given.label
+                basis["temperature"] = f'assumed (the range this paper gives for its own work: "{cls._quote(given.quote)}")'
+            elif origin == SIMULATION:
+                f.temperature = _USUAL_MD_RANGE
+                basis["temperature"] = "assumed (the usual range of molecular-dynamics runs: none is given for this value)"
+            else:
+                f.temperature = ROOM_TEMPERATURE
+                basis["temperature"] = ("assumed (a measured activation energy is fitted around room temperature: "
+                                        "no range is given for this value)")
 
     @staticmethod
     def _usual_temperature(fields: Sequence[ExtractedField]) -> Dict[str, Tuple[str, str]]:
@@ -732,6 +805,10 @@ class ExtractorEngine:
                 sources = [name for name, used in ((STATED, own), ("paper", elsewhere),
                                                    ("known for this composition", known)) if used]
                 value.basis["structure"] = " + ".join(sources) or "not stated"
+                if value.structure == "NONE":
+                    # Nothing names a structure. What kind of compound it is can always be said.
+                    value.structure = ChemistryEngine.compound_class(material.elements, material.normalized_formula)
+                    value.basis["structure"] = "known for this composition (the kind of compound: no crystal structure is stated)"
 
     @staticmethod
     def _link(results: Dict[str, Any], field: ExtractedField, material: Material, method: str,

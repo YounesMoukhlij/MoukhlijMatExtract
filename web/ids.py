@@ -37,6 +37,22 @@ def arxiv_id(text: str) -> str:
     return match.group(1) if match else ""
 
 
+# The American Physical Society's interface for programs only knows a DOI in the journal's own
+# spelling ("10.1103/PhysRevB.99.094106"), which the lower-case form used everywhere else loses.
+_APS_JOURNALS = ("PhysRevAccelBeams", "PhysRevApplied", "PhysRevFluids", "PhysRevMaterials", "PhysRevPhysEducRes",
+                 "PhysRevResearch", "PhysRevLett", "PhysRevSTAB", "PhysRevSTPER", "PhysRevA", "PhysRevB", "PhysRevC",
+                 "PhysRevD", "PhysRevE", "PhysRevX", "PhysRev", "PRXEnergy", "PRXQuantum", "PRXLife", "RevModPhys")
+
+
+def aps_doi(doi: str) -> str:
+    """An APS DOI as the journal spells it: "10.1103/physrevb.99.094106" -> "10.1103/PhysRevB.99.094106".
+    A DOI of the newer kind ("10.1103/lx5w-x6wl") has no journal in it and is returned as it is."""
+    prefix, _, rest = doi.partition("/")
+    journal, dot, tail = rest.partition(".")
+    spelling = next((name for name in _APS_JOURNALS if name.lower() == journal.lower()), "")
+    return f"{prefix}/{spelling}{dot}{tail}" if spelling else doi
+
+
 def normalize_title(title: str) -> str:
     """Lower case, no accents or punctuation, single spaces — what two copies of a title share."""
     folded = unicodedata.normalize("NFKD", title or "").encode("ascii", "ignore").decode("ascii")

@@ -260,6 +260,15 @@ def _is_building_block(amounts: Dict[str, float]) -> bool:
     return highest * n_a < -_ANION_CHARGE[b] * n_b
 
 
+def _nominal(amount: Amount) -> float:
+    """A number to compare amounts by: the amount itself, or — for the open subscript of a series
+    ("6+x", "1-x") — its value a quarter of the way into the series."""
+    if isinstance(amount, float):
+        return amount
+    value = _evaluate(amount, dict.fromkeys(_VARIABLES, 0.25))
+    return value if isinstance(value, float) else 1.0
+
+
 def _written(amount: Amount) -> str:
     if isinstance(amount, str):  # the open subscript of a series: "1-x"
         return amount
@@ -510,6 +519,46 @@ class ChemistryEngine:
                 if b in _CHALCOGENS and n_a == 2 * n_b:
                     return "anti-fluorite"
         return None
+
+    @staticmethod
+    def compound_class(elements: Dict[str, Amount], formula: str = "") -> str:
+        """What kind of compound a composition is, named after its anions: "thiophosphate",
+        "chloride", "oxide", "phosphate", "borohydride" ... It is what can always be said of a
+        material — also where neither the paper nor the composition gives its crystal structure —
+        and it says nothing about that structure. `formula` is read for the elements of a mixture
+        whose shares are left open."""
+        amounts = {symbol: (amount if isinstance(amount, float) else _nominal(amount)) for symbol, amount in elements.items()}
+        if not amounts:
+            amounts = {symbol: 1.0 for symbol, _ in _ATOM_REGEX.findall(formula)}
+        amounts = {symbol: amount for symbol, amount in amounts.items() if amount > 0}
+
+        def total(*symbols: str) -> float:
+            return sum(amounts.get(symbol, 0.0) for symbol in symbols)
+
+        oxygen, chalcogen, halogen, nitrogen = total("O"), total("S", "Se", "Te"), total(*_HALOGENS), total("N")
+        if "B" in amounts and "H" in amounts and not oxygen:
+            return "borohydride" if total("H") >= 3 * total("B") else "closo-borate"
+        leading = max(oxygen, chalcogen, halogen, nitrogen)
+        if leading == 0:
+            return "hydride" if "H" in amounts else ("alloy" if len(amounts) > 1 else "element")
+        if leading == chalcogen and chalcogen > oxygen:
+            kind = max(("S", "Se", "Te"), key=lambda symbol: amounts.get(symbol, 0.0))
+            if "P" in amounts:
+                return {"S": "thiophosphate", "Se": "selenophosphate", "Te": "tellurophosphate"}[kind]
+            return {"S": "sulfide", "Se": "selenide", "Te": "telluride"}[kind]
+        if leading == halogen and halogen > oxygen:
+            if oxygen:
+                return "oxyhalide"
+            kinds = [symbol for symbol in ("F", "Cl", "Br", "I") if symbol in amounts]
+            return {"F": "fluoride", "Cl": "chloride", "Br": "bromide", "I": "iodide"}[kinds[0]] if len(kinds) == 1 \
+                else "mixed halide"
+        if leading == nitrogen and nitrogen > oxygen:
+            return "nitride"
+        # An oxide, named after the centre of its polyanion when it has one.
+        for centre, name in (("P", "phosphate"), ("Si", "silicate"), ("B", "borate"), ("S", "sulfate"), ("C", "carbonate")):
+            if centre in amounts:
+                return "oxynitride" if centre == "P" and nitrogen else name
+        return "oxyhalide" if halogen else "oxynitride" if nitrogen else "oxide"
 
     @staticmethod
     def names_a_variant(text: str, abbreviations: Optional["Abbreviations"] = None) -> bool:

@@ -11,6 +11,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+import warnings
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -396,8 +397,43 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(sorted(value.basis), ["component", "origin", "pressure", "structure", "temperature"])
         self.assertEqual(value.structure, "argyrodite")
         self.assertEqual(value.basis["structure"], "known for this composition")
-        self.assertEqual((value.data_origin, value.basis["origin"]), ("unspecified", "not stated"))
         self.assertEqual((value.pressure, value.basis["pressure"]), ("ambient pressure", "assumed (no pressure is stated)"))
+
+    def test_an_activation_energy_is_left_no_open_answer(self):
+        # A bare sentence says nothing of the method, the sample or the temperature: each answer is
+        # the likeliest one, and says that it is assumed.
+        value = self.one("Li6PS5Cl has an activation energy of 0.30 eV.")
+        self.assertEqual((value.data_origin, value.transport_component, value.temperature, value.pressure),
+                         ("experimental", "total", "room temperature", "ambient pressure"))
+        for answer in ("origin", "component", "temperature", "pressure"):
+            self.assertTrue(value.basis[answer].startswith("assumed ("), value.basis[answer])
+        self.assertNotIn("not stated", " | ".join(value.basis.values()))
+        # What it is called tells a computed barrier from a measured activation energy ...
+        barrier = self.one("Li6PS5Cl has a migration barrier of 0.30 eV.")
+        self.assertEqual((barrier.data_origin, barrier.transport_component, barrier.temperature), ("simulation", "bulk", "0 K"))
+        self.assertIn("“migration barrier”", barrier.basis["origin"])
+        # ... and a material no structure is known for is at least named by the kind of compound it is.
+        unknown = self.one("Li7P3S11 has an activation energy of 0.18 eV.")
+        self.assertEqual(unknown.structure, "thiophosphate")
+        self.assertIn("kind of compound", unknown.basis["structure"])
+        # A conductivity is not completed this way: only what can be established is said of it.
+        conductivity = self.one("Li6PS5Cl has an ionic conductivity of 3 mS/cm.", prop="Ionic_Conductivity")
+        self.assertEqual((conductivity.data_origin, conductivity.basis["origin"]), ("unspecified", "not stated"))
+
+    def test_a_barrier_is_a_static_value_unless_its_own_sentence_speaks_of_dynamics(self):
+        computational = COMPUTATIONAL.replace(" at 600, 800 and 1000 K", "")  # a paper that gives no range for its runs
+        barrier = self.one(computational, "The energy barriers are calculated with the adiabatic trajectory method. "
+                                          "The energy barrier along the c axis is 0.6 eV for Li6PS5Cl.")
+        self.assertEqual(barrier.temperature, "0 K")
+        fitted = self.one(computational, "The energy barrier from the Arrhenius fit of the AIMD diffusivities is 0.6 eV for Li6PS5Cl.")
+        self.assertEqual(fitted.temperature, "600-1200 K")
+        self.assertTrue(fitted.basis["temperature"].startswith("assumed (the usual range of molecular-dynamics"))
+
+    def test_what_the_paper_says_is_not_replaced_by_an_assumption(self):
+        value = self.one(COMPUTATIONAL, "For Li6PS5Cl an activation energy of 0.30 eV is obtained.")
+        self.assertEqual((value.data_origin, value.temperature), ("simulation", "600-1000 K"))
+        self.assertTrue(value.basis["origin"].startswith("paper ("))
+        self.assertTrue(value.basis["temperature"].startswith("paper ("))
 
     def test_what_the_sentence_states_comes_first(self):
         value = self.one(COMPUTATIONAL, "The impedance of cubic Li6PS5Cl pellets gives an activation energy of 0.30 eV between 300 and 400 K.")
@@ -418,7 +454,8 @@ class ContextTests(unittest.TestCase):
 
     def test_a_barrier_in_an_experimental_paper_is_not_called_measured(self):
         value = self.one(EXPERIMENTAL, "For Li6PS5Cl an effective migration barrier of 0.75 eV is obtained.")
-        self.assertEqual(value.data_origin, "unspecified")
+        self.assertEqual(value.data_origin, "simulation")
+        self.assertTrue(value.basis["origin"].startswith("assumed ("))  # not "paper": the paper measures
 
     def test_a_static_barrier_has_no_temperature(self):
         value = self.one(COMPUTATIONAL, "NEB calculations give a migration barrier of 0.25 eV for Li6PS5Cl.")
@@ -426,7 +463,9 @@ class ContextTests(unittest.TestCase):
 
     def test_what_the_paper_says_of_itself_is_not_said_of_a_quoted_value(self):
         value = self.one(COMPUTATIONAL, "Kamaya et al. reported an activation energy of 0.25 eV for Li10GeP2S12 [5].")
-        self.assertEqual((value.attribution, value.data_origin, value.temperature), ("cited", "unspecified", "NONE"))
+        # Neither "simulation" nor the range of this paper's own runs: what is assumed of a quoted value.
+        self.assertEqual((value.attribution, value.data_origin, value.temperature), ("cited", "experimental", "room temperature"))
+        self.assertTrue(value.basis["origin"].startswith("assumed (") and value.basis["temperature"].startswith("assumed ("))
         own = self.one(COMPUTATIONAL, "For Li6PS5Cl an activation energy of 0.30 eV is obtained.")
         self.assertEqual(own.attribution, "this work")
 
@@ -455,7 +494,7 @@ class ContextTests(unittest.TestCase):
 
     def test_the_temperature_of_another_quantity_is_not_the_activation_energys(self):
         value = self.one("Li6PS5CN exhibits an activation barrier of 471 ± 25 meV and a room-temperature ionic conductivity of 6(2)")
-        self.assertEqual(value.temperature, "NONE")
+        self.assertNotEqual(value.basis["temperature"], "stated")  # the sentence states none for the barrier
         value = self.one("Li6PS5Cl shows an activation energy of 0.30 eV at room temperature.")
         self.assertEqual((value.temperature, value.basis["temperature"]), ("room temperature", "stated"))
 
@@ -466,7 +505,8 @@ class ContextTests(unittest.TestCase):
 
     def test_a_review_quotes_everything(self):
         value = self.one(EXPERIMENTAL, "Li6PS5Cl has an activation energy of 0.30 eV.", title="Recent progress in sulfide electrolytes")
-        self.assertEqual((value.attribution, value.data_origin), ("cited", "unspecified"))
+        self.assertEqual(value.attribution, "cited")
+        self.assertTrue(value.basis["origin"].startswith("assumed ("))  # not what this paper does: it is a review
 
     def test_is_quoted(self):
         self.assertTrue(is_quoted("e.g., LLZO (σRT = 1 mS/cm, Ea = 0.3 eV)3, and others"))
@@ -543,6 +583,31 @@ class ExportTests(unittest.TestCase):
         self.assertFalse(energies.isin(["NONE", ""]).any().any(), energies.to_dict("records"))
         self.assertFalse(properties.drop(columns="temperature").isin(["NONE", ""]).any().any())
 
+    def test_every_value_says_which_part_of_the_paper_it_was_read_from_and_the_page(self):
+        blocks = [{"text": "Li6PS5Cl has an activation energy of 0.30 eV.", "page": 4, "section": "Results", "type": "Text"},
+                  {"text": "Figure 3. Arrhenius plot of Li6PS5Br, with an activation energy of 0.35 eV.", "page": 5,
+                   "section": "Results", "type": "Caption", "ref_kind": "Figure", "ref_number": "3"},
+                  {"type": "Table", "page": 6, "section": "Results", "caption": "Table 2. Activation energies.",
+                   "table_number": "2", "headers": ["Material", "Ea (eV)"], "material_column": "Material",
+                   "rows": [{"Material": "Li7La3Zr2O12", "Ea (eV)": "0.41"}], "text": "Material Ea (eV) Li7La3Zr2O12 0.41"}]
+        ranked = Ranker.process(ExtractorEngine.extract_all(blocks))
+        paper = self.paper("x")
+        paper.materials, paper.electrochemical, paper.relations = ranked["materials"], ranked["ELECTROCHEMICAL"], ranked["relations"]
+        StrictExporter(self.folder).export([paper])
+        energies = self.table("activation_energy")
+        self.assertEqual(sorted(zip(energies.material_formula, energies.extracted_from, energies.page)),
+                         [("Li6PS5Br", "Figure", "5"), ("Li6PS5Cl", "Text", "4"), ("Li7La3Zr2O12", "Table", "6")])
+        # ... right after the value itself, in every table of values.
+        self.assertEqual(list(energies.columns[:6]),
+                         ["paper_id", "material_formula", "activation_energy_eV", "reported_as", "extracted_from", "page"])
+        properties = self.table("properties")
+        at = list(properties.columns).index("unit")
+        self.assertEqual(list(properties.columns[at + 1:at + 3]), ["extracted_from", "page"])
+        self.assertFalse(energies.isin(["NONE", "", "unspecified", "n/a"]).any().any(), energies.to_dict("records"))
+        # How many of a row's answers are defaults is a column of its own.
+        self.assertTrue(energies.n_assumed.astype(int).between(0, 5).all())
+        self.assertEqual(int(energies.n_assumed[energies.material_formula == "Li6PS5Cl"].iloc[0]), 4)
+
     def test_adding_papers_keeps_what_is_already_there_as_written(self):
         first = self.paper("Li6PS5Cl has an electronic conductivity of 4 × 10−9 S/cm.")
         second = self.paper("Li3PS4 has an ionic conductivity of 3 mS/cm.")
@@ -556,6 +621,18 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(len(after), 2)
         sheet = pd.read_excel(os.path.join(self.folder, "database.xlsx"), sheet_name="properties", dtype=str, keep_default_na=False)
         self.assertEqual(list(sheet.transport_component)[0], "n/a")
+
+    def test_a_cell_too_long_for_a_workbook_is_cut_there_and_kept_in_the_csv(self):
+        StrictExporter(self.folder).export([self.paper("Li6PS5Cl has an ionic conductivity of 3 mS/cm.")], excel=False)
+        long_caption = "Table 1. " + "conductivities of the samples " * 1500  # 45 000 characters
+        pd.DataFrame([{"paper_id": "paper.pdf", "caption": long_caption}]).to_csv(
+            os.path.join(self.folder, "tables.csv"), index=False, encoding="utf-8-sig")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # openpyxl would warn that it truncates the cell
+            StrictExporter(self.folder).export_excel()
+        sheet = pd.read_excel(os.path.join(self.folder, "database.xlsx"), sheet_name="tables", dtype=str, keep_default_na=False)
+        self.assertEqual((len(sheet.caption[0]), sheet.caption[0][-1]), (32767, "…"))
+        self.assertEqual(self.table("tables").caption[0], long_caption)
 
     def test_an_older_database_is_not_mixed_with_the_new_columns(self):
         self.assertFalse(StrictExporter.is_outdated(self.folder))

@@ -28,8 +28,6 @@ search:
   include_preprints: true
 
 screen:
-  # A paper is proposed when it scores at least min_score and mentions one topic word AND one property word.
-  # A word in the title counts 2, in the abstract 1; each exclude word costs 3.
   topic_words: [solid electrolyte, solid-state electrolyte, solid-state battery, ionic conductor, superionic,
                 argyrodite, garnet, NASICON, LLZO, sulfide electrolyte, halide electrolyte]
   property_words: [activation energy, migration barrier, energy barrier, ionic conductivity, diffusion coefficient,
@@ -40,9 +38,12 @@ screen:
 
 fetch:
   folder: papers/web
-  # Where a legal copy is looked for, in this order. elsevier needs ELSEVIER_API_KEY (and only applies to
-  # Elsevier papers); unpaywall needs a contact email.
-  sources: [elsevier, openalex, unpaywall, arxiv]
+  # Where a legal copy is looked for, in this order; a later source is only asked when the ones before it
+  # gave nothing. Publishers' own APIs: elsevier (needs ELSEVIER_API_KEY), wiley (needs WILEY_TDM_TOKEN),
+  # aps. Open links: openalex, unpaywall (needs a contact email), arxiv. Repositories, asked by DOI:
+  # pmc (PubMed Central), osti (US Dept. of Energy), hal (France), semanticscholar (the arXiv version of
+  # a journal paper), openaire (European repositories). The README says what each one is.
+  sources: [elsevier, wiley, aps, openalex, unpaywall, arxiv, pmc, osti, hal, semanticscholar, openaire]
   workers: 3
   max_pdf_mb: 60
 

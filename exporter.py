@@ -26,9 +26,10 @@ CATEGORY_FIELDS = [
 TABLE_NAMES = ["papers", "materials", "properties", "activation_energy", "unassigned_values", "methods",
                "relations", "tables", "figures", "equations", "workflow"]
 # A column every table of this version has and no earlier one had: tells an old database apart.
-_VERSION_MARK = ("properties.csv", "basis")
+_VERSION_MARK = ("properties.csv", "extracted_from")
 _BASIS_ORDER = ("structure", "temperature", "pressure", "origin", "component")
 NOT_APPLICABLE = "n/a"
+_EXCEL_CELL_LIMIT = 32767  # the characters one cell of a workbook can hold
 
 
 class StrictExporter:
@@ -116,7 +117,10 @@ class StrictExporter:
             "temperature": f.temperature, "pressure": f.pressure, "data_origin": f.data_origin,
             # Only the ion-transport properties split into bulk / grain boundary / surface / total.
             "transport_component": f.transport_component if f.transport_component != "NONE" else NOT_APPLICABLE,
-            "attribution": f.attribution, "basis": cls.basis_text(f),
+            "attribution": f.attribution,
+            # How many of the answers above (and the structure) are defaults rather than read from the paper.
+            "n_assumed": sum(1 for name in _BASIS_ORDER if f.basis.get(name, "").startswith("assumed")),
+            "basis": cls.basis_text(f),
         }
 
     @staticmethod
@@ -133,9 +137,15 @@ class StrictExporter:
         return where + (f", citing {f.cited_refs}" if f.cited_refs != "NONE" else "")
 
     @classmethod
+    def _part_columns(cls, f: ExtractedField) -> Dict[str, Any]:
+        """The part of the paper a value was read from — its running text, a table, or the caption
+        of a figure — and the page."""
+        return {"extracted_from": f.source_type, "page": f.source_page}
+
+    @classmethod
     def _source_columns(cls, f: ExtractedField) -> Dict[str, Any]:
-        return {"source_type": f.source_type, "source": cls.source_text(f), "page": f.source_page,
-                "section": f.source_section}
+        """The same, in full: also which table or figure, and the section."""
+        return {**cls._part_columns(f), "source": cls.source_text(f), "section": f.source_section}
 
     @classmethod
     def _build_rows(cls, papers: List[PaperData]) -> Dict[str, List[Dict[str, Any]]]:
@@ -169,14 +179,17 @@ class StrictExporter:
                     "structure": m.structure, "structure_basis": m.structure_basis,
                     "ionic_radii": json.dumps(m.ionic_radii, ensure_ascii=False) if m.ionic_radii else "NONE",
                     "is_known_alias": m.is_known_alias, "confidence": round(m.confidence, 3),
-                    "page": m.source_page, "section": m.source_section, "source_type": m.source_type,
+                    "extracted_from": m.source_type, "page": m.source_page, "section": m.source_section,
                 })
 
             for cat_field in CATEGORY_FIELDS:
                 for prop, cands in (getattr(paper, cat_field, {}) or {}).items():
                     for c in cands:
-                        value = {"raw_value": c.raw_value, "normalized_value": c.normalized_value, "unit": c.unit}
-                        where = {"confidence": round(c.confidence, 3), **cls._source_columns(c), "sentence": c.source_sentence}
+                        # A value, then where it was read: the part of the paper and the page come right after it.
+                        value = {"raw_value": c.raw_value, "normalized_value": c.normalized_value, "unit": c.unit,
+                                 **cls._part_columns(c)}
+                        where = {"confidence": round(c.confidence, 3), "source": cls.source_text(c),
+                                 "section": c.source_section, "sentence": c.source_sentence}
                         named = {"paper_id": pid, "category": cat_field.upper(), "property_name": prop}
                         if not c.basis:  # a setting of the study or a bare mention: it has no context
                             tables["methods"].append({**named, **value, **where})
@@ -202,11 +215,11 @@ class StrictExporter:
                 tables["activation_energy"].append({
                     "paper_id": pid, "material_formula": columns["material_formula"],
                     "activation_energy_eV": float(c.normalized_value.split(" ", 1)[0]),
-                    "reported_as": c.reported_as,
+                    "reported_as": c.reported_as, **cls._part_columns(c),
                     "composition": columns["composition"], "structure": columns["structure"],
                     "ionic_radii": columns["ionic_radii"],
                     **cls._condition_columns(c), "confidence": round(c.confidence, 3),
-                    **cls._source_columns(c), "sentence": c.source_sentence,
+                    "source": cls.source_text(c), "section": c.source_section, "sentence": c.source_sentence,
                     "raw_value": c.raw_value, "material_id": c.material_id, "material_link": c.material_link,
                 })
 
@@ -320,7 +333,14 @@ class StrictExporter:
                     table = pd.read_csv(os.path.join(self.output_dir, f"{name}.csv"), keep_default_na=False)
                 except (FileNotFoundError, pd.errors.EmptyDataError):
                     continue
-                self._strict_none(table).to_excel(writer, sheet_name=name[:31], index=False)
+                table = self._strict_none(table)
+                too_long = table.apply(lambda col: col.map(lambda v: isinstance(v, str) and len(v) > _EXCEL_CELL_LIMIT))
+                if too_long.values.any():
+                    logging.info(f"{int(too_long.values.sum())} cell(s) of the {name} sheet hold more text than a "
+                                 f"workbook cell can and are cut short there; {name}.csv has them in full.")
+                    table = table.apply(lambda col: col.map(
+                        lambda v: v[:_EXCEL_CELL_LIMIT - 1] + "…" if isinstance(v, str) and len(v) > _EXCEL_CELL_LIMIT else v))
+                table.to_excel(writer, sheet_name=name[:31], index=False)
 
     def _export_json(self, new_dataset: List[PaperData]) -> None:
         path = os.path.join(self.output_dir, "database.json")
@@ -387,8 +407,8 @@ class StrictExporter:
             }
             return {
                 "raw_value": f.raw_value, "normalized_value": f.normalized_value, "unit": f.unit,
-                "confidence": round(f.confidence, 3), "page": f.source_page, "section": f.source_section,
-                "sentence": f.source_sentence, "source_type": f.source_type,
+                "confidence": round(f.confidence, 3), **cls._part_columns(f), "section": f.source_section,
+                "sentence": f.source_sentence,
                 **{key: value for key, value in context.items() if value != "NONE"},
                 **({"basis": f.basis} if f.basis else {}),
                 **({"transport_component": f.transport_component,
@@ -426,8 +446,8 @@ class StrictExporter:
                     "pressure": r.property_value.pressure, "data_origin": r.property_value.data_origin,
                     "transport_component": r.property_value.transport_component,
                     "confidence": round(r.confidence, 3), "extraction_method": r.extraction_method,
-                    "source_type": r.property_value.source_type, "source_label": r.property_value.source_label,
-                    "sentence": r.source_sentence, "page": r.source_page,
+                    "extracted_from": r.property_value.source_type, "page": r.source_page,
+                    "source_label": r.property_value.source_label, "sentence": r.source_sentence,
                 }
                 for r in paper.relations
             ],

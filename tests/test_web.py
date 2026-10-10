@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -26,13 +27,16 @@ from web.elsevier import Elsevier
 from web.fetch import Downloader, check_pdf
 from web.harvest import Harvest
 from web.http import Disallowed, HttpError, PoliteClient
-from web.ids import arxiv_id, candidate_key, file_stem, normalize_doi
-from web.job import ExtractConfig, FetchConfig, Job, ScreenConfig, SearchConfig, load_job
+from web.doctor import check as check_setup
+from web.ids import aps_doi, arxiv_id, candidate_key, file_stem, normalize_doi
+from web.job import (ExtractConfig, FetchConfig, Job, ScreenConfig, SearchConfig, dump_job, load_job, read_env,
+                     save_env)
 from web.ledger import (APPROVED, CLOSED, DOWNLOADED, FAILED, NEW, REJECTED, SCREENED, Candidate, Ledger)
 from web.resolve import FetchOption, Resolver
 from web.sidecar import read_provenance
 from web.sources.arxiv import ArXiv, build_query, parse_feed
 from web.sources.openalex import OpenAlex, abstract_from_index, candidate_from_work
+from web.wiley import Wiley
 
 
 # ----------------------------------------------------------------------
@@ -167,6 +171,12 @@ class IdsTests(unittest.TestCase):
         self.assertEqual(candidate_key(title="A Title"), candidate_key(title="a  title"))
         self.assertEqual(candidate_key(), "")
 
+    def test_an_aps_doi_in_the_journals_own_spelling(self):
+        self.assertEqual(aps_doi("10.1103/physrevb.99.094106"), "10.1103/PhysRevB.99.094106")
+        self.assertEqual(aps_doi("10.1103/physrevresearch.6.043210"), "10.1103/PhysRevResearch.6.043210")
+        self.assertEqual(aps_doi("10.1103/prxenergy.2.013005"), "10.1103/PRXEnergy.2.013005")
+        self.assertEqual(aps_doi("10.1103/lx5w-x6wl"), "10.1103/lx5w-x6wl")  # the newer kind names no journal
+
     def test_file_stem(self):
         self.assertEqual(file_stem("10.1016/j.ssi.2020.115234"), "10.1016_j.ssi.2020.115234")
         self.assertEqual(file_stem("arxiv:2411.06804"), "arxiv_2411.06804")
@@ -189,6 +199,16 @@ class JobTests(unittest.TestCase):
         self.assertTrue(job.screen.review)
         self.assertEqual(job.fetch.folder, os.path.join("papers", "web"))
         self.assertEqual(job.extract.properties, ["Activation_Energy"])
+        # Every source is tried unless the job names its own; closed papers are not proposed unless it says so.
+        self.assertEqual(job.fetch.sources, ["elsevier", "wiley", "aps", "openalex", "unpaywall", "arxiv", "pmc", "osti",
+                                             "hal", "semanticscholar", "openaire"])
+        self.assertFalse(job.screen.propose_closed)
+
+    def test_the_sources_and_the_closed_papers_are_the_jobs_choice(self):
+        job = load_job(self.write("search: {queries: [a]}\nscreen: {propose_closed: true}\nfetch: {sources: [arxiv, osti, hal]}\n"))
+        self.assertEqual((job.fetch.sources, job.screen.propose_closed), (["arxiv", "osti", "hal"], True))
+        with self.assertRaisesRegex(ValueError, "fetch.sources"):
+            load_job(self.write("search: {queries: [a]}\nfetch: {sources: [scihub]}\n"))  # only the sources above exist
 
     def test_a_misspelled_key_is_an_error_not_ignored(self):
         with self.assertRaisesRegex(ValueError, "min_score"):
@@ -201,6 +221,33 @@ class JobTests(unittest.TestCase):
             load_job(self.write("search: {queries: [a]}\nextract: {properties: [Activation_Energi]}\n"))
         with self.assertRaisesRegex(ValueError, "search.sources"):
             load_job(self.write("search: {queries: [a], sources: [google]}\n"))
+
+    def test_a_job_written_out_is_read_back_as_the_same_job(self):
+        job = Job(name="sse", contact_email="",
+                  search=SearchConfig(queries=["solid electrolyte: ionic conductivity", "argyrodite"], years=(2014, 2026),
+                                      sources=["openalex"], max_per_query=50, include_preprints=False),
+                  screen=ScreenConfig(topic_words=["solid electrolyte"], property_words=["activation energy"],
+                                      exclude_words=["supercapacitor"], min_score=3, propose_closed=True),
+                  fetch=FetchConfig(folder="papers/web", sources=["arxiv", "osti"], workers=2, max_pdf_mb=40),
+                  extract=ExtractConfig(properties=["Activation_Energy"], require_material=True))
+        self.assertEqual(load_job(self.write(dump_job(job))), job)
+        no_years = Job(search=SearchConfig(queries=["a"]))
+        self.assertEqual(load_job(self.write(dump_job(no_years))), no_years)
+
+    def test_settings_are_saved_into_the_env_file_and_the_environment(self):
+        path = self.write("# my keys\nELSEVIER_API_KEY=old\nOTHER=kept\n").replace("job.yaml", ".env")
+        os.replace(path.replace(".env", "job.yaml"), path)
+        with mock.patch.dict(os.environ, {"AUTOMATEXTRACT_EMAIL": "was@example.org"}, clear=True):
+            save_env({"ELSEVIER_API_KEY": "new-key", "WILEY_TDM_TOKEN": " token ", "AUTOMATEXTRACT_EMAIL": ""}, path)
+            self.assertEqual((os.environ["ELSEVIER_API_KEY"], os.environ["WILEY_TDM_TOKEN"]), ("new-key", "token"))
+            self.assertNotIn("AUTOMATEXTRACT_EMAIL", os.environ)  # emptied: unset for this run too
+        text = Path(path).read_text(encoding="utf-8")
+        self.assertEqual(text.splitlines()[:3], ["# my keys", "ELSEVIER_API_KEY=new-key", "OTHER=kept"])
+        self.assertEqual(read_env(path), {"ELSEVIER_API_KEY": "new-key", "OTHER": "kept", "WILEY_TDM_TOKEN": "token",
+                                          "AUTOMATEXTRACT_EMAIL": ""})
+        self.assertEqual(os.stat(path).st_mode & 0o077, 0)  # the keys are the owner's alone
+        with self.assertRaisesRegex(ValueError, "one line"):
+            save_env({"ELSEVIER_API_KEY": "two\nlines"}, path)
 
     def test_email_comes_from_the_job_or_the_environment_and_nowhere_else(self):
         with mock.patch.dict(os.environ, {"AUTOMATEXTRACT_EMAIL": "env@example.org"}):
@@ -314,13 +361,27 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual((self.ledger.get("a").status, self.ledger.get("c").status, self.ledger.get("b").status),
                          (REJECTED, APPROVED, SCREENED))
 
+    def test_decisions_can_be_read_without_being_made_final(self):
+        for key in ("10.1/a", "10.1/b", "10.1/c"):
+            self.ledger.add(candidate(key=key, doi=key, status=SCREENED, decision="yes"))
+        self.ledger.update("10.1/c", status=DOWNLOADED)
+        path = os.path.join(self.folder, "candidates.csv")
+        self.ledger.write_review(path)
+        text = Path(path).read_text(encoding="utf-8-sig").replace("yes,", "no,")  # a person said no to all three
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        self.assertEqual(self.ledger.take_decisions(path), 2)
+        self.assertEqual([(self.ledger.get(k).decision, self.ledger.get(k).status) for k in ("10.1/a", "10.1/b", "10.1/c")],
+                         [("no", SCREENED), ("no", SCREENED), ("yes", DOWNLOADED)])  # nothing rejected yet, the fetched one untouched
+        self.assertEqual(self.ledger.take_decisions(path), 0)
+
     def test_decisions_do_not_change_a_paper_already_fetched(self):
         self.ledger.add(candidate())
         self.ledger.update("10.1000/test", status=DOWNLOADED, decision="yes")
         path = os.path.join(self.folder, "candidates.csv")
         self.ledger.write_review(path)
-        text = open(path, encoding="utf-8-sig").read().replace("yes,", "no,", 1)
-        open(path, "w", encoding="utf-8").write(text)
+        text = Path(path).read_text(encoding="utf-8-sig").replace("yes,", "no,", 1)
+        Path(path).write_text(text, encoding="utf-8")
         self.assertEqual(self.ledger.apply_decisions(path)["rejected"], 0)
         self.assertEqual(self.ledger.get("10.1000/test").status, DOWNLOADED)
 
@@ -432,7 +493,21 @@ class ScreeningTests(unittest.TestCase):
         self.assertIn("RETRACTED", retracted.flags)
         closed = self.screen_one(key="c", doi="c", title="Garnet solid electrolytes ionic conductivity", oa_status="closed", access="")
         self.assertEqual((closed.decision, closed.access), ("no", "closed"))
-        self.assertIn("no-legal-copy", closed.flags)
+        self.assertIn("no-open-copy-known", closed.flags)
+
+    def test_a_closed_paper_is_proposed_when_the_job_wants_the_repositories_asked(self):
+        self.ledger.add(candidate(title="Garnet solid electrolytes ionic conductivity", oa_status="closed", access=""))
+        screening.screen(self.ledger, ScreenConfig(**{**vars(self.cfg), "propose_closed": True}))
+        c = self.ledger.get("10.1000/test")
+        self.assertEqual((c.decision, c.access), ("yes", "closed"))
+        self.assertIn("no-open-copy-known", c.flags)  # ... and says so in the review list
+
+    def test_a_wiley_token_makes_a_closed_wiley_paper_fetchable(self):
+        self.ledger.add(candidate(doi="10.1002/aenm.1", key="10.1002/aenm.1", title="Garnet solid electrolytes ionic conductivity",
+                                  oa_status="closed", access=""))
+        screening.screen(self.ledger, self.cfg, wiley_ok=True)
+        c = self.ledger.get("10.1002/aenm.1")
+        self.assertEqual((c.access, c.decision), ("wiley", "yes"))
 
     def test_elsevier_makes_a_closed_paper_fetchable(self):
         self.ledger.add(candidate(doi="10.1016/j.ssi.1", key="10.1016/j.ssi.1", title="Garnet solid electrolytes ionic conductivity",
@@ -521,9 +596,9 @@ class DownloaderTests(unittest.TestCase):
                             [FetchOption("openalex", "https://repo.example.org/p.pdf", license="cc-by")])
         outcome = d.fetch(candidate(authors=["A. Author"], journal="SSI", year=2022))
         self.assertEqual((outcome.status, outcome.file, outcome.service), (DOWNLOADED, "10.1000_test.pdf", "openalex"))
-        self.assertTrue(open(os.path.join(self.folder, "10.1000_test.pdf"), "rb").read().startswith(b"%PDF"))
+        self.assertTrue(Path(self.folder, "10.1000_test.pdf").read_bytes().startswith(b"%PDF"))
         self.assertFalse(os.path.exists(os.path.join(self.folder, "10.1000_test.pdf.part")))
-        sidecar = json.load(open(os.path.join(self.folder, "10.1000_test.json"), encoding="utf-8"))
+        sidecar = json.loads(Path(self.folder, "10.1000_test.json").read_text(encoding="utf-8"))
         self.assertEqual((sidecar["source_service"], sidecar["license"], sidecar["doi"], sidecar["pages"]), ("openalex", "cc-by", "10.1000/test", 3))
         self.assertEqual(len(sidecar["sha256"]), 64)
 
@@ -571,6 +646,20 @@ class DownloaderTests(unittest.TestCase):
         self.assertEqual(d.fetch(candidate(key="b", doi="b")).status, CLOSED)  # the service is off: nothing left to try
         self.assertEqual(self.session.hits("api.elsevier.com"), 1)
 
+    def test_a_publisher_api_out_of_requests_is_not_asked_again(self):
+        wiley = Wiley("TOKEN")
+        options = [FetchOption("wiley", Wiley.url("10.1002/aenm.1"), wiley.headers(), api=True)]
+        d = self.downloader([("api.wiley.com", FakeResponse(429))], options)
+        self.assertEqual(d.fetch(candidate()).status, FAILED)
+        self.assertEqual(d.fetch(candidate(key="b", doi="b")).status, CLOSED)
+        self.assertEqual(self.session.hits("api.wiley.com"), 1)  # not retried, not asked again
+
+    def test_a_file_served_as_plain_bytes_is_still_a_pdf(self):
+        d = self.downloader([("pmc-oa-opendata", FakeResponse(200, self.pdf, {"Content-Type": "binary/octet-stream"}))],
+                            [FetchOption("pmc", "https://pmc-oa-opendata.s3.amazonaws.com/PMC1.1/PMC1.1.pdf", license="cc-by")])
+        outcome = d.fetch(candidate())
+        self.assertEqual((outcome.status, outcome.service, outcome.license), (DOWNLOADED, "pmc", "cc-by"))
+
     def test_elsevier_answering_with_xml_is_reported_as_such(self):
         d = self.downloader([("api.elsevier.com", FakeResponse(200, "<full-text-retrieval-response/>", {"Content-Type": "text/xml"}))],
                             [FetchOption("elsevier", Elsevier.url("10.1016/j.a.1"), {"X-ELS-APIKey": "k"}, api=True)])
@@ -608,6 +697,147 @@ class ResolverTests(unittest.TestCase):
         self.assertEqual(self.options(candidate(), ["unpaywall"], contact="me@example.org", session=session),
                          [("unpaywall", "https://up/best.pdf"), ("unpaywall", "https://up/land")])
         self.assertEqual(session.calls[0][1], {"email": "me@example.org"})
+
+    # The answers below are cut-down copies of what each service really sends.
+    def test_wiley_only_for_wiley_papers_and_only_with_a_token(self):
+        wiley = Wiley("TOKEN")
+        self.assertEqual(self.options(candidate(doi="10.1002/aenm.202001234"), ["wiley"]), [])
+        resolver = Resolver(client_for(FakeSession()), ["wiley"], wiley=wiley)
+        option, = resolver.options(candidate(doi="10.1002/aenm.202001234"))
+        self.assertEqual(option.url, "https://api.wiley.com/onlinelibrary/tdm/v1/articles/10.1002%2Faenm.202001234")
+        self.assertEqual((option.headers, option.api), ({"Wiley-TDM-Client-Token": "TOKEN"}, True))
+        self.assertEqual(list(resolver.options(candidate(doi="10.1038/s41467-1"))), [])
+
+    def test_aps_is_asked_in_the_journals_spelling(self):
+        resolver = Resolver(client_for(FakeSession()), ["aps"])
+        option, = resolver.options(candidate(doi="10.1103/physrevmaterials.3.035405"))
+        self.assertEqual(option.url, "https://harvest.aps.org/v2/journals/articles/10.1103/PhysRevMaterials.3.035405")
+        self.assertEqual((option.headers, option.api), ({"Accept": "application/pdf"}, True))
+        self.assertEqual(list(resolver.options(candidate(doi="10.1021/acs.chemmater.1"))), [])
+
+    def test_pubmed_central_gives_the_newest_version_of_its_open_copy(self):
+        found = {"resultList": {"result": [{"pmcid": "PMC7902639", "doi": "10.1000/TEST", "license": "cc by"}]}}
+        listing = ("<ListBucketResult><Contents><Key>PMC7902639.1/41467_MOESM1_ESM.pdf</Key></Contents>"
+                   "<Contents><Key>PMC7902639.1/PMC7902639.1.pdf</Key></Contents>"
+                   "<Contents><Key>PMC7902639.2/PMC7902639.2.pdf</Key></Contents>"
+                   "<Contents><Key>PMC7902639.2/PMC7902639.2.xml</Key></Contents></ListBucketResult>")
+        session = FakeSession([("europepmc", FakeResponse(200, json_data=found)), ("pmc-oa-opendata", FakeResponse(200, listing))])
+        resolver = Resolver(client_for(session), ["pmc"])
+        option, = resolver.options(candidate())
+        self.assertEqual((option.service, option.url, option.license),
+                         ("pmc", "https://pmc-oa-opendata.s3.amazonaws.com/PMC7902639.2/PMC7902639.2.pdf", "cc-by"))
+        self.assertEqual(session.calls[0][1]["query"], 'DOI:"10.1000/test"')
+        self.assertEqual(session.calls[1][1]["prefix"], "PMC7902639.")
+        # A paper that is not in PubMed Central, or another paper's record, offers nothing.
+        nothing = FakeSession([("europepmc", FakeResponse(200, json_data={"resultList": {"result": [
+            {"pmcid": None, "doi": "10.1000/test"}, {"pmcid": "PMC1", "doi": "10.1000/other"}]}}))])
+        self.assertEqual(self.options(candidate(), ["pmc"], session=nothing), [])
+        self.assertEqual(nothing.hits("pmc-oa-opendata"), 0)
+
+    def test_osti_gives_the_deposited_manuscript(self):
+        records = [{"osti_id": "1783756", "doi": "10.1000/test", "links": [
+            {"rel": "citation", "href": "https://www.osti.gov/biblio/1783756"},
+            {"rel": "fulltext", "href": "https://www.osti.gov/servlets/purl/1783756"}]},
+            {"osti_id": "2", "doi": "10.1000/other", "links": [{"rel": "fulltext", "href": "https://www.osti.gov/servlets/purl/2"}]}]
+        session = FakeSession([("osti.gov/api", FakeResponse(200, json_data=records))])
+        self.assertEqual(self.options(candidate(), ["osti"], session=session), [("osti", "https://www.osti.gov/servlets/purl/1783756")])
+        self.assertEqual(session.calls[0][1], {"doi": "10.1000/test"})
+        self.assertEqual(self.options(candidate(), ["osti"], session=FakeSession([("osti.gov/api", FakeResponse(200, json_data=[]))])), [])
+
+    def test_hal_gives_the_deposited_file(self):
+        found = {"response": {"docs": [{"doiId_s": "10.1000/test", "fileMain_s": "https://hal.science/hal-02907292/document",
+                                        "licence_s": "https://about.hal.science/hal-authorisation-v1/"}, {"doiId_s": "10.1000/test"}]}}
+        session = FakeSession([("archives-ouvertes", FakeResponse(200, json_data=found))])
+        resolver = Resolver(client_for(session), ["hal"])
+        option, = resolver.options(candidate())
+        self.assertEqual((option.service, option.url), ("hal", "https://hal.science/hal-02907292/document"))
+        self.assertEqual(session.calls[0][1]["q"], 'doiId_s:"10.1000/test"')
+
+    def test_semantic_scholar_gives_the_arxiv_version_of_a_journal_paper(self):
+        found = {"externalIds": {"ArXiv": "1811.07936", "DOI": "10.1000/Test"},
+                 "openAccessPdf": {"url": "https://repository.example.org/item/7", "status": "GREEN", "license": "CCBY"}}
+        session = FakeSession([("semanticscholar", FakeResponse(200, json_data=found))])
+        resolver = Resolver(client_for(session), ["semanticscholar"])
+        preprint, copy = resolver.options(candidate())
+        self.assertEqual((preprint.url, preprint.license), ("https://arxiv.org/pdf/1811.07936", "arxiv"))
+        self.assertEqual((copy.url, copy.license, copy.landing), ("https://repository.example.org/item/7", "cc-by", True))
+        self.assertIn("/paper/DOI:10.1000/test", session.calls[0][0])
+        # The publisher's own link (gold, hybrid, bronze) is nothing new, and a closed paper has none.
+        for answer in ({"externalIds": {}, "openAccessPdf": {"url": "https://doi.org/10.1000/test", "status": "GOLD"}},
+                       {"externalIds": {}, "openAccessPdf": {"url": "", "status": "CLOSED"}}):
+            other = FakeSession([("semanticscholar", FakeResponse(200, json_data=answer))])
+            self.assertEqual(self.options(candidate(), ["semanticscholar"], session=other), [])
+
+    def test_openaire_gives_the_repository_copies_a_file_first(self):
+        found = {"results": [{"bestAccessRight": {"label": "CLOSED"}, "instances": [
+            {"urls": ["https://doi.org/10.1000/test"], "license": "CC BY"},
+            {"urls": ["https://pubmed.ncbi.nlm.nih.gov/33623048"]},
+            {"urls": ["https://publisher.example.org/article/1"]},
+            {"urls": ["https://u-picardie.hal.science/hal-05283692v1"]},
+            {"urls": ["https://escholarship.org/content/qt8j4332sw/qt8j4332sw.pdf", "https://escholarship.org/uc/item/8j4332sw"], "license": "CC BY"},
+            {"urls": ["https://www.researchgate.net/publication/1"]}]}]}
+        session = FakeSession([("openaire", FakeResponse(200, json_data=found))])
+        resolver = Resolver(client_for(session), ["openaire"])
+        options = list(resolver.options(candidate(landing_url="https://publisher.example.org/article/1")))
+        self.assertEqual([o.url for o in options], ["https://escholarship.org/content/qt8j4332sw/qt8j4332sw.pdf",
+                                                    "https://u-picardie.hal.science/hal-05283692v1", "https://escholarship.org/uc/item/8j4332sw"])
+        self.assertTrue(all(o.landing and o.service == "openaire" for o in options))
+        self.assertEqual(options[0].license, "cc-by")
+        self.assertEqual(session.calls[0][1], {"pid": "10.1000/test"})
+
+    def test_a_source_is_only_asked_when_the_ones_before_it_gave_nothing_to_keep(self):
+        session = FakeSession([("osti.gov/api", FakeResponse(200, json_data=[]))])
+        resolver = Resolver(client_for(session), ["openalex", "osti"])
+        options = resolver.options(candidate(oa_urls=["https://a/p.pdf"]))
+        self.assertEqual(next(options).url, "https://a/p.pdf")
+        self.assertEqual(session.calls, [])  # the downloader stops here when this file is the paper
+        self.assertEqual(list(options), [])
+        self.assertEqual(session.hits("osti.gov/api"), 1)
+
+    def test_a_service_that_is_down_or_out_of_requests_offers_nothing(self):
+        session = FakeSession([("semanticscholar", FakeResponse(429)), ("osti.gov/api", FakeResponse(503)),
+                               ("archives-ouvertes", FakeResponse(200, "not json"))])
+        resolver = Resolver(client_for(session), ["semanticscholar", "osti", "hal"])
+        for key in ("10.1/a", "10.1/b", "10.1/c", "10.1/d"):
+            self.assertEqual(list(resolver.options(candidate(key=key, doi=key))), [])
+        # Each failed three papers running (the client retried the 429 and the 503 four times each):
+        # the fourth paper does not ask them, and a long run does not wait on them any more.
+        self.assertEqual(session.hits("/paper/DOI:10.1/a"), 4)
+        self.assertEqual(session.hits("/paper/DOI:10.1/d"), 0)
+        self.assertEqual(session.hits("osti.gov/api"), 3 * 4)
+        self.assertEqual(session.hits("archives-ouvertes"), 3)
+
+    def test_a_paper_a_service_does_not_know_does_not_count_against_it(self):
+        session = FakeSession([("semanticscholar", FakeResponse(404, b'{"error": "Paper not found"}'))])
+        resolver = Resolver(client_for(session), ["semanticscholar"])
+        for key in ("10.1/a", "10.1/b", "10.1/c", "10.1/d", "10.1/e"):
+            self.assertEqual(list(resolver.options(candidate(key=key, doi=key))), [])
+        self.assertEqual(session.hits("semanticscholar"), 5)
+
+    def test_a_paper_without_a_doi_is_not_looked_up(self):
+        session = FakeSession()
+        c = candidate(key="arxiv:2001.00001", doi="", arxiv_id="2001.00001")
+        self.assertEqual(self.options(c, ["aps", "wiley", "pmc", "osti", "hal", "semanticscholar", "openaire", "arxiv"], session=session),
+                         [("arxiv", "https://arxiv.org/pdf/2001.00001")])
+        self.assertEqual(session.calls, [])
+
+    def test_the_setup_check_tries_every_source_of_the_job(self):
+        session = FakeSession([("osti.gov", FakeResponse(200, json_data=[])), ("archives-ouvertes", FakeResponse(503)),
+                               ("api.wiley.com", FakeResponse(403)), ("api.openalex.org", FakeResponse(200, json_data={})),
+                               ("export.arxiv.org", FakeResponse(200))])
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        job = Job(fetch=FetchConfig(folder=folder, sources=["wiley", "openalex", "osti", "hal"]))
+        out = io.StringIO()
+        with redirect_stdout(out), mock.patch.dict(os.environ, {}, clear=True):
+            code = check_setup(job, client_for(session), wiley=Wiley("TOKEN"))
+        printed = out.getvalue()
+        self.assertEqual(code, 0)  # the essentials (OpenAlex, the folder) are there
+        self.assertIn("[ok] OSTI (US Department of Energy): reachable", printed)
+        self.assertIn("[!!] HAL (France): HTTP 503", printed)
+        self.assertIn("[!!] Wiley: HTTP 403 (the token was refused", printed)
+        self.assertNotIn("OpenAIRE", printed)  # not one of this job's sources
+        self.assertEqual(session.hits("archives-ouvertes"), 1)  # a service in trouble is reported, not waited for
 
     def test_elsevier_headers(self):
         self.assertEqual(Elsevier("K", "T").headers("application/pdf"),
@@ -704,11 +934,18 @@ class HarvestTests(unittest.TestCase):
         self.run_stage(start="fetch")
         self.assertEqual(self.session.hits("good.pdf"), before)
 
+    def test_the_fetch_reports_each_paper_as_it_ends(self):
+        self.run_stage(start="discover")
+        seen = []
+        self.harvest.ledger.apply_decisions(self.harvest.review_path)
+        self.harvest.fetch(progress_callback=lambda c, outcome, done, total: seen.append((c.key, outcome.status, done, total)))
+        self.assertEqual(seen, [("10.1000/good", DOWNLOADED, 1, 1)])
+
     def test_a_decision_changed_in_the_review_list_is_respected(self):
         self.run_stage(start="discover")
         path = os.path.join(self.job.fetch.folder, "candidates.csv")
-        text = open(path, encoding="utf-8-sig").read()
-        open(path, "w", encoding="utf-8").write(text.replace("yes,", "no,", 1))
+        text = Path(path).read_text(encoding="utf-8-sig")
+        Path(path).write_text(text.replace("yes,", "no,", 1), encoding="utf-8")
         self.run_stage(start="fetch")
         self.assertEqual(self.harvest.ledger.get("10.1000/good").status, REJECTED)
         self.assertEqual(self.session.hits("good.pdf"), 0)
@@ -730,6 +967,31 @@ class HarvestTests(unittest.TestCase):
             self.run_stage(start="fetch")
             self.assertEqual(self.harvest.ledger.get("10.1000/good").status, expected)
 
+    def test_a_closed_paper_is_fetched_from_a_repository_or_listed_as_closed(self):
+        def work(doi, title):
+            return {**WORK, "doi": f"https://doi.org/{doi}", "title": title, "open_access": {"is_oa": False, "oa_status": "closed"},
+                    "abstract_inverted_index": {"The": [0], "activation": [1], "energy": [2], "of": [3], "a": [4], "solid": [5], "electrolyte": [6]},
+                    "best_oa_location": None, "locations": []}
+        deposited = "Lithium transport in a garnet ceramic measured by impedance spectroscopy"
+        self.session.routes[:1] = [
+            ("api.openalex.org/works", FakeResponse(200, json_data={"results": [
+                work("10.1000/deposited", deposited), work("10.1000/nowhere", "Sodium conduction in a NASICON framework")],
+                "meta": {"next_cursor": None}})),
+            ("osti.gov/api", lambda url, params, headers: FakeResponse(200, json_data=[
+                {"doi": "10.1000/deposited", "links": [{"rel": "fulltext", "href": "https://www.osti.gov/servlets/purl/1"}]}]
+                if params["doi"] == "10.1000/deposited" else [])),
+            ("osti.gov/servlets/purl/1", FakeResponse(200, make_pdf(title=deposited), {"Content-Type": "application/pdf"})),
+        ]
+        self.job.fetch.sources, self.job.screen.propose_closed = ["openalex", "osti"], True
+        self.run_stage(start="discover")
+        self.assertEqual({c.key: (c.decision, c.access) for c in self.harvest.ledger.all()},
+                         {"10.1000/deposited": ("yes", "closed"), "10.1000/nowhere": ("yes", "closed")})
+        self.run_stage(start="fetch")
+        found, missing = self.harvest.ledger.get("10.1000/deposited"), self.harvest.ledger.get("10.1000/nowhere")
+        self.assertEqual((found.status, found.source_used, found.license), (DOWNLOADED, "osti", "public access (US DOE)"))
+        self.assertEqual(missing.status, CLOSED)
+        self.assertIn("needs a manual PDF", missing.error)
+
     def test_no_email_in_the_requests_unless_one_was_configured(self):
         self.run_stage(start="discover")
         self.assertEqual(self.session.headers["User-Agent"], "AutoMatExtract/0.1")
@@ -748,6 +1010,11 @@ class GateTests(unittest.TestCase):
         self.assertEqual((web.command, web.job, web.stage, web.yes, web.limit), ("web", "j.yaml", "fetch", True, 5))
         both = parse_args(["both", "--job", "j.yaml", "--input", "pdfs"])
         self.assertEqual((both.command, both.input, both.stage), ("both", "pdfs", "discover"))
+        # Each project has its own folder of results.
+        self.assertEqual((local.output, parse_args(["web", "--job", "j.yaml"]).output), ("local_output", "web_output"))
+        self.assertEqual((both.local_output, both.web_output), ("local_output", "web_output"))
+        window = parse_args(["gui", "--web-output", "elsewhere"])
+        self.assertEqual((window.command, window.local_output, window.web_output), ("gui", "local_output", "elsewhere"))
 
     def test_the_old_way_of_running_project_1_still_means_local(self):
         import main
@@ -759,7 +1026,20 @@ class GateTests(unittest.TestCase):
             self.assertEqual(main.main(["--input", "pdfs", "--output", "out"]), 0)
             self.assertEqual(main.main([]), 0)
         self.assertEqual(seen[0][0][:2], ("pdfs", "out"))
-        self.assertEqual(seen[1][0][:2], ("papers", "output"))
+        self.assertEqual(seen[1][0][:2], ("papers", "local_output"))
+
+    def test_both_projects_write_their_own_folders(self):
+        import main
+        local, web = [], []
+        with mock.patch.object(main, "run_extraction", side_effect=lambda *a, **k: local.append(a) or 0), \
+                mock.patch.object(main, "run_web", side_effect=lambda args, output: web.append(output) or 0), \
+                mock.patch.object(main, "_is_outdated", return_value=False), \
+                mock.patch.object(main, "_print_banner"), redirect_stdout(io.StringIO()):
+            self.assertEqual(main.main(["both", "--job", "j.yaml"]), 0)
+            self.assertEqual(main.main(["both", "--job", "j.yaml", "--local-output", "a", "--web-output", "b"]), 0)
+            self.assertEqual(main.main(["web", "--job", "j.yaml"]), 0)
+        self.assertEqual(web, ["web_output", "b", "web_output"])
+        self.assertEqual([call[:2] for call in local], [("papers", "local_output"), ("papers", "a")])
 
     def test_web_needs_a_job_file(self):
         import main
@@ -864,10 +1144,10 @@ class SharedPipelineTests(unittest.TestCase):
         papers = pd.read_csv(os.path.join(folder, "papers.csv"), dtype=str, keep_default_na=False)
         self.assertEqual((papers.origin[0], papers.source_service[0], papers.license[0], papers.source_url[0]), ("web", "arxiv", "arxiv", "NONE"))
         exporter.export_excel()
-        book = pd.ExcelFile(os.path.join(folder, "database.xlsx"))
         csv_rows = len(pd.read_csv(os.path.join(folder, "properties.csv")))
-        self.assertEqual(len(book.parse("properties")), csv_rows)
-        self.assertEqual(json.load(open(os.path.join(folder, "database.json"), encoding="utf-8"))["papers"][0]["origin"], "web")
+        with pd.ExcelFile(os.path.join(folder, "database.xlsx")) as book:
+            self.assertEqual(len(book.parse("properties")), csv_rows)
+        self.assertEqual(json.loads(Path(folder, "database.json").read_text(encoding="utf-8"))["papers"][0]["origin"], "web")
 
 
 if __name__ == "__main__":

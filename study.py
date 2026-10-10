@@ -319,6 +319,11 @@ class Study:
             return None
         return self._temperature.get(LOCAL_PROBE if origin == EXPERIMENTAL and method == LOCAL_PROBE else origin)
 
+    def any_temperature_range(self, origin: str, method: Optional[str] = None) -> Optional[Stated]:
+        """The range the paper gives for work of this kind, whatever kind of paper it is and whichever
+        material the value is for: the last thing to go by before a mere convention."""
+        return self._temperature.get(LOCAL_PROBE if origin == EXPERIMENTAL and method == LOCAL_PROBE else origin)
+
     def pressure(self, origin: str) -> Optional[Stated]:
         """The pressure the paper's own values of this origin were obtained under."""
         return self._pressure.get(origin) if self._did(origin) and not self.pressure_varies else None
