@@ -1,8 +1,20 @@
-.papers
-.output
+
 
 # API keys and your email live here, never in git
-.env
+WebScraping/.env
 
 # PDFs fetched by the web project: someone else's copyright, not for a repository
-papers/web/
+WebScraping/papers/
+
+# PDFs on local
+LocalPapers/papers/
+
+# Python and macOS leave these everywhere
+__pycache__/
+.pytest_cache/
+.DS_Store
+
+Crystal and Structure Classification/__pycache__/
+WebScraping/__pycache__/
+LocalPapers/__pycache__/
+SelectingTopMaterial/__pycache__/

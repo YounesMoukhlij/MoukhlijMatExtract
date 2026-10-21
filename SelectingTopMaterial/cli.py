@@ -2,11 +2,12 @@
 """The command line of the selection.
 
     python -m SelectingTopMaterial                          every results folder of the project
-    python -m SelectingTopMaterial --source web_output      one folder only
+    python -m SelectingTopMaterial --source WebScraping/web_output      one folder only
     python -m SelectingTopMaterial --origin experimental    measured values only
     python -m SelectingTopMaterial --policy conservative    a material is as good as its worst value
     python -m SelectingTopMaterial --by-phase               cubic and tetragonal LLZO apart
     python -m SelectingTopMaterial --top 10 --open          the first ten, and the report in the browser
+    python -m SelectingTopMaterial gui                      the window
 
 It ends with 0 when a ranking was written, 1 when there was nothing to rank or a file could not be
 written, 2 when it was asked something it cannot do (an unknown option, a criteria file that is
@@ -32,12 +33,14 @@ FORMATS = ("csv", "xlsx", "json", "html")
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=f"python -m {NAME}",
-        description="Ranks the materials of the AutoMatExtract database by activation energy and sorts them "
+        description="Ranks the materials of the MoukhlijMatExtract database by activation energy and sorts them "
                     "into the classes of criteria.toml (Superionic, Performant, Acceptable, Rejected).",
-        epilog="The database is only read. The ranking is written into SelectingTopMaterial/results/.")
+        epilog="The database is only read. The ranking is written into SelectingTopMaterial/results/. "
+               f"The window: python -m {NAME} gui (python -m {NAME} gui --help for its options). "
+               "MoukhlijMatExtract (MME) — Created by Younes Moukhlij.")
     parser.add_argument("--source", "-s", nargs="+", action="extend", metavar="DIR",
-                        help="Results folder(s) to read, the most trusted first (default: local_output, "
-                             "web_output and output of the project, whichever exist)")
+                        help="Results folder(s) to read, the most trusted first (default: "
+                             "LocalExtraction/local_output and WebScraping/web_output, whichever exist)")
     parser.add_argument("--out", "-o", default=str(DEFAULT_RESULTS), metavar="DIR",
                         help="Folder to write the ranking into (default: SelectingTopMaterial/results)")
     parser.add_argument("--criteria", metavar="FILE",
@@ -76,6 +79,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv[:1] == ["gui"]:
+        from .gui import main as gui_main  # Tk is loaded only when the window is asked for
+        return gui_main(argv[1:])
     args = build_parser().parse_args(argv)
     _keep_printing(sys.stdout, sys.stderr)
 
@@ -84,14 +91,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     except CriteriaError as error:
         return _fail(str(error), code=2)
 
-    databases = [_source(name) for name in args.source] if args.source else loader.discover(PROJECT_ROOT)
+    databases = [source_folder(name) for name in args.source] if args.source else loader.discover(PROJECT_ROOT)
     if not databases:
         return _fail(f"no results folder with {loader.TABLE} in {PROJECT_ROOT} "
                      f"(looked for {', '.join(name + '/' for name in loader.KNOWN_DATABASES)}).\n"
-                     f"Run the extraction first (python main.py local), or name a folder with --source.")
+                     f"Run the extraction first (python -m LocalExtraction or python -m WebScraping), or name a folder with --source.")
     out_dir = Path(args.out).expanduser()
     if not args.no_files and (out_dir / loader.TABLE).exists():
-        return _fail(f"{out_dir} is a database of AutoMatExtract: the ranking is not written into a folder it "
+        return _fail(f"{out_dir} is a database of MoukhlijMatExtract: the ranking is not written into a folder it "
                      f"reads. Choose another --out.", code=2)
 
     filters = Filters(min_confidence=args.min_confidence, origin=args.origin or "",
@@ -103,7 +110,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     written: list[Path] = []
     if selection.materials and not args.no_files:
         try:
-            written = _write(selection, out_dir, args.format or FORMATS, args.top)
+            written = write_files(selection, out_dir, args.format or FORMATS, args.top)
         except OSError as error:
             return _fail(str(error))
 
@@ -124,7 +131,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-def _write(selection, out_dir: Path, formats: Sequence[str], top: int | None) -> list[Path]:
+def write_files(selection, out_dir: Path, formats: Sequence[str], top: int | None) -> list[Path]:
     """The files asked for, in the order they are named in the terminal."""
     written: list[Path] = []
     if "csv" in formats:
@@ -141,7 +148,7 @@ def _write(selection, out_dir: Path, formats: Sequence[str], top: int | None) ->
     return written
 
 
-def _source(name: str) -> Path:
+def source_folder(name: str) -> Path:
     """A folder as it was named: from where the command is run, otherwise from the project."""
     path = Path(name).expanduser()
     return path if path.exists() or path.is_absolute() else PROJECT_ROOT / path

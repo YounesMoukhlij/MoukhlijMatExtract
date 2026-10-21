@@ -265,9 +265,10 @@ class LoaderTests(TemporaryFolder):
             self.assertEqual(loader.polymorph(structure), phase, structure)
 
     def test_the_project_folders_are_found_in_the_order_they_are_trusted(self):
-        for name in ("output", "web_output", "local_output", "elsewhere"):
+        for name in ("WebScraping/web_output", "LocalExtraction/local_output", "output", "elsewhere"):
             write_database(self.tmp / name, [row("Li6PS5Cl", 0.31)])
-        self.assertEqual([p.name for p in loader.discover(self.tmp)], ["local_output", "web_output", "output"])
+        self.assertEqual([p.relative_to(self.tmp).as_posix() for p in loader.discover(self.tmp)],
+                         ["LocalExtraction/local_output", "WebScraping/web_output"])
 
 
 class SelectionTests(unittest.TestCase):
@@ -575,7 +576,7 @@ class CommandLineTests(TemporaryFolder):
 
         code, _, complained = self.run_cli("--source", str(self.database), "--out", str(self.database))
         self.assertEqual(code, 2)
-        self.assertIn("is a database of AutoMatExtract", complained)
+        self.assertIn("is a database of MoukhlijMatExtract", complained)
 
         for arguments in (("--top", "0"), ("--min-confidence", "2"), ("--element", "Xx"), ("--policy", "lucky")):
             self.assertEqual(self.run_cli("--source", str(self.database), *arguments)[0], 2, arguments)

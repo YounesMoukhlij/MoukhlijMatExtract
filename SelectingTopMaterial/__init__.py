@@ -1,5 +1,5 @@
 # SelectingTopMaterial/__init__.py
-"""Selecting the top materials: reads the activation energies AutoMatExtract extracted and ranks
+"""Selecting the top materials: reads the activation energies MoukhlijMatExtract extracted and ranks
 the materials by them.
 
     Ea < 0.25 eV    Superionic
@@ -7,9 +7,9 @@ the materials by them.
     Ea < 0.40 eV    Acceptable
     otherwise       Rejected
 
-    python -m SelectingTopMaterial            (from the project folder)
+    python -m SelectingTopMaterial            (from the project folder; the window: python -m SelectingTopMaterial gui)
 
-It reads the results folders (local_output/, web_output/, output/) and writes its own tables into
+It reads the results folders (LocalExtraction/local_output/, WebScraping/web_output/) and writes its own tables into
 SelectingTopMaterial/results/; it changes nothing of the project. From Python:
 
     from SelectingTopMaterial import PROJECT_ROOT, Criteria, discover, select_from

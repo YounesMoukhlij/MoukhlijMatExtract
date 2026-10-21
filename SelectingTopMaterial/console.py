@@ -96,7 +96,7 @@ def _table(materials: Sequence[RankedMaterial], paint: _Painter, class_width: in
     for m in materials:
         spread = f"{m.energy_min_eV:.3f} – {m.energy_max_eV:.3f}" if len(m.values) > 1 else "single value"
         rows.append((str(m.rank), _clip(m.material, _NAME_WIDTH), m.energy_class.name, f"{m.energy_eV:.3f}", spread,
-                     str(len(m.values)), str(len(m.papers)), _origin(m), " | ".join(m.checks) or "ok"))
+                     str(len(m.values)), str(len(m.papers)), origin_summary(m), " | ".join(m.checks) or "ok"))
     widths = [max(len(headers[i]), *(len(row[i]) for row in rows)) for i in range(len(headers))]
     widths[2] = max(widths[2], class_width) + 2  # the mark and a space before the class name
     right = {0, 3, 5, 6}  # numbers line up on their last digit
@@ -116,7 +116,7 @@ def _table(materials: Sequence[RankedMaterial], paint: _Painter, class_width: in
     return [paint.dim(line(headers))] + [line(row, mark=paint.mark(m.energy_class)) for m, row in zip(materials, rows)]
 
 
-def _origin(material: RankedMaterial) -> str:
+def origin_summary(material: RankedMaterial) -> str:
     """Where the values of a material come from, short: "simulation", "exp 1 · sim 2"."""
     counts = Counter(v.data_origin for v in material.values if v.data_origin != NOT_REPORTED)
     if not counts:

@@ -1,6 +1,14 @@
-# SelectingTopMaterial
+# SelectingTopMaterial — Part 3
 
-Reads the activation energies AutoMatExtract extracted and ranks the materials by them.
+A part of [MoukhlijMatExtract (MME)](../README.md) · Author: Younes Moukhlij
+
+Reads the activation energies MoukhlijMatExtract extracted and ranks the materials by them.
+
+| | |
+|---|---|
+| **Input** | `activation_energy.csv` and `papers.csv` of `LocalExtraction/local_output/` and `WebScraping/web_output/` (whichever exist) — or of any folder named with `--source`, such as a class of [Crystal and Structure Classification](<../Crystal and Structure Classification/README.md>) |
+| **Output** | `SelectingTopMaterial/results/` |
+| **Command** | `python -m SelectingTopMaterial` (the window: `python -m SelectingTopMaterial gui`) |
 
 | Activation energy | Class |
 |---|---|
@@ -12,7 +20,7 @@ Reads the activation energies AutoMatExtract extracted and ranks the materials b
 Every limit is exclusive: a material at exactly 0.25 eV is Performant, one at exactly 0.40 eV is
 Rejected.
 
-It only reads the results folders (`local_output/`, `web_output/`, `output/`) and writes into its
+It only reads the results folders (`LocalExtraction/local_output/`, `WebScraping/web_output/`) and writes into its
 own `SelectingTopMaterial/results/`. It imports nothing from the rest of the project and changes
 none of its files.
 
@@ -21,7 +29,8 @@ none of its files.
 From the project folder:
 
 ```
-python -m SelectingTopMaterial
+python -m SelectingTopMaterial          # in the terminal
+python -m SelectingTopMaterial gui      # in a window
 ```
 
 (`python SelectingTopMaterial` does the same.) It needs Python 3.11 or later and nothing beyond
@@ -40,6 +49,13 @@ pass, best first. The same ranking is written to `SelectingTopMaterial/results/`
 | `selection.json` | Everything, nested: each material with its values |
 | `report.html` | The ranking as a page: a chart of every material against the limits, and a table where each material opens onto the values it stands on |
 
+The window has the options below as fields: tick the results folders to read, choose the policy
+and the filters, press *Rank*. Each material is a row with its class, Ea, range, values, papers
+and checks; a double click shows every value behind it with its paper, page and sentence. With
+*write the files* ticked it writes the files above, which open from its buttons. It ranks what the
+folders hold as soon as it opens, and writes nothing until *Rank* is pressed. `gui --source DIR`,
+`--out DIR` and `--criteria FILE` work as below.
+
 ## How a material gets its class
 
 **One material, one composition.** The values are grouped by composition, so
@@ -56,8 +72,8 @@ it is the *policy*:
 | `optimistic` | its lowest reported value |
 | `conservative` | its highest reported value |
 
-**Each paper counts once.** When two results folders hold the same paper (`output/` is often an
-earlier copy of `local_output/`; an article can be in `papers/` and fetched from the web too),
+**Each paper counts once.** When two results folders hold the same paper (an earlier copy of a
+database; an article can be in `LocalExtraction/papers/` and fetched from the web too),
 its values are taken from the first folder only. Papers are matched by DOI when `papers.csv` has
 it, by file name otherwise. A value a paper repeats (abstract, then text) counts once.
 
@@ -108,7 +124,7 @@ python -m SelectingTopMaterial --element Na              the sodium conductors
 python -m SelectingTopMaterial --min-confidence 0.5      leave out the least sure extractions
 python -m SelectingTopMaterial --policy conservative     a material is as good as its worst value
 python -m SelectingTopMaterial --by-phase                the phases of a composition apart
-python -m SelectingTopMaterial --source web_output       one results folder (several: the most trusted first)
+python -m SelectingTopMaterial --source WebScraping/web_output       one results folder (several: the most trusted first)
 python -m SelectingTopMaterial --top 10 --open           the first ten, and the report in the browser
 python -m SelectingTopMaterial --no-files                show the ranking, write nothing
 python -m SelectingTopMaterial --out some/folder --format csv html
@@ -146,7 +162,8 @@ python -m unittest discover -s SelectingTopMaterial/tests -t .
 ```
 
 (or `pytest SelectingTopMaterial`). They run on small made-up databases in a temporary folder and
-never read or write the project's own results.
+never read or write the project's own results. The window tests (`test_gui.py`) are skipped where
+there is no screen.
 
 ## The files
 
@@ -161,3 +178,12 @@ never read or write the project's own results.
 | `html_report.py`, `report_template.html` | The report page |
 | `palette.py` | The colours of the classes in the workbook and the report |
 | `cli.py`, `__main__.py` | The command line |
+
+## Limitations
+
+- **The ranking is only as good as the extraction.** It sorts what parts 1 and 2 found, so a value
+  tied to a wrong material is ranked as that material. The `checks` column shows where the values
+  of a material disagree, and every value keeps its paper, page and sentence: read those of any
+  material you rely on. An activation energy is also a default-filled row (see
+  [No open answer for an activation energy](../LocalExtraction/README.md#no-open-answer-for-an-activation-energy)): a computed
+  and a measured barrier of one material are both in its group unless you filter with `--origin`.

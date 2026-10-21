@@ -1,6 +1,6 @@
 # SelectingTopMaterial/loader.py
-"""Reading the activation energies back from the results folders AutoMatExtract writes
-(local_output/, web_output/, and output/ of its earlier versions).
+"""Reading the activation energies back from the results folders MoukhlijMatExtract writes
+(LocalExtraction/local_output/ and WebScraping/web_output/).
 
 Only the files are read — activation_energy.csv, and papers.csv beside it for titles and DOIs —
 never the code that wrote them, so the selection keeps working whatever the extraction becomes,
@@ -19,9 +19,9 @@ from pathlib import Path
 
 from .models import NOT_REPORTED, DatabaseReport, Measurement
 
-# The results folders of a project, in the order they are trusted when two of them hold the same
-# paper: the two current ones, then the folder of the versions before them.
-KNOWN_DATABASES = ("local_output", "web_output", "output")
+# The results folders of a project, from its root, in the order they are trusted when two of them
+# hold the same paper: the local articles, then the ones fetched from the web.
+KNOWN_DATABASES = ("LocalExtraction/local_output", "WebScraping/web_output")
 TABLE, PAPERS, UNASSIGNED = "activation_energy.csv", "papers.csv", "unassigned_values.csv"
 
 _FORMULA_COLUMNS = ("material_formula", "normalized_formula", "formula", "material")
@@ -86,8 +86,8 @@ def material_key(formula: str, composition: str = "") -> tuple[str, tuple[str, .
 def load(databases: Sequence[Path], root: Path | None = None) -> tuple[list[Measurement], list[DatabaseReport]]:
     """Every activation energy of the folders, each paper counted once.
 
-    A paper that several folders hold — output/ is often an earlier copy of local_output/, and
-    an article can sit in papers/ and be fetched from the web as well — is read from the first
+    A paper that several folders hold — an earlier copy of a database, or an article that sits in
+    LocalExtraction/papers/ and was fetched from the web as well — is read from the first
     folder that has it, so that one result never weighs twice in a ranking."""
     values: list[Measurement] = []
     reports: list[DatabaseReport] = []
@@ -191,8 +191,11 @@ def _papers(folder: Path) -> dict[str, dict[str, str]]:
         paper_id = _cell(row, "paper_id", "filename")
         if not paper_id or paper_id in papers:
             continue
-        doi = _doi(_cell(row, "doi"))
-        papers[paper_id] = {"key": f"doi:{doi}" if doi else paper_id, "doi": doi,
+        given = _cell(row, "doi")
+        doi = _doi(given)
+        # A paper is matched across folders by a real DOI only; what the database says instead of
+        # one ("no DOI printed in the paper") is still what is shown.
+        papers[paper_id] = {"key": f"doi:{doi}" if doi else paper_id, "doi": doi or given,
                             "title": _cell(row, "title"), "year": _cell(row, "publication_year", "year")}
     return papers
 
