@@ -1,7 +1,7 @@
 # WebScraping/cli.py
 """The command line of Project 2: search, review, fetch, extract. Run from the project root.
 
-    python -m WebScraping                            search + screen (WebScraping/configs/sse.yaml), stop for your review
+    python -m WebScraping                            search + screen (configs/sse.yaml), stop for your review
     python -m WebScraping --stage fetch              after the review: fetch what you approved, then extract it
     python -m WebScraping --check                    test the setup (network, API keys, folders) first
     python -m WebScraping --job my_job.yaml --limit 10

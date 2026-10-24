@@ -10,6 +10,7 @@ DESCRIPTION = (
 )
 
 # Relative to the project root, where the commands are run from. (The fetched PDFs go where the
-# job file says: WebScraping/papers unless it says otherwise.)
-DEFAULT_JOB = os.path.join("WebScraping", "configs", "sse.yaml")
+# job file says: WebScraping/papers unless it says otherwise.) The job files are in the project's
+# configs/ folder, shared with Scrap/get_dois.py, which reads the same queries.
+DEFAULT_JOB = os.path.join("configs", "sse.yaml")
 DEFAULT_OUTPUT = os.path.join("WebScraping", "web_output")

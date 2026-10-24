@@ -1,8 +1,11 @@
 # Crystal and Structure Classification/classify.py
 """Which crystal-structure type and which chemical family a material belongs to.
 
-    crystal structure   the structure type it crystallises in: NASICON, LISICON, garnet, argyrodite,
-                        LGPS-type, perovskite, spinel, ... — or amorphous / glass-ceramic
+    crystal structure   the known crystal family it belongs to: NASICON, LISICON, thio-LISICON, garnet,
+                        argyrodite, perovskite, anti-perovskite, spinel, olivine, layered, rock-salt,
+                        anti-fluorite, ... — or amorphous / glass-ceramic; a material of none of them
+                        is "no known crystal family" (a type named after a compound — LGPS-type,
+                        Li3YCl6-type — is not a family)
     structure family    the family of compounds it belongs to, named after its anions: oxide,
                         sulfide, halide, oxyhalide, nitride, hydride, ...
 
@@ -15,14 +18,16 @@ The structure type is taken, in this order, from what settles it best:
        stated by the most papers winning — if at least a third of its papers state it
     4. a state instead of a structure ("glass", "amorphous", "glass-ceramic") — if most of its
        papers state it: a glassy sample in one paper does not make the material a glass
-    5. a prototype its composition type and stated space group or crystal system belong to:
-       Li3MX6 halides (Li3YCl6-, Li3InCl6-, Li3YbCl6-type), UCl3-type, LISICON, thio-LISICON, ...
-    6. a type or a state stated by fewer of its papers than above (the basis says how few)
-    7. the type of the materials of the same composition type and family (an analogue)
-    8. its composition type itself ("A3MX6 halide"): the class of materials it shares a formula with
+    5. the family its composition type belongs to: a lithium-rich orthooxide A3-4MX4 is LISICON,
+       its sulfide thio-LISICON
+    6. a family or a state stated by fewer of its papers than above (the basis says how few)
+    7. the family of the materials of the same composition type and family (an analogue)
+    8. otherwise: no known crystal family — its composition type ("A3MX6 halide") is in a column
+       of its own, and a type named after a compound its composition or its papers give
+       (LGPS-type, Li3YCl6-type) is said in its basis
 
-Every material is thus in a class, and `crystal_structure_basis` says which of these steps put it
-there — a type the papers state is told apart from one inferred.
+`crystal_structure_basis` says which of these steps decided — a family the papers state is told
+apart from one inferred.
 
 The chemical family always follows from the composition (ChemistryEngine.compound_class), so
 every material with a known composition has one. Each answer says where it came from (`*_basis`)."""
@@ -39,6 +44,11 @@ from LocalExtraction.chemistry import ChemistryEngine, _nominal
 
 from .about import UNCLASSIFIED
 
+# The transport components an activation energy is told apart by (the extraction's
+# `transport_component`): the barrier inside the grains, across their boundaries, or of the whole sample.
+COMPONENTS = ("bulk", "grain_boundary", "total")
+COMPONENT_WORDS = {"bulk": "bulk", "grain_boundary": "grain-boundary", "total": "total", "surface": "surface"}
+
 # ---------------------------------------------------------------------------
 # The labels of the structure column
 # ---------------------------------------------------------------------------
@@ -51,11 +61,17 @@ _STATES = {"amorphous": "amorphous", "glass": "amorphous", "glassy": "amorphous"
 # Every spelling of a structure type, folded (lower case, no space or hyphen) → its one name.
 _TYPES = {
     "garnet": "garnet", "nasicon": "NASICON", "lisicon": "LISICON", "thiolisicon": "thio-LISICON",
-    "lgps": "LGPS-type", "lgpstype": "LGPS-type", "argyrodite": "argyrodite", "perovskite": "perovskite",
-    "antiperovskite": "anti-perovskite", "spinel": "spinel", "olivine": "olivine", "layered": "layered",
-    "rocksalt": "rock-salt", "antifluorite": "anti-fluorite", "fluorite": "fluorite", "wurtzite": "wurtzite",
-    "zincblende": "zinc-blende", "tavorite": "tavorite",
+    "argyrodite": "argyrodite", "perovskite": "perovskite", "antiperovskite": "anti-perovskite",
+    "spinel": "spinel", "olivine": "olivine", "layered": "layered", "rocksalt": "rock-salt",
+    "antifluorite": "anti-fluorite", "fluorite": "fluorite", "wurtzite": "wurtzite", "zincblende": "zinc-blende",
+    "tavorite": "tavorite",
 }
+# The classes of the crystal axis: the known crystal families, and the two states of no crystal structure.
+KNOWN_FAMILIES = (*dict.fromkeys(_TYPES.values()), "amorphous", "glass-ceramic")
+# What a material of none of them is.
+NO_FAMILY = "no known crystal family"
+# A structure type named after a compound — not a family: "LGPS" (Li10GeP2S12), "Li3YCl6-type", "UCl3-type".
+_PROTOTYPE_NAMES = {"lgps": "LGPS-type", "lgpstype": "LGPS-type"}
 # The stacking of a layered oxide ("P2-type", "O3-type") is a layered structure.
 _STACKING = re.compile(r"^[OPT][1-3]-type$")
 # What the extraction writes in place of a structure when only the kind of compound is known.
@@ -118,38 +134,25 @@ def composition_type(amounts: dict[str, float | str]) -> tuple[str, float, float
     return part("A", whole[0]) + part("M", whole[1]) + part("X", whole[2]), round(a, 2), round(m, 2), round(x, 2)
 
 
-def prototype(amounts: dict[str, float | str], family: str, systems: set[str], groups: set[str]) -> str | None:
-    """The prototype a material's composition type and stated symmetry belong to, for the
-    solid-electrolyte classes where the two settle it; None where they do not."""
+def prototype(amounts: dict[str, float | str]) -> str | None:
+    """The known family a material's composition type belongs to, where that settles it: a
+    lithium-rich orthooxide A3-4MX4 (γ-Li3PO4, Li4SiO4) is LISICON, its sulfide (Li3PS4, Li4GeS4)
+    thio-LISICON. None elsewhere. (A sodium thiophosphate such as Na3PS4 is neither: a type of its own.)"""
     kind = composition_type(amounts)
     if not kind:
         return None
     _, a, m, x = kind
     present = set(amounts)
     anions = present & _ANIONS
-    if family == "halide" and abs(a - 3) <= 0.35 and m == 1 and abs(x - 6) <= 0.2:  # Li3MX6
-        if groups & {"P-3m1", "P3m1"} or "trigonal" in systems:
-            return "Li3YCl6-type"
-        if "C2/m" in groups or "monoclinic" in systems:
-            return "Li3InCl6-type"
-        if "Pnma" in groups or "orthorhombic" in systems:
-            return "Li3YbCl6-type"
-    if family == "halide" and abs(a - 1) <= 0.35 and m == 1 and abs(x - 4) <= 0.2 and ("P63/m" in groups or "hexagonal" in systems):
-        return "UCl3-type"  # NaLaCl4, Na1-xZrxLa1-xCl4
     numbers = _amounts(amounts)
     lithium, sodium = numbers.get("Li", 0.0), numbers.get("Na", 0.0)
     centres = present & _TETRAHEDRAL
     others = {e for e in present - _MOBILE - _ANIONS - _TETRAHEDRAL if numbers.get(e, 0.0) >= 0.2}  # a dopant aside
-    if anions == {"S"} and sodium > lithium and centres & {"P", "Sb", "As"} and not others \
-            and abs(a - 3) <= 0.3 and abs(m - 1) <= 0.05 and abs(x - 4) <= 0.1:
-        return "Na3PS4-type"          # Na3PS4, Na3SbS4 and their doped variants
     if lithium > sodium and centres and not others and 2.5 <= a <= 4.5 and abs(x - 4) <= 0.1 and m <= 1.05:
         if anions == {"O"}:
             return "LISICON"          # γ-Li3PO4, Li4SiO4, Li4GeO4 and their solid solutions
         if anions == {"S"}:
             return "thio-LISICON"     # Li3PS4, Li4GeS4, Li4SnS4
-    if anions == {"S"} and present <= {"Li", "P", "S"} and abs(a / x * 11 - 7) <= 0.2 and abs(m / x * 11 - 3) <= 0.2:
-        return "Li7P3S11-type"
     return None
 
 
@@ -161,11 +164,13 @@ class Labels:
     polymorphs: tuple[str, ...] = ()
     space_groups: tuple[str, ...] = ()
     states: tuple[str, ...] = ()
+    prototypes: tuple[str, ...] = ()   # types named after a compound: not a family
 
 
 def structure_labels(cell: str) -> Labels:
     """'cubic | garnet | Ia-3d' → the type garnet, the system cubic, the space group Ia-3d."""
-    found: dict[str, list[str]] = {"types": [], "systems": [], "polymorphs": [], "space_groups": [], "states": []}
+    found: dict[str, list[str]] = {"types": [], "systems": [], "polymorphs": [], "space_groups": [], "states": [],
+                                   "prototypes": []}
     for label in (part.strip() for part in str(cell or "").split("|")):
         lowered = label.casefold()
         if lowered in _MISSING or lowered in _COMPOUND_CLASSES or lowered == "crystalline":
@@ -181,8 +186,10 @@ def structure_labels(cell: str) -> Labels:
             found["types"].append(_TYPES[folded])
         elif _STACKING.match(label):
             found["types"].append("layered")
-        elif label.endswith("-type"):  # a prototype named by its formula: "UCl3-type", "Li3YCl6-type"
-            found["types"].append(label)
+        elif folded in _PROTOTYPE_NAMES:
+            found["prototypes"].append(_PROTOTYPE_NAMES[folded])
+        elif label.endswith("-type"):  # a type named after a compound: "UCl3-type", "Li3YCl6-type"
+            found["prototypes"].append(label)
         else:
             found["space_groups"].append(label)
     return Labels(**{kind: tuple(dict.fromkeys(labels)) for kind, labels in found.items()})
@@ -268,7 +275,7 @@ def chemical_family(amounts: dict[str, float | str], formula: str) -> tuple[str,
 _STATE_CLASSES = {"amorphous", "glass-ceramic"}
 # What classified a material well enough for it to stand as an analogue of another: its composition,
 # what most of its papers state, or a prototype — not a type few papers state, nor a state.
-_ESTABLISHED = ("known for this composition", "stated by ", "inferred: the prototype")
+_ESTABLISHED = ("known for this composition", "stated by ", "inferred: the family of its composition type")
 
 
 def roles(amounts: dict[str, float | str]) -> tuple[frozenset, frozenset, frozenset]:
@@ -301,8 +308,8 @@ def analogous(a: "Material", b: "Material") -> bool:
 
 
 def classify_the_rest(materials: list["Material"]) -> None:
-    """Steps 7 and 8, for the materials nothing about themselves classifies: the type of their
-    analogues — when those agree on one — else the composition type itself."""
+    """Steps 7 and 8, for the materials nothing about themselves classifies: the family of their
+    analogues — when those agree on one — else no known crystal family."""
     established = [m for m in materials if m.structure_type not in (UNCLASSIFIED, *_STATE_CLASSES)
                    and m.structure_type_basis.startswith(_ESTABLISHED)
                    and not m.structure_type_basis.startswith("stated by only")]
@@ -310,7 +317,8 @@ def classify_the_rest(materials: list["Material"]) -> None:
         if m.structure_type != UNCLASSIFIED:
             continue
         kind = m.kind()
-        alike = [other for other in established if analogous(m, other)]
+        # nor from its analogues, for a material of a type named after a compound (see Material.classify)
+        alike = [] if m.prototypes else [other for other in established if analogous(m, other)]
         votes = Counter(other.structure_type for other in alike)
         if votes:
             label, count = votes.most_common(1)[0]
@@ -320,16 +328,15 @@ def classify_the_rest(materials: list["Material"]) -> None:
                 m.structure_type_basis = (f"inferred: the type of its analogues, {kind}s of the same ions "
                                           f"({count} of {sum(votes.values())}: {names})")
                 continue
-        if composition_type(m.amounts):
-            m.structure_type = kind
-        elif has_open_shares(m.amounts):
-            m.structure_type = f"{m.family} mixture (shares open)"
-        elif len(m.amounts) == 1:
-            m.structure_type = "elemental"
-        else:
-            m.structure_type = "intermetallic"
-        m.structure_type_basis = ("inferred: its composition type — no type is stated by its papers, known for its "
-                                  "composition or shared by its analogues")
+        what = (f"its composition type is {kind}" if composition_type(m.amounts) else
+                f"a {m.family} mixture whose shares are open" if has_open_shares(m.amounts) else
+                "an element" if len(m.amounts) == 1 else "an intermetallic")
+        named = m.prototypes.most_common()
+        m.structure_type = NO_FAMILY
+        m.structure_type_basis = (f"none of the known crystal families is stated by its papers, known for its "
+                                  f"composition or shared by its analogues; {what}"
+                                  + (f"; a type named after a compound is given for it: "
+                                     f"{', '.join(label for label, _ in named)}" if named else ""))
 
 
 @dataclass
@@ -343,6 +350,7 @@ class Material:
     polymorphs: Counter = field(default_factory=Counter)
     space_groups: Counter = field(default_factory=Counter)
     states: dict[str, set] = field(default_factory=dict)
+    prototypes: Counter = field(default_factory=Counter)  # types named after a compound: stated or known
     structure_type: str = UNCLASSIFIED
     structure_type_basis: str = ""
     family: str = UNCLASSIFIED
@@ -369,6 +377,7 @@ class Material:
             self.stated_types.setdefault(label, set()).add((database, paper))
         for label in labels.states:
             self.states.setdefault(label, set()).add((database, paper))
+        self.prototypes.update(labels.prototypes)
         self.systems.update(labels.systems)
         self.polymorphs.update(labels.polymorphs)
         self.space_groups.update(labels.space_groups)
@@ -384,9 +393,12 @@ class Material:
         self.family, self.compound_class = chemical_family(self.amounts, self.name)
         if self.family == "halide":
             # "Layered" in a paper on a Li3MX6 halide describes the anion stacking its monoclinic and
-            # trigonal phases share — not a structure type: the prototype step tells those apart.
+            # trigonal phases share — not the family of the layered oxides.
             self.stated_types.pop("layered", None)
         found, basis = type_from_composition(self.amounts)
+        if found and found not in KNOWN_FAMILIES:  # LGPS-type: a type named after a compound, not a family
+            self.prototypes[found] += 1
+            found = None
         if found:
             stated = set(self.stated_types) - {found}
             note = f"; the papers also state {', '.join(sorted(stated))}" if stated else ""
@@ -395,12 +407,13 @@ class Material:
         self.structure_type, self.structure_type_basis = self._stated()
         if self.structure_type != UNCLASSIFIED:
             return
-        found = prototype(self.amounts, self.family, set(self.systems), set(self.space_groups))
+        # A material of a type named after a compound (LGPS-type, Li3YCl6-type) has a structure of its own:
+        # no family is inferred for it from its formula — Li10GeP2S12 has the formula of a thio-LISICON, not
+        # its structure. Only papers stating a family classify it.
+        found = None if self.prototypes else prototype(self.amounts)
         if found:
-            said = ", ".join(sorted(set(self.space_groups) | set(self.systems)))
             self.structure_type = found
-            self.structure_type_basis = (f"inferred: the prototype of its composition type ({self.kind()}) "
-                                         + (f"with the symmetry its papers state ({said})" if said else "in this family"))
+            self.structure_type_basis = f"inferred: the family of its composition type ({self.kind()})"
             return
         if self.stated_types or self.states:
             label, papers = max([*self.stated_types.items(), *self.states.items()], key=lambda item: (len(item[1]), item[0]))
@@ -434,12 +447,19 @@ class Material:
             return UNCLASSIFIED, f"too few of its papers state a structure ({'; '.join(too_few)})"
         return UNCLASSIFIED, "not stated by its papers and not known for this composition"
 
-    def row(self, energies: list[float], conductivities: list[float]) -> dict[str, object]:
-        """Its line in materials.csv of a classification folder."""
+    def row(self, energies: list[float], conductivities: list[float],
+            by_component: dict[str, list[float]] | None = None) -> dict[str, object]:
+        """Its line in materials.csv of a classification folder. `by_component`: its activation
+        energies by the transport component they describe (bulk, grain_boundary, total)."""
         def joined(counter: Counter) -> str:
             return " | ".join(label for label, _ in counter.most_common()) or "none stated by its papers"
 
         energies, conductivities = sorted(energies), sorted(conductivities)
+        components: dict[str, object] = {}
+        for component in COMPONENTS:
+            values = sorted((by_component or {}).get(component, []))
+            components[f"n_Ea_{component}"] = len(values)
+            components[f"Ea_{component}_min_eV"] = values[0] if values else f"no {COMPONENT_WORDS[component]} value reported"
         return {
             "material": self.name,
             "spellings": " | ".join(s for s, _ in self.spellings.most_common()),
@@ -447,6 +467,7 @@ class Material:
             "crystal_structure": self.structure_type,
             "crystal_structure_basis": self.structure_type_basis,
             "structure_types_stated": self.votes() or "none stated by its papers",
+            "composition_type": self.kind(),
             "structure_family": self.family,
             "compound_class": self.compound_class or self.family,
             "crystal_systems": joined(self.systems),
@@ -459,6 +480,7 @@ class Material:
             "Ea_min_eV": energies[0] if energies else "no activation energy reported",
             "Ea_median_eV": _median(energies) if energies else "no activation energy reported",
             "Ea_max_eV": energies[-1] if energies else "no activation energy reported",
+            **components,
             "n_ionic_conductivities": len(conductivities),
             "sigma_max_S_cm": conductivities[-1] if conductivities else "no ionic conductivity reported",
             "material_key": self.key,

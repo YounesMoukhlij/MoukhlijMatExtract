@@ -11,3 +11,22 @@ numpy
 pint>=0.23
 requests>=2.31
 pyyaml>=6
+
+# Fetch_DOIs
+scholarly          # the Google Scholar search of get_dois.py
+
+# make test
+pytest
+
+
+# to add after  (project still in development)
+
+#bibtexparser>=1.4,<2
+#title2bib
+#arxivcheck
+#requests
+#lxml
+#Pillow
+#selenium>=4.6
+#six
+#future

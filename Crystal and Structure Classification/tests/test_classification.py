@@ -38,6 +38,7 @@ COMPOSITIONS = {
     "Li3P": {"Li": 3.0, "P": 1.0},
     "LiBH4": {"B": 1.0, "H": 4.0, "Li": 1.0},
 }
+NO_FAMILY = "no known crystal family"
 
 
 def write_table(path: Path, columns: list[str], rows: list[dict]) -> None:
@@ -81,9 +82,11 @@ class LabelTests(unittest.TestCase):
         labels = structure_labels("β-phase | glass | cubic | garnet | Ia-3d")
         self.assertEqual((labels.types, labels.systems, labels.polymorphs, labels.space_groups, labels.states),
                          (("garnet",), ("cubic",), ("β-phase",), ("Ia-3d",), ("amorphous",)))
-        self.assertEqual(structure_labels("tetragonal | LGPS").types, ("LGPS-type",))
+        # a type named after a compound is no family: kept apart
+        self.assertEqual((structure_labels("tetragonal | LGPS").types, structure_labels("tetragonal | LGPS").prototypes),
+                         ((), ("LGPS-type",)))
         self.assertEqual(structure_labels("P2-type").types, ("layered",))  # the stacking of a layered oxide
-        self.assertEqual(structure_labels("Li3YCl6-type").types, ("Li3YCl6-type",))
+        self.assertEqual(structure_labels("Li3YCl6-type").prototypes, ("Li3YCl6-type",))
         self.assertEqual(structure_labels("chloride"), structure_labels("NONE"))  # the kind of compound is no structure
 
     def test_the_type_a_composition_settles(self):
@@ -123,17 +126,31 @@ class ClassifyTests(unittest.TestCase):
 
     def test_a_glassy_sample_in_one_paper_does_not_make_a_glass(self):
         self.assertEqual(self.material("Li3YCl6", ["glass", "amorphous", "NONE"]).structure_type, "amorphous")
-        # One glass-ceramic sample among three papers that state nothing does not outweigh the
-        # prototype its composition and its symmetry give.
+        # One glass-ceramic sample among three papers is taken only for want of anything else — and says so.
         halide = self.material("Li3YCl6", ["glass-ceramic", "trigonal", "NONE"])
-        self.assertEqual(halide.structure_type, "Li3YCl6-type")
+        self.assertEqual((halide.structure_type, halide.structure_type_basis),
+                         ("glass-ceramic", "stated by only 1 of the 3 paper(s) of this material"))
 
-    def test_a_prototype_from_the_composition_type_and_the_stated_symmetry(self):
-        trigonal = self.material("Li3YCl6", ["trigonal | P-3m1"])
-        self.assertEqual((trigonal.structure_type, trigonal.structure_type_basis),
-                         ("Li3YCl6-type", "inferred: the prototype of its composition type (A3MX6 halide) with the "
-                                          "symmetry its papers state (P-3m1, trigonal)"))
-        self.assertEqual(self.material("Li3YCl6", ["monoclinic | C2/m"]).structure_type, "Li3InCl6-type")
+    def test_only_known_crystal_families_are_classes(self):
+        from Classification.classify import KNOWN_FAMILIES, classify_the_rest
+        extra = {"Li3PS4": {"Li": 3.0, "P": 1.0, "S": 4.0}, "Li10GeP2S12": {"Ge": 1.0, "Li": 10.0, "P": 2.0, "S": 12.0}}
+        COMPOSITIONS.update(extra)
+        for name in extra:
+            self.addCleanup(COMPOSITIONS.pop, name)
+        # A lithium thiophosphate A3MX4 is a thio-LISICON by its composition type ...
+        thio = self.material("Li3PS4", ["NONE"])
+        self.assertEqual((thio.structure_type, thio.structure_type_basis),
+                         ("thio-LISICON", "inferred: the family of its composition type (A3MX4 sulfide)"))
+        # ... but Li10GeP2S12, of the formula of one, has a structure of its own (LGPS-type): no known family.
+        lgps = self.material("Li10GeP2S12", ["tetragonal | P42/nmc"])
+        trigonal = self.material("Li3YCl6", ["trigonal | P-3m1 | Li3YCl6-type"])
+        classify_the_rest([thio, lgps, trigonal])
+        self.assertEqual((lgps.structure_type, trigonal.structure_type), (NO_FAMILY, NO_FAMILY))
+        self.assertIn("a type named after a compound is given for it: LGPS-type", lgps.structure_type_basis)
+        self.assertIn("Li3YCl6-type", trigonal.structure_type_basis)
+        self.assertEqual(lgps.row([], [])["composition_type"], "A10M3X12 sulfide")
+        self.assertNotIn("LGPS-type", KNOWN_FAMILIES)
+        self.assertIn("rock-salt", KNOWN_FAMILIES)
 
     def test_a_type_few_papers_state_is_taken_and_says_so(self):
         selenide = self.material("MgSc2Se4", ["spinel", "NONE", "NONE", "NONE"])
@@ -141,27 +158,25 @@ class ClassifyTests(unittest.TestCase):
                          ("spinel", "stated by only 1 of the 4 paper(s) of this material"))
         self.assertEqual(selenide.family, "selenide")
 
-    def test_what_nothing_settles_takes_its_analogues_type_or_its_composition_type(self):
+    def test_what_nothing_settles_takes_its_analogues_family_or_none(self):
         from Classification.classify import classify_the_rest
-        extra = {"Li3Y0.9Er0.1Cl6": {"Cl": 6.0, "Er": 0.1, "Li": 3.0, "Y": 0.9}, "Li3ScCl6": {"Cl": 6.0, "Li": 3.0, "Sc": 1.0},
-                 "Li2CO3": {"C": 1.0, "Li": 2.0, "O": 3.0}, "ZrO2": {"O": 2.0, "Zr": 1.0},
-                 "NaZr2(PO4)3": {"Na": 1.0, "O": 12.0, "P": 3.0, "Zr": 2.0}}
+        extra = {"MgSc1.9Y0.1Se4": {"Mg": 1.0, "Sc": 1.9, "Se": 4.0, "Y": 0.1}, "Li2CO3": {"C": 1.0, "Li": 2.0, "O": 3.0},
+                 "ZrO2": {"O": 2.0, "Zr": 1.0}, "NaZr2(PO4)3": {"Na": 1.0, "O": 12.0, "P": 3.0, "Zr": 2.0}}
         COMPOSITIONS.update(extra)
         for name in extra:
             self.addCleanup(COMPOSITIONS.pop, name)
-        known = [self.material("Li3YCl6", ["trigonal"]), self.material("Li3YCl6", ["P-3m1"]), self.material("NaZr2(PO4)3", ["NONE"])]
-        doped, other_m, alone, oxide = (self.material(name, ["NONE"]) for name in ("Li3Y0.9Er0.1Cl6", "Li3ScCl6", "Li2CO3", "ZrO2"))
-        classify_the_rest([*known, doped, other_m, alone, oxide])
-        # A doped variant of an established material takes its type ...
-        self.assertEqual(doped.structure_type, "Li3YCl6-type")
+        known = [self.material("MgSc2Se4", ["spinel", "spinel", "NONE"]), self.material("NaZr2(PO4)3", ["NONE"])]
+        doped, alone, oxide = (self.material(name, ["NONE"]) for name in ("MgSc1.9Y0.1Se4", "Li2CO3", "ZrO2"))
+        classify_the_rest([*known, doped, alone, oxide])
+        # A doped variant of a material of a known family takes its family ...
+        self.assertEqual(doped.structure_type, "spinel")
         self.assertTrue(doped.structure_type_basis.startswith("inferred: the type of its analogues"), doped.structure_type_basis)
-        # ... but another M is no analogue: the Li3MX6 halides change structure with the size of M.
-        self.assertEqual(other_m.structure_type, "A3MX6 halide")
-        # ZrO2 shares the cation of a zirconium phosphate, not its PO4 framework.
-        self.assertEqual(known[2].structure_type, "NASICON")
-        self.assertEqual(oxide.structure_type, "MX2 oxide")
-        self.assertEqual((alone.structure_type, alone.family), ("A2MX3 oxide", "oxide"))
-        self.assertTrue(alone.structure_type_basis.startswith("inferred: its composition type"))
+        # ... ZrO2 shares the cation of a zirconium phosphate, not its PO4 framework: of no known family.
+        self.assertEqual(known[1].structure_type, "NASICON")
+        self.assertEqual(oxide.structure_type, NO_FAMILY)
+        self.assertEqual((alone.structure_type, alone.family), (NO_FAMILY, "oxide"))
+        self.assertTrue(alone.structure_type_basis.startswith("none of the known crystal families"))
+        self.assertIn("its composition type is A2MX3 oxide", alone.structure_type_basis)
 
     def test_a_state_is_not_handed_on_to_an_analogue(self):
         from Classification.classify import classify_the_rest
@@ -170,14 +185,14 @@ class ClassifyTests(unittest.TestCase):
         glassy = self.material("Li3YCl6", ["glass", "amorphous"])
         doped = self.material("Li3Y0.9Er0.1Cl6", ["NONE"])
         classify_the_rest([glassy, doped])
-        self.assertEqual((glassy.structure_type, doped.structure_type), ("amorphous", "A3MX6 halide"))
+        self.assertEqual((glassy.structure_type, doped.structure_type), ("amorphous", NO_FAMILY))
 
     def test_sodium_phases_and_halide_layers(self):
         COMPOSITIONS["Na3SbS4"] = {"Na": 3.0, "S": 4.0, "Sb": 1.0}
         self.addCleanup(COMPOSITIONS.pop, "Na3SbS4")
-        self.assertEqual(self.material("Na3SbS4", ["NONE"]).structure_type, "Na3PS4-type")  # not thio-LISICON
-        # "layered" said of a Li3MX6 halide is not a structure type: its symmetry decides.
-        self.assertEqual(self.material("Li3YCl6", ["layered | trigonal"]).structure_type, "Li3YCl6-type")
+        self.assertNotEqual(self.material("Na3SbS4", ["NONE"]).structure_type, "thio-LISICON")  # a sodium phase
+        # "layered" said of a Li3MX6 halide is the stacking of its anions, not the family of the layered oxides.
+        self.assertNotEqual(self.material("Li3YCl6", ["layered | trigonal"]).structure_type, "layered")
 
     def test_elements_and_open_mixtures_have_their_own_classes(self):
         from Classification.classify import classify_the_rest
@@ -187,7 +202,9 @@ class ClassifyTests(unittest.TestCase):
         self.addCleanup(COMPOSITIONS.pop, "xLi2S-(100-x)SiS2")
         sodium, mixture = self.material("Na", ["NONE"]), self.material("xLi2S-(100-x)SiS2", ["NONE"])
         classify_the_rest([sodium, mixture])
-        self.assertEqual((sodium.structure_type, mixture.structure_type), ("elemental", "sulfide mixture (shares open)"))
+        self.assertEqual((sodium.structure_type, mixture.structure_type), (NO_FAMILY, NO_FAMILY))
+        self.assertIn("an element", sodium.structure_type_basis)
+        self.assertIn("a sulfide mixture whose shares are open", mixture.structure_type_basis)
 
 
 class DatabaseTests(unittest.TestCase):
@@ -211,11 +228,9 @@ class DatabaseTests(unittest.TestCase):
             return list(csv.DictReader(handle))
 
     def test_one_database_per_class_on_each_axis(self):
-        # Li3YCl6, of which nothing is stated, is of no named type: its composition type is its class.
+        # Li3YCl6, of which nothing is stated, is of no known crystal family: no folder of that axis holds it.
         self.assertEqual(sorted(p.name for p in (self.out / "crystal_structure").iterdir() if p.is_dir()),
-                         ["NASICON", "argyrodite", "composition_types", "garnet"])
-        self.assertEqual([p.name for p in (self.out / "crystal_structure" / "composition_types").iterdir()],
-                         ["A3MX6 halide"])
+                         ["NASICON", "argyrodite", "garnet"])
         self.assertEqual(sorted(p.name for p in (self.out / "structure_families").iterdir() if p.is_dir()),
                          ["halide", "oxide", "sulfide"])
         for axis in ("crystal_structure", "structure_families"):
@@ -223,10 +238,14 @@ class DatabaseTests(unittest.TestCase):
             self.assertTrue((self.out / axis / f"{axis}.xlsx").is_file())
         garnet = self.out / "crystal_structure" / "garnet"
         self.assertEqual(sorted(p.name for p in garnet.iterdir()),
-                         ["activation_energy.csv", "diffusion_coefficient.csv", "electronic_conductivity.csv",
-                          "ionic_conductivity.csv", "materials.csv", "papers.csv", "properties.csv"])
+                         ["activation_energy.csv", "bulk", "diffusion_coefficient.csv", "electronic_conductivity.csv",
+                          "grain_boundary", "ionic_conductivity.csv", "materials.csv", "papers.csv", "properties.csv",
+                          "total"])  # its sub-classes: bulk, grain boundary, total
         everything = self.read_csv("all_materials.csv")
         self.assertFalse(any("unclassified" in str(v) for row in everything for v in row.values()))
+        halide = next(row for row in everything if row["material"] == "Li3YCl6")
+        self.assertEqual((halide["crystal_structure"], halide["composition_type"], halide["structure_family"]),
+                         (NO_FAMILY, "A3MX6 halide", "halide"))  # and in structure_families/halide/
 
     def test_a_material_of_both_databases_is_one_material_with_all_its_values(self):
         materials = self.read_csv("crystal_structure", "garnet", "materials.csv")
@@ -240,9 +259,10 @@ class DatabaseTests(unittest.TestCase):
                          {"A.pdf", "10.1_b.pdf"})
 
     def test_every_value_is_in_one_class_of_each_axis(self):
-        for axis in ("crystal_structure", "structure_families"):
-            counted = sum(int(row["n_activation_energies"]) for row in self.read_csv(axis, "summary.csv"))
-            self.assertEqual(counted, 5)
+        counted = {axis: sum(int(row["n_activation_energies"]) for row in self.read_csv(axis, "summary.csv"))
+                   for axis in ("crystal_structure", "structure_families")}
+        # every value in one family of compounds; in a crystal family, those of a material of one (not Li3YCl6's)
+        self.assertEqual(counted, {"crystal_structure": 4, "structure_families": 5})
         everything = self.read_csv("all_materials.csv")
         self.assertEqual(len(everything), 4)
         self.assertEqual({m["material"]: m["crystal_structure_basis"] for m in everything}["Li1+xTi2-xAlx(PO4)3"],

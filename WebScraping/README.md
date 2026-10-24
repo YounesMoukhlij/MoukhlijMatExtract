@@ -8,13 +8,29 @@ papers, fetch the ones you can legally read, and extract from them with the pipe
 
 | | |
 |---|---|
-| **Input** | the job file `WebScraping/configs/sse.yaml` (what to search for) and the web |
+| **Input** | the job file `configs/sse.yaml` (what to search for) and the web |
 | **Output** | the PDFs in `WebScraping/papers/`, and the database `WebScraping/web_output/` — the same files as [LocalExtraction's](../LocalExtraction/README.md#output) |
 | **Read by** | [SelectingTopMaterial](../SelectingTopMaterial/README.md) and [Crystal and Structure Classification](<../Crystal and Structure Classification/README.md>) |
 
+## Set up (once)
+
+The whole project works inside one virtual environment (venv), `.venv/` in the project folder.
+From the project folder (the one that holds `WebScraping/`), with Python 3.11 or newer:
+
+```bash
+python3 -m venv .venv                     # create the venv, once
+source .venv/bin/activate                 # enter it (Windows: .venv\Scripts\activate)
+pip install -r requirements.txt           # install the packages inside it
+python -m spacy download en_core_web_sm   # and the language model
+```
+
+Then work inside it: enter it (`source .venv/bin/activate`) in every new terminal before you run
+the commands below; your prompt then starts with `(.venv)`. The
+[main README](../README.md#install-once) has the whole setup, Tesseract included.
+
 ## Run it
 
-From the project root:
+From the project folder, inside the venv:
 
 ```bash
 python -m WebScraping                    # search, screen, download and extract — all of it
@@ -30,7 +46,7 @@ table), and `python -m WebScraping --stage fetch` goes on from there.
 
 | Option | What it does |
 |---|---|
-| `--job FILE` | The job file: what to search for, which papers to keep, what to extract (default: `WebScraping/configs/sse.yaml`) |
+| `--job FILE` | The job file: what to search for, which papers to keep, what to extract (default: `configs/sse.yaml`) |
 | `--output DIR`, `-o` | Where the database goes (default: `WebScraping/web_output`) |
 | `--stage discover\|fetch\|extract` | The first stage to run (default: `discover`, i.e. all of them) |
 | `--limit N` | Fetch at most N papers in this run |
@@ -109,7 +125,7 @@ the `LocalExtraction/` folder beside it.
    expected to be had: `open`, through a publisher's API (`elsevier`, `wiley`), or `closed` — no
    open copy is known to the search. A closed paper is not proposed, unless the job sets
    `screen.propose_closed`: then the fetch stage asks the repositories for the authors' manuscript.
-3. **Review** — only when the job sets `review: true` (`WebScraping/configs/sse.yaml` does not:
+3. **Review** — only when the job sets `review: true` (`configs/sse.yaml` does not:
    the proposals are approved and fetched straight away). Set `decision` to `yes` or `no` (empty =
    still waiting) and save. The file may be saved by Excel with `;` between columns or in
    Windows-1252: both are read.
@@ -145,7 +161,8 @@ the `LocalExtraction/` folder beside it.
 
 ## The job file
 
-`WebScraping/configs/sse.yaml` is a ready-made example for solid-state electrolytes. Every key is optional
+`configs/sse.yaml` is a ready-made example for solid-state electrolytes. It sits in the project's
+`configs/` folder, not in `WebScraping/`, because `Fetch_DOIs/get_dois.py` reads its queries too. Every key is optional
 except `search`; a key the loader does not know is an error (a misspelled `min_score` would
 otherwise quietly keep its default).
 

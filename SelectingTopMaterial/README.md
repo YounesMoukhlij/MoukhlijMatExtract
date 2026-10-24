@@ -24,9 +24,25 @@ It only reads the results folders (`LocalExtraction/local_output/`, `WebScraping
 own `SelectingTopMaterial/results/`. It imports nothing from the rest of the project and changes
 none of its files.
 
+## Set up (once)
+
+The whole project works inside one virtual environment (venv), `.venv/` in the project folder.
+From the project folder (the one that holds `SelectingTopMaterial/`), with Python 3.11 or newer:
+
+```bash
+python3 -m venv .venv                     # create the venv, once
+source .venv/bin/activate                 # enter it (Windows: .venv\Scripts\activate)
+pip install -r requirements.txt           # install the packages inside it
+python -m spacy download en_core_web_sm   # and the language model (for parts 1 and 2)
+```
+
+Then work inside it: enter it (`source .venv/bin/activate`) in every new terminal before you run
+the commands below; your prompt then starts with `(.venv)`. The
+[main README](../README.md#install-once) has the whole setup.
+
 ## Run it
 
-From the project folder:
+From the project folder, inside the venv:
 
 ```
 python -m SelectingTopMaterial          # in the terminal

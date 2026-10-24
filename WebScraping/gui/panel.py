@@ -171,7 +171,7 @@ class WebPanel(ttk.LabelFrame):
         self.close()
         self.job, path = None, self.job_file.get()
         if not path:
-            self._no_job("Choose a job file: it says what to search for (WebScraping/configs/sse.yaml is an example), or press Edit… "
+            self._no_job("Choose a job file: it says what to search for (configs/sse.yaml is an example), or press Edit… "
                          "to write one.")
             return
         try:
@@ -214,7 +214,7 @@ class WebPanel(ttk.LabelFrame):
     def _edit_job(self) -> None:
         if self.running():
             return
-        JobDialog(self, self.job or Job(), self.job_file.get() or os.path.join("WebScraping", "configs", "my_job.yaml"), self._job_saved)
+        JobDialog(self, self.job or Job(), self.job_file.get() or os.path.join("configs", "my_job.yaml"), self._job_saved)
 
     def _job_saved(self, path: str) -> None:
         relative = os.path.relpath(path)

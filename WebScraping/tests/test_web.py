@@ -332,6 +332,20 @@ class HttpTests(unittest.TestCase):
         self.assertFalse(client.allowed("https://a.org/private/x.pdf"))
         self.assertTrue(client.allowed("https://a.org/private/open/x.pdf"))
 
+    def test_a_robots_rule_for_another_bot_whose_name_is_part_of_ours_does_not_apply(self):
+        robots = "User-agent: Extract\nDisallow: /\n\nUser-agent: *\nDisallow: /private\n"
+        client = client_for(FakeSession([("robots.txt", FakeResponse(200, robots))]))
+        self.assertTrue(client.allowed("https://a.org/paper.pdf"))
+        self.assertFalse(client.allowed("https://a.org/private/paper.pdf"))
+
+    def test_a_blank_line_does_not_end_a_group_of_robots_rules(self):
+        robots = "User-agent: *\nCrawl-delay: 30\n\nDisallow: */search\n# a comment\nDisallow: */user\n"  # as PLOS's
+        client = client_for(FakeSession([("robots.txt", FakeResponse(200, robots))]))
+        self.assertFalse(client.allowed("https://journals.plos.org/plosone/search?q=x"))
+        self.assertFalse(client.allowed("https://journals.plos.org/plosone/user"))
+        self.assertTrue(client.allowed("https://journals.plos.org/plosone/article?id=1"))
+        self.assertEqual(client._crawl_delay["journals.plos.org"], 30.0)
+
     def test_robots_rules_for_a_missing_or_broken_robots_txt(self):
         self.assertTrue(client_for(FakeSession([("robots.txt", FakeResponse(404))])).allowed("https://a.org/x.pdf"))
         self.assertFalse(client_for(FakeSession([("robots.txt", FakeResponse(503))])).allowed("https://a.org/x.pdf"))

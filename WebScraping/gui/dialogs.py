@@ -234,7 +234,7 @@ class JobDialog(Dialog):
 
     def _save_as(self) -> None:
         path = filedialog.asksaveasfilename(parent=self, title="Save the job as", defaultextension=".yaml",
-                                            initialdir=os.path.dirname(self.path) or os.path.join("WebScraping", "configs"),
+                                            initialdir=os.path.dirname(self.path) or "configs",
                                             filetypes=[("Job file", "*.yaml *.yml")])
         if path:
             self._save(path)

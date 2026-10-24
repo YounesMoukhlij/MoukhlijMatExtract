@@ -1,20 +1,34 @@
-
+# The project's virtual environment (README: Install)
+.venv/
+venv/
 
 # API keys and your email live here, never in git
-WebScraping/.env
+.env
 
-# PDFs fetched by the web project: someone else's copyright, not for a repository
+# Articles: someone else's copyright, not for a repository (and this one is public).
+# Every PDF anywhere in the project, and the folders papers are put or downloaded into.
+*.pdf
+LocalExtraction/papers/*
+!LocalExtraction/papers/.gitkeep
 WebScraping/papers/
+younes4scraping/fetched articles/
+younes4scraping/tests/output/
 
-# PDFs on local
-LocalPapers/papers/
+# Everything the programs write: run them to make it again
+LocalExtraction/local_output/
+WebScraping/web_output/
+SelectingTopMaterial/results/
+Crystal and Structure Classification/crystal_structure/
+Crystal and Structure Classification/structure_families/
+Crystal and Structure Classification/all_materials.csv
+Crystal and Structure Classification/.*.writing/
+Fetch_DOIs/dois.csv
 
-# Python and macOS leave these everywhere
+# Python leaves these everywhere
 __pycache__/
+*.py[cod]
 .pytest_cache/
-.DS_Store
 
-Crystal and Structure Classification/__pycache__/
-WebScraping/__pycache__/
-LocalPapers/__pycache__/
-SelectingTopMaterial/__pycache__/
+# macOS, and the lock files Excel leaves next to a workbook it has open
+.DS_Store
+~$*

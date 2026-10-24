@@ -14,9 +14,25 @@ pipeline on the PDFs it fetches.
 | **Output** | the database `LocalExtraction/local_output/` — see [Output](#output) |
 | **Read by** | [SelectingTopMaterial](../SelectingTopMaterial/README.md) and [Crystal and Structure Classification](<../Crystal and Structure Classification/README.md>) |
 
+## Set up (once)
+
+The whole project works inside one virtual environment (venv), `.venv/` in the project folder.
+From the project folder (the one that holds `LocalExtraction/`), with Python 3.11 or newer:
+
+```bash
+python3 -m venv .venv                     # create the venv, once
+source .venv/bin/activate                 # enter it (Windows: .venv\Scripts\activate)
+pip install -r requirements.txt           # install the packages inside it
+python -m spacy download en_core_web_sm   # and the language model
+```
+
+Then work inside it: enter it (`source .venv/bin/activate`) in every new terminal before you run
+the commands below; your prompt then starts with `(.venv)`. The
+[main README](../README.md#install-once) has the whole setup, Tesseract included.
+
 ## Run it
 
-From the project root:
+From the project folder, inside the venv:
 
 ```bash
 python -m LocalExtraction                                   # LocalExtraction/papers → LocalExtraction/local_output

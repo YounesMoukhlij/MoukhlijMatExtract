@@ -48,6 +48,13 @@ class Disallowed(RuntimeError):
     """The site's robots.txt does not allow this URL to be fetched."""
 
 
+# A robots.txt read as RFC 9309 says: a blank line (or a line of comment) does not end a group of rules.
+# Python's parser takes it for the end, and so drops the rules written after one — PLOS writes
+# "Crawl-delay: 30", a blank line, then "Disallow: */search".
+def rule_lines(text: str) -> list:
+    return [line for line in text.splitlines() if line.split("#", 1)[0].strip()]
+
+
 class _Robots(robotparser.RobotFileParser):
     """robots.txt as RFC 9309 reads it. Python's parser takes a rule's path literally and the first
     rule that matches; a robots.txt also writes "*" (any characters) and "$" (the end of the path) —
@@ -72,7 +79,10 @@ class _Robots(robotparser.RobotFileParser):
             return False
         parts = urlsplit(url)
         path = unquote(parts.path or "/") + (f"?{unquote(parts.query)}" if parts.query else "")
-        entry = next((e for e in self.entries if e.applies_to(useragent)), self.default_entry)
+        # The rules naming this program by its whole name (RFC 9309; Python's applies_to matches a part of
+        # it, so a rule for some bot called "Extract" would be taken for one about this program).
+        name = useragent.split("/")[0].lower()
+        entry = next((e for e in self.entries if any(a.lower() == name for a in e.useragents)), self.default_entry)
         if entry is None:
             return True
         best = None  # (length of the rule, allowed?)
@@ -131,7 +141,7 @@ class PoliteClient:
             parser.disallow_all = True
             return parser
         if response.status_code == 200:
-            parser.parse(response.text.splitlines())
+            parser.parse(rule_lines(response.text))
             delay = parser.crawl_delay(PRODUCT)
             if delay:
                 self._crawl_delay[urlsplit(base).netloc.lower()] = float(delay)
