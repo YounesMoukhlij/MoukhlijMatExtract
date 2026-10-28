@@ -4,6 +4,7 @@ pytesseract>=0.3.13
 pandas>=2.2
 openpyxl>=3.1
 spacy>=3.8
+preshed!=3.0.14   # spaCy dependency; 3.0.14 was yanked from PyPI (crashes on model load)
 pymatgen>=2024.1
 opencv-python-headless>=4.9
 Pillow

@@ -11,18 +11,19 @@ venv/
 LocalExtraction/papers/*
 !LocalExtraction/papers/.gitkeep
 WebScraping/papers/
-younes4scraping/fetched articles/
-younes4scraping/tests/output/
+WebScraping/moukhlij4scraping/fetched articles/
+WebScraping/moukhlij4scraping/tests/output/
 
 # Everything the programs write: run them to make it again
 LocalExtraction/local_output/
 WebScraping/web_output/
 SelectingTopMaterial/results/
-Crystal and Structure Classification/crystal_structure/
-Crystal and Structure Classification/structure_families/
-Crystal and Structure Classification/all_materials.csv
-Crystal and Structure Classification/.*.writing/
-Fetch_DOIs/dois.csv
+Classification/crystal_structure/
+Classification/structure_families/
+Classification/all_materials.csv
+Classification/.*.writing/
+WebScraping/Fetch_DOIs/dois.csv
+WebScraping/Fetch_DOIs/dois.txt
 
 # Python leaves these everywhere
 __pycache__/

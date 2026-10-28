@@ -13,26 +13,26 @@ from unittest import mock
 
 from WebScraping.tests.test_web import FakeResponse, FakeSession, candidate, client_for  # also: offline, sys.path
 
-from WebScraping import abstracts, screening, sources
-from WebScraping.doctor import check as check_setup
-from WebScraping.harvest import Harvest
-from WebScraping.http import HttpError
-from WebScraping.job import ABSTRACT_SOURCES, KEY_SIGNUP, SOURCES, ENV_SETTINGS, FetchConfig, Job, ScreenConfig, SearchConfig
-from WebScraping.ledger import NEW, REJECTED, SCREENED, Candidate, Ledger, abstract_basis
-from WebScraping.resolve import Resolver
-from WebScraping.sources.ads import ADS
-from WebScraping.sources.common import Source, plain, spell_license
-from WebScraping.sources.core import Core, build_query as core_query
-from WebScraping.sources.crossref import Crossref
-from WebScraping.sources.doaj import DOAJ
-from WebScraping.sources.europepmc import EuropePMC
-from WebScraping.sources.ieee import IEEE
-from WebScraping.sources.jstage import JStage
-from WebScraping.sources.openaire import OpenAIRE
-from WebScraping.sources.scopus import Scopus, build_query as scopus_query
-from WebScraping.sources.semanticscholar import SemanticScholar
-from WebScraping.sources.springernature import SpringerNature
-from WebScraping.sources.wos import WebOfScience, build_query as wos_query
+from WebScraping.averageScrap import abstracts, screening, sources
+from WebScraping.averageScrap.doctor import check as check_setup
+from WebScraping.averageScrap.harvest import Harvest
+from WebScraping.averageScrap.http import HttpError
+from WebScraping.averageScrap.job import ABSTRACT_SOURCES, KEY_SIGNUP, SOURCES, ENV_SETTINGS, FetchConfig, Job, ScreenConfig, SearchConfig
+from WebScraping.averageScrap.ledger import NEW, REJECTED, SCREENED, Candidate, Ledger, abstract_basis
+from WebScraping.averageScrap.resolve import Resolver
+from WebScraping.averageScrap.sources.ads import ADS
+from WebScraping.averageScrap.sources.common import Source, plain, spell_license
+from WebScraping.averageScrap.sources.core import Core, build_query as core_query
+from WebScraping.averageScrap.sources.crossref import Crossref
+from WebScraping.averageScrap.sources.doaj import DOAJ
+from WebScraping.averageScrap.sources.europepmc import EuropePMC
+from WebScraping.averageScrap.sources.ieee import IEEE
+from WebScraping.averageScrap.sources.jstage import JStage
+from WebScraping.averageScrap.sources.openaire import OpenAIRE
+from WebScraping.averageScrap.sources.scopus import Scopus, build_query as scopus_query
+from WebScraping.averageScrap.sources.semanticscholar import SemanticScholar
+from WebScraping.averageScrap.sources.springernature import SpringerNature
+from WebScraping.averageScrap.sources.wos import WebOfScience, build_query as wos_query
 
 ABSTRACT = ("We report the ionic conductivity and the activation energy of the argyrodite Li6PS5Cl, a solid "
             "electrolyte for all-solid-state batteries.")

@@ -12,7 +12,7 @@ pipeline on the PDFs it fetches.
 |---|---|
 | **Input** | the PDFs at the top level of `LocalExtraction/papers/` |
 | **Output** | the database `LocalExtraction/local_output/` — see [Output](#output) |
-| **Read by** | [SelectingTopMaterial](../SelectingTopMaterial/README.md) and [Crystal and Structure Classification](<../Crystal and Structure Classification/README.md>) |
+| **Read by** | [SelectingTopMaterial](../SelectingTopMaterial/README.md) and [Crystal and Structure Classification](../Classification/README.md) |
 
 ## Set up (once)
 

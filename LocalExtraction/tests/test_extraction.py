@@ -128,7 +128,7 @@ class OneActivationEnergyTests(unittest.TestCase):
         self.assertEqual(barrier.reported_as, "activation energy (of a rotation)")
 
     def test_an_old_job_file_still_loads(self):
-        from WebScraping.job import load_job
+        from WebScraping.averageScrap.job import load_job
         folder = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, folder, True)
         path = os.path.join(folder, "job.yaml")

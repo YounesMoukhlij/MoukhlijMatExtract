@@ -23,21 +23,21 @@ import pandas as pd
 import pymupdf
 import requests
 
-from WebScraping import screening
-from WebScraping.elsevier import Elsevier
-from WebScraping.fetch import Downloader, check_pdf
-from WebScraping.harvest import Harvest
-from WebScraping.http import Disallowed, HttpError, PoliteClient
-from WebScraping.doctor import check as check_setup
-from WebScraping.ids import aps_doi, arxiv_id, candidate_key, file_stem, normalize_doi
-from WebScraping.job import (ExtractConfig, FetchConfig, Job, ScreenConfig, SearchConfig, dump_job, load_job, read_env,
+from WebScraping.averageScrap import screening
+from WebScraping.averageScrap.elsevier import Elsevier
+from WebScraping.averageScrap.fetch import Downloader, check_pdf
+from WebScraping.averageScrap.harvest import Harvest
+from WebScraping.averageScrap.http import Disallowed, HttpError, PoliteClient
+from WebScraping.averageScrap.doctor import check as check_setup
+from WebScraping.averageScrap.ids import aps_doi, arxiv_id, candidate_key, file_stem, normalize_doi
+from WebScraping.averageScrap.job import (ExtractConfig, FetchConfig, Job, ScreenConfig, SearchConfig, dump_job, load_job, read_env,
                      save_env)
-from WebScraping.ledger import (APPROVED, CLOSED, DOWNLOADED, FAILED, NEW, REJECTED, SCREENED, Candidate, Ledger)
-from WebScraping.resolve import FetchOption, Resolver
-from WebScraping.sidecar import read_provenance
-from WebScraping.sources.arxiv import ArXiv, build_query, parse_feed
-from WebScraping.sources.openalex import OpenAlex, abstract_from_index, candidate_from_work
-from WebScraping.wiley import Wiley
+from WebScraping.averageScrap.ledger import (APPROVED, CLOSED, DOWNLOADED, FAILED, NEW, REJECTED, SCREENED, Candidate, Ledger)
+from WebScraping.averageScrap.resolve import FetchOption, Resolver
+from WebScraping.averageScrap.sidecar import read_provenance
+from WebScraping.averageScrap.sources.arxiv import ArXiv, build_query, parse_feed
+from WebScraping.averageScrap.sources.openalex import OpenAlex, abstract_from_index, candidate_from_work
+from WebScraping.averageScrap.wiley import Wiley
 
 
 # ----------------------------------------------------------------------
@@ -255,7 +255,7 @@ class JobTests(unittest.TestCase):
             save_env({"ELSEVIER_API_KEY": "two\nlines"}, path)
 
     def test_a_setting_under_its_former_name_still_counts(self):
-        from WebScraping.job import load_env
+        from WebScraping.averageScrap.job import load_env
         path = self.write("AUTOMATEXTRACT_EMAIL=me@example.org\n")  # the name before MoukhlijMatExtract
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(load_env(path), 1)
@@ -307,8 +307,8 @@ class HttpTests(unittest.TestCase):
         plain, polite = FakeSession(), FakeSession()
         client_for(plain)
         client_for(polite, contact="me@example.org")
-        self.assertEqual(plain.headers["User-Agent"], "MoukhlijMatExtract/0.1")
-        self.assertEqual(polite.headers["User-Agent"], "MoukhlijMatExtract/0.1 (mailto:me@example.org)")
+        self.assertEqual(plain.headers["User-Agent"], "MoukhlijMatExtract/1.0.0")
+        self.assertEqual(polite.headers["User-Agent"], "MoukhlijMatExtract/1.0.0 (mailto:me@example.org)")
 
     def test_robots_txt_is_obeyed_for_files_and_its_crawl_delay_slows_the_host(self):
         robots = "User-agent: *\nDisallow: /private\nCrawl-delay: 7\n"
@@ -940,7 +940,7 @@ class HarvestTests(unittest.TestCase):
 
     def run_stage(self, **kwargs):
         out = io.StringIO()
-        with redirect_stdout(out), mock.patch("WebScraping.harvest.NaLiXPipeline") as pipeline:
+        with redirect_stdout(out), mock.patch("WebScraping.averageScrap.harvest.NaLiXPipeline") as pipeline:
             code = self.harvest.run(job_path="job.yaml", **kwargs)
         return code, out.getvalue(), pipeline
 
@@ -1032,7 +1032,7 @@ class HarvestTests(unittest.TestCase):
 
     def test_no_email_in_the_requests_unless_one_was_configured(self):
         self.run_stage(start="discover")
-        self.assertEqual(self.session.headers["User-Agent"], "MoukhlijMatExtract/0.1")
+        self.assertEqual(self.session.headers["User-Agent"], "MoukhlijMatExtract/1.0.0")
         self.assertNotIn("mailto", self.session.calls[0][1])
 
 
@@ -1040,11 +1040,11 @@ class HarvestTests(unittest.TestCase):
 # The gate
 # ----------------------------------------------------------------------
 class GateTests(unittest.TestCase):
-    """The terminal gate of the web project: python -m WebScraping."""
+    """The terminal gate of the web project: python -m WebScraping.averageScrap."""
 
     def test_commands(self):
-        from WebScraping.about import DEFAULT_JOB, DEFAULT_OUTPUT
-        from WebScraping.cli import parse_args
+        from WebScraping.averageScrap.about import DEFAULT_JOB, DEFAULT_OUTPUT
+        from WebScraping.averageScrap.cli import parse_args
         run = parse_args(["run", "--job", "j.yaml", "--stage", "fetch", "--yes", "--limit", "5", "-w", "2"])
         self.assertEqual((run.command, run.job, run.stage, run.yes, run.limit, run.workers),
                          ("run", "j.yaml", "fetch", True, 5, 2))
@@ -1055,7 +1055,7 @@ class GateTests(unittest.TestCase):
         self.assertEqual((window.command, window.job, window.output), ("gui", None, "elsewhere"))
 
     def test_without_a_command_it_runs(self):
-        from WebScraping import cli
+        from WebScraping.averageScrap import cli
         seen = []
         with mock.patch.object(cli, "run_web", side_effect=lambda args: seen.append((args.job, args.output, args.stage)) or 0), \
                 mock.patch.object(cli, "rebuild_if_asked"), \
@@ -1065,13 +1065,13 @@ class GateTests(unittest.TestCase):
         self.assertEqual(seen, [(cli.DEFAULT_JOB, cli.DEFAULT_OUTPUT, "discover"), ("j.yaml", "out", "fetch")])
 
     def test_a_job_file_that_cannot_be_read(self):
-        from WebScraping import cli
+        from WebScraping.averageScrap import cli
         with mock.patch.object(cli, "print_banner"), mock.patch.object(cli, "rebuild_if_asked"), \
                 redirect_stdout(io.StringIO()):
             self.assertEqual(cli.main(["--job", "no/such/job.yaml"]), 2)
 
     def test_a_database_of_an_earlier_version_is_rebuilt_not_added_to(self):
-        from WebScraping import cli
+        from WebScraping.averageScrap import cli
         folder = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, folder, True)
         out = os.path.join(folder, "out")

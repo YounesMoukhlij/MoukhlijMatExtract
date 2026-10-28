@@ -6,7 +6,7 @@ Reads the activation energies MoukhlijMatExtract extracted and ranks the materia
 
 | | |
 |---|---|
-| **Input** | `activation_energy.csv` and `papers.csv` of `LocalExtraction/local_output/` and `WebScraping/web_output/` (whichever exist) — or of any folder named with `--source`, such as a class of [Crystal and Structure Classification](<../Crystal and Structure Classification/README.md>) |
+| **Input** | `activation_energy.csv` and `papers.csv` of `LocalExtraction/local_output/` and `WebScraping/web_output/` (whichever exist) — or of any folder named with `--source`, such as a class of [Crystal and Structure Classification](../Classification/README.md) |
 | **Output** | `SelectingTopMaterial/results/` |
 | **Command** | `python -m SelectingTopMaterial` (the window: `python -m SelectingTopMaterial gui`) |
 

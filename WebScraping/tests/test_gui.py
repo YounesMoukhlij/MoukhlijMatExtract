@@ -20,9 +20,9 @@ os.environ["MME_OFFLINE"] = "1"  # the tests never go on the network
 
 from LocalExtraction.exporter import StrictExporter
 from LocalExtraction.tests.test_gui import WEB, WindowTest, has_screen, paper
-from WebScraping.fetch import Outcome
-from WebScraping.job import ExtractConfig, FetchConfig, Job, ScreenConfig, SearchConfig, dump_job, load_job
-from WebScraping.ledger import DOWNLOADED, SCREENED, Candidate, Ledger
+from WebScraping.averageScrap.fetch import Outcome
+from WebScraping.averageScrap.job import ExtractConfig, FetchConfig, Job, ScreenConfig, SearchConfig, dump_job, load_job
+from WebScraping.averageScrap.ledger import DOWNLOADED, SCREENED, Candidate, Ledger
 
 
 @unittest.skipUnless(has_screen(), "the window needs a screen")
@@ -49,7 +49,7 @@ class WindowTests(WindowTest):
         ledger.close()
 
     def make_app(self, root):
-        from WebScraping.gui.app import App
+        from WebScraping.averageScrap.gui.app import App
         return App(root, job_path=self.job_path, output_dir=self.web_output, workers=2)
 
     # ------------------------------------------------------------------
@@ -92,7 +92,7 @@ class WindowTests(WindowTest):
         self.assertEqual(self.app.panel.harvest.ledger.get("10.1000/other").decision, "yes")
 
     def test_the_job_form_gives_back_the_job_it_was_given(self):
-        from WebScraping.gui.dialogs import JobDialog
+        from WebScraping.averageScrap.gui.dialogs import JobDialog
         saved = []
         form = JobDialog(self.app.panel, self.job, self.job_path, saved.append)
         self.pump(0.1)

@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use MoukhlijMatExtract in your research, please cite it as below."
+title: "MoukhlijMatExtract (MME)"
+abstract: >-
+  A tool that extracts solid-state-electrolyte data (activation energies, ionic and electronic
+  conductivities, diffusion coefficients and more) from scientific papers, ranks the materials and
+  classifies them by crystal and structure family.
+type: software
+version: "1.0.0"
+date-released: "2026-10-25"
+license: MIT
+repository-code: "https://github.com/YounesMoukhlij/AutoMatExtract"
+url: "https://github.com/YounesMoukhlij/AutoMatExtract"
+keywords:
+  - solid-state electrolytes
+  - materials science
+  - scientific literature mining
+  - activation energy
+  - ionic conductivity
+authors:
+  - family-names: Moukhlij
+    given-names: Younes
+    email: younes.moukhlij@usms.ac.ma
+    affiliation: "Faculté Polydisciplinaire de Khouribga (FPK), Université Sultan Moulay Slimane (USMS)"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"   # TODO: add your ORCID
+# TODO (optional): mint a release DOI (e.g. on Zenodo) and add it here, so the tool is citable by DOI:
+# doi: "10.5281/zenodo.XXXXXXX"

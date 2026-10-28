@@ -18,15 +18,15 @@ the web ───▶ 2 · WebScraping ─────▶ web_output/ ───�
 | Folder | What it does | Docs |
 |---|---|---|
 | **`LocalExtraction/`** — part 1 | Extracts the data of your own PDFs into a database | [README](LocalExtraction/README.md) |
-| **`WebScraping/`** — part 2 | Finds papers online, downloads the legal copies and extracts them the same way | [README](WebScraping/README.md) |
+| **`WebScraping/`** — part 2 | Finds papers online and extracts them — **two methods, one database** (see below) | [README](WebScraping/README.md) |
 | **`SelectingTopMaterial/`** — part 3 | Ranks the materials by activation energy | [README](SelectingTopMaterial/README.md) |
-| **`Crystal and Structure Classification/`** — part 4 | Sorts the materials by crystal family and by structure family | [README](<Crystal and Structure Classification/README.md>) |
-| `Fetch_DOIs/` — side tool | Collects the DOIs of papers on a topic into a CSV | [below](#fetch_dois) |
-| `younes4scraping/` — side tool | Downloads the PDF of a DOI | [README](younes4scraping/README.md) |
-| `configs/` | The job file `sse.yaml`: what parts 2 and `Fetch_DOIs` search for | |
+| **`Classification/`** — part 4 (Crystal & Structure Classification) | Sorts the materials by crystal family and by structure family | [README](Classification/README.md) |
+| `mme_gui/` | The one project window (`make gui`) — a button for each part | |
+| `configs/` | The job file `sse.yaml`: what part 2 searches for | |
 
-Parts 1 and 2 make the databases; parts 3 and 4 read them. The side tools are not part of this
-chain.
+Parts 1 and 2 make the databases; parts 3 and 4 read them. Inside `WebScraping/` the two methods —
+`averageScrap/` (open-source search) and `Fetch_DOIs/` + `moukhlij4scraping/` — both write into
+`WebScraping/papers/` and `WebScraping/web_output/`.
 
 ## Install (once)
 
@@ -47,24 +47,38 @@ python -m spacy download en_core_web_sm   # and the language model
 Or just `make install`. Then **work inside the venv**: enter it in every new terminal
 (`source .venv/bin/activate`); your prompt starts with `(.venv)`.
 
+**Install it as a package** (optional) to get the `mme-*` commands anywhere, from inside the venv:
+
+```bash
+pip install -e .            # editable install; add ".[scrape]" for web method 2 (needs Google Chrome)
+python -m spacy download en_core_web_sm
+```
+
+This adds `mme-gui`, `mme-local`, `mme-web`, `mme-rank`, `mme-classify` and `mme-dois`.
+
 ## Quick start
 
-From the project folder, inside the venv:
+**The whole project in one window:** `make gui` (or `python -m mme_gui`) — a hub with a button for
+each part; each opens in its own window. Run the parts left to right.
+
+Or from the terminal, inside the venv:
 
 ```bash
 python -m LocalExtraction                         # 1. the PDFs of LocalExtraction/papers/ → a database
 python -m WebScraping                             # 2. papers from the web → a database
 python -m SelectingTopMaterial                    # 3. rank the materials
-python "Crystal and Structure Classification"     # 4. classify them
+python -m Classification                          # 4. classify them
 ```
 
-Add `gui` after any of them for a window. The same as shortcuts:
+(After `pip install -e .` these are also `mme-local`, `mme-web`, `mme-rank`, `mme-classify`.)
+Add `gui` after any one part for just its window. The same as shortcuts:
 
 | | |
 |---|---|
+| `make gui` | the one window for the whole project |
 | `make local` · `make web` · `make rank` · `make classify` | the four parts |
 | `make local-gui` · `make web-gui` · `make rank-gui` · `make classify-gui` | their windows |
-| `make doi` | the `Fetch_DOIs` side tool |
+| `make doi` | web method 2, step 1 (collect DOIs) |
 | `make install` · `make test` · `make clean` | set up · run every test · remove `__pycache__/` |
 
 ## The four parts
@@ -75,11 +89,15 @@ PDFs (text, tables, figures, scanned pages), finds the materials and their value
 `ionic_conductivity.csv`, …), `materials.csv`, `papers.csv` and more, plus `database.xlsx`. No cell
 is left empty: the `basis` column says whether each answer was stated, inferred or assumed.
 
-**2 · WebScraping.** Searches 14 services (OpenAlex, arXiv, Crossref, Semantic Scholar, …) with the
-queries of `configs/sse.yaml`, keeps the papers whose title and abstract match, downloads the legal
-copies into `WebScraping/papers/`, and extracts them into `WebScraping/web_output/` (the same files
-as part 1). Running it again only does what is new. Your e-mail and the API keys (all free, all
-optional) go in `WebScraping/.env`; `python -m WebScraping --check` tests them.
+**2 · WebScraping.** Two methods that build one database — both save PDFs in `WebScraping/papers/`
+and extract into `WebScraping/web_output/` (the same files as part 1). See [the two web methods](#the-two-web-methods).
+- *Method 1 — search open sources* (`python -m WebScraping`): searches 14 services (OpenAlex, arXiv,
+  Crossref, Semantic Scholar, …) with the queries of `configs/sse.yaml`, keeps the papers whose title
+  and abstract match, downloads the legal copies and extracts them. Your e-mail and the API keys (all
+  free, all optional) are set with the **API keys…** button of the web windows — one card per
+  organization, each with a link to get a free key — and saved in `WebScraping/averageScrap/.env`;
+  `python -m WebScraping --check` tests them.
+- *Method 2 — moukhlij4scraping*: collect the DOIs of the topic, fetch a PDF for each, extract.
 
 **3 · SelectingTopMaterial.** Takes one activation energy per material and sorts the materials into
 **Superionic** (< 0.25 eV), **Performant** (< 0.30), **Acceptable** (< 0.40) or Rejected. Writes
@@ -91,29 +109,39 @@ ranking.
 sulfide, halide, …) and, when it has one, its crystal family (NASICON, garnet, argyrodite, …). It
 writes one database per class into `crystal_structure/` and `structure_families/`, each split into
 `bulk/`, `grain_boundary/` and `total/`, plus `all_materials.csv`. Part 3 can rank one class:
-`python -m SelectingTopMaterial --source "Crystal and Structure Classification/crystal_structure/garnet"`.
+`python -m SelectingTopMaterial --source Classification/crystal_structure/garnet`.
 
-## Side tools
+## The two web methods
 
-### Fetch_DOIs
+Both live inside `WebScraping/` and feed the one database (`WebScraping/papers/` → `WebScraping/web_output/`).
+Open them together from `make gui` → **2 · Web scraping**, or on their own with `python -m WebScraping gui`.
 
-Searches OpenAlex, Crossref, Semantic Scholar, arXiv and Google Scholar and adds one row per DOI to
-`Fetch_DOIs/dois.csv`. Each run adds to it.
+**Method 1 — search open sources** (`WebScraping/averageScrap/`). The default: `python -m WebScraping`.
+See the [WebScraping README](WebScraping/README.md).
 
-```bash
-python Fetch_DOIs/get_dois.py                              # the queries of configs/sse.yaml
-python Fetch_DOIs/get_dois.py "LLZO garnet" --no-scholar   # your own keywords, without Google Scholar
-```
-
-### younes4scraping
-
-`younes4scraping/fetched articles/`. It needs Google Chrome and its own packages, in the same venv.
-Unlike part 2 it does not only fetch legal copies: check your institution's rules first.
+**Method 2 — moukhlij4scraping.** Three steps:
 
 ```bash
-pip install -r younes4scraping/requirements.txt   # once, inside the venv
-python younes4scraping/run.py 10.1038/nature14539
+# 1. collect the DOIs of the topic (OpenAlex, Crossref, Semantic Scholar, arXiv, Google Scholar)
+python WebScraping/Fetch_DOIs/get_dois.py --count 500     # adds 500 new DOIs → dois.csv + dois.txt (no --count: until Ctrl-C)
+# 2. fetch a PDF for each DOI into WebScraping/papers/
+pip install -r WebScraping/moukhlij4scraping/requirements.txt   # once; needs Google Chrome
+python WebScraping/moukhlij4scraping/run.py --from-fetch -l WebScraping/papers   # reads Fetch_DOIs' dois.txt
+# 3. extract (the part-1 pipeline, into WebScraping/web_output/)
+python -m WebScraping --stage extract
 ```
+
+Step 1 writes two files: `dois.csv` (title, year, authors, …) and `dois.txt` (just the DOIs, one per
+line) — the second is the input step 2 reads. `--from-fetch` is short for
+`-i WebScraping/Fetch_DOIs/dois.txt --txt`.
+
+Step 1 always **adds** to the list. `--count N` (1 or more) adds N new DOIs; without it there is no limit
+until you stop it — and the window always asks how many first. When the job's keywords stop finding new
+DOIs, it goes on with keywords made of the job's topic and property words, so the count can be reached.
+Details: [WebScraping README](WebScraping/README.md).
+
+The GUI runs these three as buttons. Method 2 does not only fetch open-access copies, so check your
+institution's rules; it is used here for academic literature research.
 
 ## Keeping it up to date
 
@@ -134,6 +162,11 @@ your computer. A fresh copy has no database: add PDFs and run part 1 or 2 first,
 
 Keep the folders side by side: part 2 uses part 1's extraction code, and part 4 its chemistry.
 
+## Cite
+
+If you use MoukhlijMatExtract in your research, please cite it — see [`CITATION.cff`](CITATION.cff)
+(GitHub shows a "Cite this repository" button). Add your ORCID and a release DOI there when you have them.
+
 ## License
 
-No license file yet. Contact the author before reusing this code beyond personal or evaluation use.
+MoukhlijMatExtract is released under the [MIT License](LICENSE) © 2026 Younes Moukhlij.

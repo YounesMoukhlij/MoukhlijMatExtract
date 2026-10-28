@@ -79,7 +79,7 @@ def _get(url: str, params: Optional[Dict[str, str]] = None) -> Any:
         if time.monotonic() < _outage["until"]:
             return UNREACHABLE  # it was down a moment ago: do not wait on it for every paper
     email = os.environ.get("MME_EMAIL", "")
-    headers = {"User-Agent": "MoukhlijMatExtract/0.1" + (f" (mailto:{email})" if email else "")}
+    headers = {"User-Agent": "MoukhlijMatExtract/1.0.0" + (f" (mailto:{email})" if email else "")}
     if url.startswith(OPENALEX):
         key = os.environ.get("OPENALEX_API_KEY", "")
         params = {**(params or {}), **({"api_key": key} if key else {}), **({"mailto": email} if email else {})} or None
