@@ -9,8 +9,8 @@ type: software
 version: "1.0.0"
 date-released: "2026-10-25"
 license: MIT
-repository-code: "https://github.com/YounesMoukhlij/AutoMatExtract"
-url: "https://github.com/YounesMoukhlij/AutoMatExtract"
+repository-code: "https://github.com/YounesMoukhlij/MoukhlijMatExtract"
+url: "https://github.com/YounesMoukhlij/MoukhlijMatExtract"
 keywords:
   - solid-state electrolytes
   - materials science

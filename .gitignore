@@ -25,6 +25,11 @@ Classification/.*.writing/
 WebScraping/Fetch_DOIs/dois.csv
 WebScraping/Fetch_DOIs/dois.txt
 
+# Build artifacts (upload these with twine, never commit them)
+dist/
+build/
+*.egg-info/
+
 # Python leaves these everywhere
 __pycache__/
 *.py[cod]
