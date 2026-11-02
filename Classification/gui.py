@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import queue
 import threading
+import time
 import tkinter as tk
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -24,7 +25,13 @@ from tkinter import filedialog, messagebox, ttk
 
 import pandas as pd
 
+from LocalExtraction import outputs
+from LocalExtraction.gui.delete_outputs import delete_outputs_button
+from LocalExtraction.gui.result_card import FAILED, NOTHING, Outcome, ResultCard, Stat, number
+from LocalExtraction.exporter import article_title
 from LocalExtraction.gui.widgets import FolderRow, Table, WrapLabel, _sort_key, open_path
+
+from LocalExtraction.about import command_name
 
 from .about import CRYSTAL_STRUCTURE, DEFAULT_OUT, DEFAULT_SOURCES, NAME, PROJECT_ROOT
 from .classify import COMPONENT_WORDS, COMPONENTS, NO_FAMILY
@@ -110,7 +117,7 @@ class ClassTree(ttk.Frame):
         for name, text, width in columns:
             self.tree.heading(name, text=text, anchor="w", command=lambda n=name: self.sort_by(n))
             self.tree.column(name, width=width, minwidth=36, anchor="w", stretch=False)
-        self.tree.tag_configure("composition", foreground="#666666")
+        self.tree.tag_configure("composition", foreground="#8c8c8c")
         self.tree.tag_configure("sub", foreground="#1f4e79")
         vertical = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
         horizontal = ttk.Scrollbar(self, orient="horizontal", command=self.tree.xview)
@@ -179,10 +186,14 @@ class App:
         self.result = Result()
         self._queue: queue.Queue = queue.Queue()
         self._busy = False
+        self._started: float | None = None  # when the classification running began
         self._rows: dict[str, dict[str, object]] = {}
         self._build(list(sources) if sources else list(DEFAULT_SOURCES), out_dir, write_files, chosen=bool(sources))
-        if start:
+        if start and any(var.get() for var in self.sources.values()):
             self.classify()
+        elif start:  # a fresh project: nothing extracted yet, so nothing to tick
+            self.status.configure(text="No database yet: run 1 · Local extraction or 2 · Web scraping first, "
+                                       "then press Classify.")
 
     # ------------------------------------------------------------------
     # The window
@@ -202,6 +213,9 @@ class App:
         self.classify_button = ttk.Button(line, text="Classify", command=self.classify)
         self.classify_button.pack(side="right")
         ttk.Button(line, text="Open the class folders", command=self._open_folder).pack(side="right", padx=6)
+        self.delete_button = delete_outputs_button(line, "classify", after=self._outputs_deleted)
+        self.delete_button.pack(side="right")
+        outputs.register("classify", self.busy, "a classification is running")
 
         line = ttk.Frame(top)
         line.pack(fill="x", pady=(6, 0))
@@ -237,10 +251,11 @@ class App:
         ttk.Button(line, text="Open every class", command=lambda: self._expand(True)).pack(side="left", padx=(12, 4))
         ttk.Button(line, text="Close every class", command=lambda: self._expand(False)).pack(side="left")
 
-        self.status = WrapLabel(self.root, text="", foreground="#444444", wraplength=1200)
+        self.status = WrapLabel(self.root, text="", foreground="#8c8c8c", wraplength=1200)
         self.status.pack(fill="x", padx=12, pady=(6, 2))
 
         self.book = ttk.Notebook(self.root)
+        self.card = ResultCard(self.root, before=self.book, padx=10)  # what the last classification found
         self.book.pack(fill="both", expand=True, padx=10, pady=(2, 4))
         self.classes: dict[str, Table] = {}
         self.trees: dict[str, ClassTree] = {}
@@ -252,7 +267,7 @@ class App:
             pane = ttk.Panedwindow(self.book, orient="vertical")
             self.book.add(pane, text=f"  {word}s  " if axis == CRYSTAL_STRUCTURE else "  Structure families  ")
             upper = ttk.Frame(pane, padding=(0, 6, 0, 0))
-            headline = ttk.Label(upper, text="", foreground="#444444")
+            headline = ttk.Label(upper, text="", foreground="#8c8c8c")
             headline.pack(anchor="w")
             self.headlines[axis] = headline
             columns = [("class", word, 180), ("kind", "kind", 120), ("n_materials", "materials", 66),
@@ -263,7 +278,7 @@ class App:
                             (f"{component}_min", f"{name} min", 110 if wide else 76),
                             (f"{component}_median", f"{name} median", 124 if wide else 90)]
             table = Table(upper, columns, stretch="class", height=11)
-            table.tag("composition", foreground="#666666")
+            table.tag("composition", foreground="#8c8c8c")
             table.tree.bind("<<TreeviewSelect>>", lambda event, a=axis: self._fill_materials(a))
             tree = ClassTree(upper, f"{word} → sub-class", [
                 ("kind", "kind", 170), ("n_materials", "materials", 70), ("n_papers", "papers", 60),
@@ -273,7 +288,7 @@ class App:
             tree.tree.bind("<<TreeviewSelect>>", lambda event, a=axis: self._fill_materials(a))
             pane.add(upper, weight=3)
             lower = ttk.Frame(pane, padding=(0, 6, 0, 0))
-            caption = ttk.Label(lower, text="", foreground="#444444")
+            caption = ttk.Label(lower, text="", foreground="#8c8c8c")
             caption.pack(anchor="w")
             materials = Table(lower, [
                 ("material", "material", 190), ("crystal_structure", "crystal structure", 130),
@@ -284,7 +299,7 @@ class App:
             materials.pack(fill="both", expand=True, pady=(2, 0))
             ttk.Label(lower, text=f"{NO_VALUE} no activation energy of that component is reported for it (with the "
                                   "filters above). Double-click a material for all of its activation energies.",
-                      foreground="#666666").pack(anchor="w", pady=(2, 0))
+                      foreground="#8c8c8c").pack(anchor="w", pady=(2, 0))
             pane.add(lower, weight=2)
             self.classes[axis], self.trees[axis], self.materials[axis], self.captions[axis] = table, tree, materials, caption
         self._show_view(refresh=False)
@@ -329,6 +344,13 @@ class App:
     # ------------------------------------------------------------------
     # Classifying (on its own thread: the window stays responsive)
     # ------------------------------------------------------------------
+    def busy(self) -> bool:
+        return self._busy
+
+    def _outputs_deleted(self, deleted: bool) -> None:
+        if deleted:
+            self.status.configure(text="The class folders were deleted. Press Classify to write them again.")
+
     def classify(self) -> None:
         if self._busy:
             return
@@ -339,7 +361,10 @@ class App:
         out_dir = _folder(self.out.get()) if self.write_files.get() else None
         self._busy = True
         self.classify_button.configure(state="disabled")
+        self.delete_button.configure(state="disabled")
         self.status.configure(text="Classifying the materials of " + ", ".join(_shown(f) for f in folders) + " …")
+        self.card.hide()
+        self._started = time.time()
 
         def work() -> None:
             try:
@@ -358,11 +383,61 @@ class App:
             return
         self._busy = False
         self.classify_button.configure(state="normal")
+        self.delete_button.configure(state="normal")
         if result.error:
             self.status.configure(text=result.error)
+            self.card.show(Outcome("Classification not done", FAILED, result.error, started=self._started))
             return
         self.result = result
         self.refresh()
+        self.show_outcome()
+
+    def show_outcome(self) -> None:
+        """The card of the classification: how many materials and classes, the largest classes with their
+        lowest activation energy, and the article it comes from."""
+        classified = self.result.classified
+        if classified is None:
+            return
+        energies = self.counted()
+        titles = {}
+        for source in self.result.sources:
+            papers = source.tables.get("papers", pd.DataFrame())
+            if {"paper_id", "title"} <= set(papers.columns):
+                titles.update({pid: article_title(title, pid) for pid, title in zip(papers["paper_id"], papers["title"])})
+        groups = {axis: class_groups(classified, attribute, axis) for axis, attribute, _ in AXES}
+        crystal, families = groups.get(CRYSTAL_STRUCTURE, {}), next(
+            (g for axis, g in groups.items() if axis != CRYSTAL_STRUCTURE), {})
+        if not classified.materials:
+            self.card.show(Outcome("Nothing to classify", NOTHING, "The databases hold no material yet.",
+                                   started=self._started))
+            return
+        in_family = sum(len(keys) for keys in crystal.values())
+        stats = [Stat(number(len(classified.materials)), "materials classified"),
+                 Stat(number(len(crystal)), "crystal families", hint=f"{number(in_family)} materials in one"),
+                 Stat(number(len(families)), "structure families"),
+                 Stat(number(len(energies)), "activation energies", hint="with the filters above")]
+        highlights = []
+        column = next(c for axis, _, c in AXES if axis == CRYSTAL_STRUCTURE)
+        for label, keys in list(crystal.items())[:3]:
+            its = energies[energies[column] == label] if len(energies) else energies
+            line = f"{label}: {number(len(keys))} material{'s' if len(keys) != 1 else ''}"
+            if len(its):
+                best = its.loc[its["Ea_eV"].idxmin()]
+                line += (f" · lowest Ea {round(float(best['Ea_eV']), 3)} eV, {best['material']} "
+                         f"({titles.get(best['paper_id'], article_title('', best['paper_id']))})")
+            highlights.append(line)
+        if not crystal:
+            highlights.append("No material could be placed in a known crystal family; see the structure families.")
+        actions = [("Show the crystal structures", lambda: self.book.select(0)),
+                   ("Show the structure families", lambda: self.book.select(1))]
+        if self.result.written:
+            every = self.result.written / "all_materials.csv"
+            actions += [("Open the class folders", self._open_folder),
+                        ("Open all_materials.csv", lambda: open_path(str(every)))]
+        detail = (f"From {', '.join(s.name for s in self.result.sources)}"
+                  + (f"; the class folders are written into {_shown(self.result.written)}." if self.result.written
+                     else "; nothing was written (the box above is unticked)."))
+        self.card.show(Outcome("Classification done", "done", detail, stats, highlights, actions, self._started))
 
     # ------------------------------------------------------------------
     # Showing it
@@ -539,13 +614,13 @@ def _shown(path: Path | None) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m Classification gui", description="The window of the classification.",
+    parser = argparse.ArgumentParser(prog=f"{command_name('mme-classify', 'Classification')} gui", description="The window of the classification.",
                                      epilog="MoukhlijMatExtract (MME) — Created by Younes Moukhlij.")
     parser.add_argument("--source", "-s", nargs="+", action="extend", metavar="DIR",
                         help="Database folder(s) to classify (default: LocalExtraction/local_output and "
                              "WebScraping/web_output)")
     parser.add_argument("--out", "-o", default=str(DEFAULT_OUT), metavar="DIR",
-                        help=f"Folder the class folders are written into (default: {NAME}/)")
+                        help="Folder the class folders are written into (default: Classification/)")
     parser.add_argument("--no-write", action="store_true", help="Only show the classes; write no file")
     args = parser.parse_args(argv)
     root = tk.Tk()

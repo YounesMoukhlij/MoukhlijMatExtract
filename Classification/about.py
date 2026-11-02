@@ -3,11 +3,13 @@
 
 from pathlib import Path
 
+from LocalExtraction.about import PROJECT_HOME
+
 NAME = "Crystal and Structure Classification"
 PACKAGE_DIR = Path(__file__).resolve().parent     # where the code lives
-# The databases and the class folders live in the folder the user runs in — not where the package
-# is installed — so an installed copy reads part 1/2's database and writes its classes there too.
-PROJECT_ROOT = Path.cwd()
+# The databases and the class folders live in ~/MoukhlijMatExtract — not where the package is
+# installed, nor where it is started from — so it always reads part 1/2's database and writes there.
+PROJECT_ROOT = PROJECT_HOME
 
 # The databases the two extraction parts write, the most trusted first (your own PDFs, then the web).
 DEFAULT_SOURCES = (PROJECT_ROOT / "LocalExtraction" / "local_output", PROJECT_ROOT / "WebScraping" / "web_output")

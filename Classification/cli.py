@@ -1,5 +1,6 @@
 # Classification/cli.py
-"""The command line of the classification. Run from the project root.
+"""The command line of the classification. Works inside ~/MoukhlijMatExtract (made with
+Classification/crystal_structure and Classification/structure_families if missing), from wherever it is started.
 
     python -m Classification                   both databases → this folder
     python -m Classification --source WebScraping/web_output
@@ -19,23 +20,29 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from .about import CRYSTAL_STRUCTURE, DEFAULT_OUT, DEFAULT_SOURCES, NAME, PROJECT_ROOT, STRUCTURE_FAMILIES
+from LocalExtraction.about import command_name, enter_project_home
+from LocalExtraction.done import already_done, fingerprint, mark_done
+
+from .about import CRYSTAL_STRUCTURE, DEFAULT_OUT, DEFAULT_SOURCES, NAME, PACKAGE_DIR, PROJECT_ROOT, STRUCTURE_FAMILIES
 from .classify import COMPONENT_WORDS, NO_FAMILY
 from .database import AXES, BY_COMPONENT, classify, read, write
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m Classification",
+        prog=command_name("mme-classify", "Classification"),
         description="Classifies the materials of the MoukhlijMatExtract databases by crystal-structure type "
                     "(NASICON, LISICON, garnet, ...) and by structure family (oxide, sulfide, halide, ...), "
                     "and writes one database per class.",
-        epilog=f'The window: python "{NAME}" gui. MoukhlijMatExtract (MME) — Created by Younes Moukhlij.')
+        epilog=f"The window: {command_name('mme-classify', 'Classification')} gui. "
+               "MoukhlijMatExtract (MME) — Created by Younes Moukhlij.")
     parser.add_argument("--source", "-s", nargs="+", action="extend", metavar="DIR",
                         help="Database folder(s) to read, the most trusted first (default: "
                              "LocalExtraction/local_output and WebScraping/web_output, whichever exist)")
     parser.add_argument("--out", "-o", default=str(DEFAULT_OUT), metavar="DIR",
-                        help=f"Folder to write the classes into (default: {NAME}/)")
+                        help="Folder to write the classes into (default: Classification/)")
+    parser.add_argument("--force", "-f", action="store_true",
+                        help="Classify again even when the databases have not changed since the last run")
     return parser
 
 
@@ -57,6 +64,7 @@ def _count(n: int, word: str) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    enter_project_home("classify")
     if argv[:1] == ["gui"]:  # the window: python -m Classification gui
         from .gui import main as window
         return window(argv[1:])
@@ -81,8 +89,18 @@ def main(argv: Sequence[str] | None = None) -> int:
               "(python -m LocalExtraction or python -m WebScraping), or name one with --source.", file=sys.stderr)
         return 1
 
+    # The same databases, classified by the same code into the same folder: already done.
+    stamp = fingerprint([source.path for source in sources], {"sources": [str(s.path.resolve()) for s in sources]},
+                        code=[PACKAGE_DIR])
+    when = None if args.force else already_done(out_dir, "classify", stamp)
+    if when:
+        print(f"\n  Already classified: the databases have not changed since the last run ({when}) — skipped.\n"
+              f"  The classes are in {_shown(out_dir)}/ (add --force to classify again).")
+        return 0
+
     classified = classify(sources)
     summaries = write(classified, out_dir)
+    mark_done(out_dir, "classify", stamp, [out_dir / "all_materials.csv", *(out_dir / axis for axis, _, _ in AXES)])
     print(f"\n  {len(classified.materials)} materials classified into {_shown(out_dir)}/\n")
     for axis, _, column in AXES:
         title = {CRYSTAL_STRUCTURE: "Crystal structure", STRUCTURE_FAMILIES: "Structure families"}[axis]

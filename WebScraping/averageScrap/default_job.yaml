@@ -1,7 +1,8 @@
 
 name: sse
 
-contact_email: "younes.moukhlij@usms.ac.ma"
+# Empty: the e-mail entered when the Web scraping window opens (saved as MME_EMAIL) is used.
+contact_email: ""
 
 search:
   queries:

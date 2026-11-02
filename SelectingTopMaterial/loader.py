@@ -17,6 +17,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import replace
 from pathlib import Path
 
+from LocalExtraction.exporter import article_title
+
 from .models import NOT_REPORTED, DatabaseReport, Measurement
 
 # The results folders of a project, from its root, in the order they are trusted when two of them
@@ -172,7 +174,7 @@ def _measurement(row: dict[str, str], papers: dict[str, dict[str, str]], databas
         attribution=_cell(row, "attribution") or NOT_REPORTED,
         confidence=_DEFAULT_CONFIDENCE if confidence is None else min(max(confidence, 0.0), 1.0),
         paper_id=paper_id, paper_key=about.get("key", paper_id),
-        paper_title=about.get("title") or paper_id, doi=about.get("doi") or NOT_REPORTED,
+        paper_title=article_title(about.get("title"), paper_id), doi=about.get("doi") or NOT_REPORTED,
         year=about.get("year") or NOT_REPORTED, database=database,
         extracted_from=_cell(row, "extracted_from", "source_type") or NOT_REPORTED,
         page=_cell(row, "page") or NOT_REPORTED, source=_cell(row, "source") or NOT_REPORTED,

@@ -201,6 +201,10 @@ Each project fills its own folder — `LocalExtraction/local_output/` for the ar
 | `database.xlsx` | All of the above as sheets in one workbook |
 | `database.json` | All of the above as nested JSON, one record per paper |
 
+Every table names its article: `title` comes right after `paper_id` (the title the paper states, or
+its file name marked “no title found in the paper”). A database written before this column existed gets
+it from its `papers.csv` the next time it is opened — nothing is extracted again.
+
 **No cell is left open.** Every table has only columns that apply to each of its rows — the
 transport component (bulk, grain boundary, surface, total) is a column of the four tables of the
 transport quantities, where it applies to every row — and every cell is answered: from the paper,

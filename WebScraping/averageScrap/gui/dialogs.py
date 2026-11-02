@@ -1,23 +1,21 @@
 # WebScraping/gui/dialogs.py
 """The windows that open on top of the window of the web project: the API keys and contact address,
-one card per organization (the WebScraping/averageScrap/.env file), the job, and the check of the setup."""
+one card per organization (the WebScraping/averageScrap/.env file), the question asked each time the
+Web scraping window opens, the job, and the check of the setup."""
 
-import dataclasses
 import os
 import re
-import tempfile
 import threading
 import tkinter as tk
 import webbrowser
-from tkinter import filedialog, messagebox, ttk
+from tkinter import messagebox, ttk
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from LocalExtraction.gui.dialogs import Dialog
 
-from ..job import (ABSTRACT_SOURCES, ENV_PATH, ENV_SETTINGS, KEY_GROUPS, RESOLVERS, SOURCES, Job, KeyGroup, dump_job,
-                   load_job, read_env, save_env)
+from ..job import ENV_PATH, ENV_SETTINGS, KEY_GROUPS, Job, KeyGroup, read_env, save_env
+from .job_dialog import JobDialog, open_job_settings  # noqa: F401  (the settings form lives in its own file)
 
-_CHECKS_PER_ROW = 5
 _EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 _SET, _NOT_SET = "✓ set", "not set"
 
@@ -70,7 +68,7 @@ class SettingsDialog(Dialog):
         self._secret_entries: List[ttk.Entry] = []
         self.status: Dict[str, tk.StringVar] = {}  # organization -> "✓ set" / "not set"
         ttk.Label(self.body, text="API keys, one card per organization", font=("TkDefaultFont", 14, "bold")).pack(anchor="w")
-        ttk.Label(self.body, wraplength=820, justify="left", foreground="#555555",
+        ttk.Label(self.body, wraplength=820, justify="left", foreground="#8c8c8c",
                   text="Every key is free and optional: the web search works without any of them, and each one "
                        "opens more papers (a source whose key is missing is skipped, with a line saying so). They are "
                        "saved in WebScraping/averageScrap/.env, which git ignores, and never written to a log."
@@ -95,7 +93,7 @@ class SettingsDialog(Dialog):
         status = tk.StringVar()
         badge = ttk.Label(head, textvariable=status, font=("TkDefaultFont", 11, "bold"))
         badge.pack(side="right", padx=(10, 0))
-        ttk.Label(card, text=f"Used by: {group.used_by}", foreground="#666666",
+        ttk.Label(card, text=f"Used by: {group.used_by}", foreground="#8c8c8c",
                   font=("TkDefaultFont", 10)).pack(anchor="w", pady=(2, 6))
         boxes = ttk.Frame(card)
         boxes.pack(fill="x")
@@ -125,7 +123,7 @@ class SettingsDialog(Dialog):
             row.pack(fill="x", pady=(6, 0))
             ttk.Button(row, text="Get a free key ↗", command=lambda url=link.strip(): webbrowser.open(url)).pack(side="left")
             where = re.sub(r"^https?://", "", link.strip()).rstrip("/")
-            ttk.Label(row, text=f"{where}" + (f" — {how}" if how else ""), foreground="#666666", wraplength=600,
+            ttk.Label(row, text=f"{where}" + (f" — {how}" if how else ""), foreground="#8c8c8c", wraplength=600,
                       justify="left", font=("TkDefaultFont", 10)).pack(side="left", padx=8)
 
     def _toggle(self) -> None:
@@ -148,206 +146,83 @@ class SettingsDialog(Dialog):
         self.destroy()
 
 
-def _lines(widget: tk.Text) -> List[str]:
-    """The non-empty lines of a text box, also split at commas: one item each."""
-    return [item.strip() for line in widget.get("1.0", "end").splitlines() for item in line.split(",") if item.strip()]
+class StartDialog(Dialog):
+    """Shown each time the Web scraping window opens: the contact e-mail, which it asks for and saves
+    as MME_EMAIL; the API keys, optional; and Google Chrome, which method 2 needs. Continue calls
+    on_continue once a valid e-mail is given; closing it any other way calls on_cancel."""
 
+    def __init__(self, parent: tk.Misc, on_continue: Callable[[], None], on_cancel: Callable[[], None],
+                 path: str = ENV_PATH):
+        super().__init__(parent, "Web scraping · before you start")
+        self._on_continue, self._on_cancel, self._path = on_continue, on_cancel, path
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
+        self.bind("<Escape>", lambda event: self._cancel())
+        self._stored = read_env(path).get("MME_EMAIL", "")
+        self.email = tk.StringVar(value=self._stored or os.environ.get("MME_EMAIL", ""))
 
-class JobDialog(Dialog):
-    """The job of the web project as a form: what to search, which papers to keep, where copies are
-    looked for, what to extract. Saved as a job file, it is the same job in the terminal."""
+        ttk.Label(self.body, text="Before you start", font=("TkDefaultFont", 14, "bold")).pack(anchor="w")
+        mail = self._section("Your academic e-mail — required",
+                             "OpenAlex and Crossref answer faster with it, and Unpaywall, which finds the free copies "
+                             "of articles, needs it. Without it fewer DOIs and articles are found, by keywords or by "
+                             "DOI. Use your university address; it is sent to these three services only.")
+        row = ttk.Frame(mail)
+        row.pack(fill="x", pady=(6, 0))
+        ttk.Label(row, text="E-mail:").pack(side="left")
+        self.entry = ttk.Entry(row, textvariable=self.email, width=40)
+        self.entry.pack(side="left", fill="x", expand=True, padx=(6, 0))
+        self.entry.bind("<Return>", lambda event: self._continue())
 
-    def __init__(self, parent: tk.Misc, job: Job, path: str, on_saved: Callable[[str], None]):
-        super().__init__(parent, f"Job: {os.path.basename(path) or 'new'}", "820x700")
-        self.job, self.path, self._on_saved = job, path, on_saved
-        book = ttk.Notebook(self.body)
-        book.pack(fill="both", expand=True)
+        keys = self._section("API keys — optional",
+                             "Every key is free and opens more papers; the search works without them. Check which "
+                             "ones you have and add them.")
+        ttk.Button(keys, text="API keys…", command=self._keys).pack(anchor="w", pady=(6, 0))
 
-        # --- Search
-        tab = self._tab(book, "1 · Search")
-        self.queries = self._text(tab, "What to search for (one query per line)", job.search.queries, 7)
-        years = ttk.Frame(tab)
-        years.pack(fill="x", pady=(10, 0))
-        ttk.Label(years, text="Published from").pack(side="left")
-        self.year_from = tk.StringVar(value=str(job.search.years[0]) if job.search.years else "")
-        self.year_to = tk.StringVar(value=str(job.search.years[1]) if job.search.years else "")
-        ttk.Entry(years, textvariable=self.year_from, width=6).pack(side="left", padx=4)
-        ttk.Label(years, text="to").pack(side="left")
-        ttk.Entry(years, textvariable=self.year_to, width=6).pack(side="left", padx=4)
-        ttk.Label(years, text="(empty: any year)", foreground="#666666").pack(side="left")
-        self.max_per_query = self._number(tab, "Papers asked of each source for each query", job.search.max_per_query)
-        self.search_sources = {name: tk.BooleanVar(value=name in job.search.sources) for name in SOURCES}
-        self._checks(tab, "Search in (a source whose key is missing in Settings is skipped)", self.search_sources)
-        self.include_preprints = self._check(tab, "Preprints count too", job.search.include_preprints)
-        self.ids_file = self._entry(tab, "A list of papers you already know (a text file: one DOI or arXiv id per line)",
-                                    job.search.ids_file)
-        self.abstract_sources = self._entry(tab, "A missing abstract is asked of, in this order (empty: nobody)",
-                                            ", ".join(job.search.abstract_sources))
-        ttk.Label(tab, text="Known: " + ", ".join(ABSTRACT_SOURCES), wraplength=650, justify="left",
-                  foreground="#666666").pack(anchor="w")
-
-        # --- Screening
-        tab = self._tab(book, "2 · Screening")
-        ttk.Label(tab, text="A paper is proposed when its title or abstract has a topic word AND a property word, and "
-                            "its score reaches the minimum (title: 2 points, abstract: 1, an excluded word: −3).",
-                  wraplength=650, justify="left", foreground="#444444").pack(anchor="w")
-        self.topic_words = self._text(tab, "Topic words (one per line)", job.screen.topic_words, 5)
-        self.property_words = self._text(tab, "Property words", job.screen.property_words, 4)
-        self.exclude_words = self._text(tab, "Excluded words", job.screen.exclude_words, 2)
-        self.min_score = self._number(tab, "Minimum score", job.screen.min_score)
-        self.propose_closed = self._check(tab, "Also propose papers no open copy is known for (the repositories are "
-                                               "asked; what nobody has ends as “closed”)", job.screen.propose_closed)
-        self.review = self._check(tab, "In the terminal: stop after the search for a review", job.screen.review)
-
-        # --- Download
-        tab = self._tab(book, "3 · Download")
-        self.folder = self._entry(tab, "Folder for the downloaded PDFs", job.fetch.folder)
-        self.fetch_sources = self._text(tab, "Where a copy is looked for, in this order (one per line)", job.fetch.sources, 14)
-        ttk.Label(tab, text="Known: " + ", ".join(RESOLVERS), wraplength=650, justify="left",
-                  foreground="#666666").pack(anchor="w")
-        self.fetch_workers = self._number(tab, "Downloads at once", job.fetch.workers)
-        self.max_pdf_mb = self._number(tab, "Largest PDF accepted (MB)", job.fetch.max_pdf_mb)
-
-        # --- Extraction
-        tab = self._tab(book, "4 · Extraction")
-        self.properties = self._text(tab, "Properties to keep (one per line; empty: every property)", job.extract.properties, 8)
-        ttk.Label(tab, text="Activation_Energy covers every name a paper gives it: migration barrier, energy barrier, Ea, ...",
-                  wraplength=650, justify="left", foreground="#666666").pack(anchor="w")
-        self.require_material = self._check(tab, "Drop a value that cannot be tied to a material", job.extract.require_material)
+        chrome = self._section("Google Chrome — needed to fetch the articles",
+                               "moukhlij4scraping (method 2) uses Google Chrome to download the article of each DOI. "
+                               "Install it before you use that method.")
+        ttk.Button(chrome, text="Get Google Chrome ↗",
+                   command=lambda: webbrowser.open("https://www.google.com/chrome/")).pack(anchor="w", pady=(6, 0))
 
         buttons = ttk.Frame(self.body)
-        buttons.pack(fill="x", pady=(10, 0))
-        ttk.Button(buttons, text="Cancel", command=self.destroy).pack(side="right", padx=4)
-        ttk.Button(buttons, text="Save as…", command=self._save_as).pack(side="right", padx=4)
-        ttk.Button(buttons, text="Save", command=lambda: self._save(self.path)).pack(side="right", padx=4)
+        buttons.pack(fill="x", pady=(14, 0))
+        ttk.Button(buttons, text="Continue", command=self._continue).pack(side="right")
+        ttk.Button(buttons, text="Cancel", command=self._cancel).pack(side="right", padx=6)
+        self.entry.focus_set()
 
-    # ------------------------------------------------------------------
-    # Form helpers
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _tab(book: ttk.Notebook, title: str) -> ttk.Frame:
-        tab = ttk.Frame(book, padding=12)
-        book.add(tab, text=title)
-        return tab
+    def _section(self, title: str, text: str) -> ttk.LabelFrame:
+        frame = ttk.LabelFrame(self.body, text=f" {title} ", padding=10)
+        frame.pack(fill="x", pady=(10, 0))
+        ttk.Label(frame, text=text, wraplength=520, justify="left").pack(anchor="w")
+        return frame
 
-    @staticmethod
-    def _text(parent: tk.Misc, label: str, items: Sequence[str], height: int) -> tk.Text:
-        ttk.Label(parent, text=label).pack(anchor="w", pady=(10, 2))
-        box = tk.Text(parent, height=height, wrap="none", relief="solid", borderwidth=1, padx=4, pady=3)
-        box.insert("1.0", "\n".join(items))
-        box.pack(fill="x")
-        return box
+    def _keys(self) -> None:
+        def saved() -> None:
+            email = read_env(self._path).get("MME_EMAIL", "")
+            if email and self.winfo_exists():
+                self._stored = email
+                self.email.set(email)
+        SettingsDialog(self, on_saved=saved, path=self._path)
 
-    @staticmethod
-    def _entry(parent: tk.Misc, label: str, value: str) -> tk.StringVar:
-        ttk.Label(parent, text=label).pack(anchor="w", pady=(10, 2))
-        var = tk.StringVar(value=value)
-        ttk.Entry(parent, textvariable=var).pack(fill="x")
-        return var
-
-    @staticmethod
-    def _number(parent: tk.Misc, label: str, value: float) -> tk.StringVar:
-        row = ttk.Frame(parent)
-        row.pack(fill="x", pady=(10, 0))
-        ttk.Label(row, text=label).pack(side="left")
-        var = tk.StringVar(value=f"{value:g}")
-        ttk.Entry(row, textvariable=var, width=8).pack(side="left", padx=6)
-        return var
-
-    @staticmethod
-    def _check(parent: tk.Misc, label: str, value: bool) -> tk.BooleanVar:
-        var = tk.BooleanVar(value=value)
-        ttk.Checkbutton(parent, text=label, variable=var).pack(anchor="w", pady=(10, 0))
-        return var
-
-    @staticmethod
-    def _checks(parent: tk.Misc, label: str, variables: Dict[str, tk.BooleanVar]) -> None:
-        ttk.Label(parent, text=label).pack(anchor="w", pady=(10, 2))
-        grid = ttk.Frame(parent)
-        grid.pack(fill="x")
-        for index, (name, var) in enumerate(variables.items()):
-            ttk.Checkbutton(grid, text=name, variable=var).grid(row=index // _CHECKS_PER_ROW,
-                                                                column=index % _CHECKS_PER_ROW, sticky="w", padx=(0, 14))
-
-    # ------------------------------------------------------------------
-    # Reading the form and saving it
-    # ------------------------------------------------------------------
-    def _read(self) -> Job:
-        """The job the form describes. Raises ValueError with what is wrong in it."""
-        def whole(var: tk.StringVar, what: str) -> int:
+    def _continue(self) -> None:
+        email = self.email.get().strip()
+        if not _EMAIL.fullmatch(email):
+            messagebox.showerror("Web scraping", "Enter your academic e-mail address to go on (for example "
+                                 "name@university.edu)." if not email else
+                                 f"“{email}” does not look like an e-mail address.", parent=self)
+            return
+        if email != self._stored:
             try:
-                return int(float(var.get()))
-            except ValueError:
-                raise ValueError(f"{what}: a whole number is expected") from None
-
-        first, last = self.year_from.get().strip(), self.year_to.get().strip()
-        if bool(first) != bool(last):
-            raise ValueError("Years: give both the first and the last year, or neither")
-        try:
-            minimum = float(self.min_score.get())
-        except ValueError:
-            raise ValueError("Minimum score: a number is expected") from None
-        job = self.job
-        return dataclasses.replace(
-            job,
-            search=dataclasses.replace(
-                job.search, queries=_lines(self.queries), ids_file=self.ids_file.get().strip(),
-                years=(whole(self.year_from, "First year"), whole(self.year_to, "Last year")) if first else None,
-                sources=[name for name, var in self.search_sources.items() if var.get()],
-                max_per_query=whole(self.max_per_query, "Papers per query"), include_preprints=self.include_preprints.get(),
-                abstract_sources=[n.strip() for n in self.abstract_sources.get().replace("\n", ",").split(",") if n.strip()]),
-            screen=dataclasses.replace(
-                job.screen, topic_words=_lines(self.topic_words), property_words=_lines(self.property_words),
-                exclude_words=_lines(self.exclude_words), min_score=minimum, review=self.review.get(),
-                propose_closed=self.propose_closed.get()),
-            fetch=dataclasses.replace(
-                job.fetch, folder=self.folder.get().strip(), sources=_lines(self.fetch_sources),
-                workers=whole(self.fetch_workers, "Downloads at once"), max_pdf_mb=whole(self.max_pdf_mb, "Largest PDF")),
-            extract=dataclasses.replace(job.extract, properties=_lines(self.properties),
-                                        require_material=self.require_material.get()))
-
-    def _save_as(self) -> None:
-        path = filedialog.asksaveasfilename(parent=self, title="Save the job as", defaultextension=".yaml",
-                                            initialdir=os.path.dirname(self.path) or "configs",
-                                            filetypes=[("Job file", "*.yaml *.yml")])
-        if path:
-            self._save(path)
-
-    def _save(self, path: str) -> None:
-        try:
-            text = dump_job(self._read())
-            # The loader is the judge of a job file: what it refuses is not saved.
-            with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False, encoding="utf-8") as trial:
-                trial.write(text)
-            try:
-                load_job(trial.name)
-            finally:
-                os.remove(trial.name)
-        except (ValueError, OSError) as error:
-            messagebox.showerror("Job", str(error), parent=self)
-            return
-        if os.path.exists(path) and _has_comments(path) and not messagebox.askyesno(
-                "Job", f"{os.path.basename(path)} has comments written by hand. Saving here keeps the settings "
-                       "but not those comments.\n\nSave here anyway? (“Save as…” writes another file.)", parent=self):
-            return
-        try:
-            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(text)
-        except OSError as error:
-            messagebox.showerror("Job", f"The job could not be saved:\n{error}", parent=self)
-            return
-        self._on_saved(path)
+                save_env({"MME_EMAIL": email}, self._path)
+            except (OSError, ValueError) as error:
+                os.environ["MME_EMAIL"] = email
+                messagebox.showwarning("Web scraping", f"The e-mail could not be saved:\n{error}\n\n"
+                                       "It is used until this window is closed.", parent=self)
         self.destroy()
+        self._on_continue()
 
-
-def _has_comments(path: str) -> bool:
-    """Whether a job file carries more comments than the one line this program writes at its top."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            return sum(1 for line in f if line.lstrip().startswith("#")) > 1
-    except OSError:
-        return False
+    def _cancel(self) -> None:
+        self.destroy()
+        self._on_cancel()
 
 
 class CheckDialog(Dialog):

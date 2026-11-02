@@ -19,7 +19,6 @@ configs/sse.yaml ─────────┤                                 
 | | Folder | What it does |
 |---|---|---|
 | **Method 1 — search open sources** | `averageScrap/` | Search 14 services (OpenAlex, arXiv, Crossref, Semantic Scholar, …) by keyword, keep the papers worth reading, download the legal copies, extract. [Details](averageScrap/README.md) |
-| **Method 2 — moukhlij4scraping** | `Fetch_DOIs/` + `moukhlij4scraping/` | Collect the DOIs of the topic, fetch a PDF for each, extract. [Details](moukhlij4scraping/README.md) |
 
 ## The one GUI
 

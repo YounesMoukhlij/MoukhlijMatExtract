@@ -286,6 +286,26 @@ class DatabaseTests(unittest.TestCase):
             self.assertEqual(cli.main(["--source", str(self.tmp / "nothing"), "--out", str(self.out)]), 1)
             self.assertEqual(cli.main(["--source", str(self.local), "--out", str(self.local)]), 2)
 
+    def test_the_same_databases_are_not_classified_twice(self):
+        arguments = ["--source", str(self.local), "--out", str(self.out)]
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertEqual(cli.main(arguments), 0)
+        again = io.StringIO()
+        with redirect_stdout(again), redirect_stderr(io.StringIO()):
+            self.assertEqual(cli.main(arguments), 0)
+        self.assertIn("Already classified", again.getvalue())
+        forced = io.StringIO()
+        with redirect_stdout(forced), redirect_stderr(io.StringIO()):
+            self.assertEqual(cli.main([*arguments, "--force"]), 0)
+        self.assertIn("materials classified", forced.getvalue())
+        # A change in a database: classified again.
+        materials = self.local / "materials.csv"
+        materials.write_text(materials.read_text(encoding="utf-8-sig") + "\n", encoding="utf-8")
+        changed = io.StringIO()
+        with redirect_stdout(changed), redirect_stderr(io.StringIO()):
+            self.assertEqual(cli.main(arguments), 0)
+        self.assertNotIn("Already classified", changed.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

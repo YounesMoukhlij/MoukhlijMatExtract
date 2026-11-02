@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from SelectingTopMaterial import Criteria, CriteriaError, Filters, cli, console, exporters, html_report, loader, select
-from SelectingTopMaterial.about import NAME, PROJECT_ROOT
+from SelectingTopMaterial.about import NAME
 from SelectingTopMaterial.models import NOT_REPORTED, Measurement
 from SelectingTopMaterial.selection import representative, select_from, weighted_median
 
@@ -175,7 +175,8 @@ class LoaderTests(TemporaryFolder):
                                                             source_type="Figure")], columns=legacy)
         read = loader.load([database])[0][0]
         self.assertEqual((read.temperature, read.structure, read.extracted_from), (NOT_REPORTED, NOT_REPORTED, "Figure"))
-        self.assertEqual((read.paper_title, read.doi), ("A.pdf", NOT_REPORTED))  # no papers.csv: the file name stands
+        # No papers.csv: the file name stands, said so.
+        self.assertEqual((read.paper_title, read.doi), ("A (file name: no title found in the paper)", NOT_REPORTED))
 
     def test_rows_that_cannot_be_ranked_are_left_aside_and_counted(self):
         database = write_database(self.tmp / "db", [
@@ -540,9 +541,18 @@ class CommandLineTests(TemporaryFolder):
         self.assertEqual((code, complained), (0, ""))
         self.assertIn("Top materials (2)", said)
         expected = ["all_materials.csv", "report.html", "selection.json", "top_materials.csv", "values.csv"]
-        self.assertEqual(sorted(p.name for p in self.out.iterdir() if p.suffix != ".xlsx"), expected)
+        self.assertEqual(sorted(p.name for p in self.out.iterdir() if p.suffix != ".xlsx" and not p.name.startswith(".")), expected)
         self.assertEqual((self.out / "selection.xlsx").exists(), openpyxl is not None)
         self.assertEqual(self.fingerprint(), before)  # the database is as it was: only read
+
+    def test_the_same_ranking_is_not_done_twice(self):
+        arguments = ("--source", str(self.database), "--out", str(self.out))
+        self.assertEqual(self.run_cli(*arguments)[0], 0)
+        code, said, _ = self.run_cli(*arguments)
+        self.assertEqual(code, 0)
+        self.assertIn("Already ranked", said)
+        self.assertNotIn("Already ranked", self.run_cli(*arguments, "--force")[1])
+        self.assertNotIn("Already ranked", self.run_cli(*arguments, "--top", "1")[1])  # another option: ranked
 
     def test_options(self):
         code, said, _ = self.run_cli("--source", str(self.database), "--no-files", "--origin", "simulation")
@@ -553,7 +563,7 @@ class CommandLineTests(TemporaryFolder):
         code, said, _ = self.run_cli("--source", str(self.database), "--out", str(self.out), "--format", "csv",
                                      "--top", "1", "--element", "li", "--quiet")
         self.assertEqual((code, said), (0, ""))
-        self.assertEqual(sorted(p.name for p in self.out.iterdir()), ["all_materials.csv", "top_materials.csv", "values.csv"])
+        self.assertEqual(sorted(p.name for p in self.out.iterdir() if not p.name.startswith(".")), ["all_materials.csv", "top_materials.csv", "values.csv"])
         with (self.out / "all_materials.csv").open(encoding="utf-8-sig", newline="") as handle:
             self.assertEqual([line["material"] for line in csv.DictReader(handle)], ["Li6PS5Cl", "LiFePO4"])
 
@@ -592,9 +602,10 @@ class CommandLineTests(TemporaryFolder):
 
     def test_both_ways_of_starting_it(self):
         environment = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "NO_COLOR": "1", "PYTHONIOENCODING": "utf-8"}
-        for command in (["-m", NAME], [NAME]):
+        for command in (["-m", NAME], [NAME]):  # from the folder that holds the code
             done = subprocess.run([sys.executable, *command, "--source", str(self.database), "--no-files"],
-                                  cwd=PROJECT_ROOT, env=environment, capture_output=True, text=True, encoding="utf-8")
+                                  cwd=Path(__file__).resolve().parents[2], env=environment, capture_output=True,
+                                  text=True, encoding="utf-8")
             self.assertEqual((done.returncode, done.stderr), (0, ""), command)
             self.assertIn("Top materials (2)", done.stdout)
 

@@ -73,6 +73,7 @@ class NaLiXPipeline:
         # What was found for each paper, kept next to the database so that a rebuild (or a run
         # while OpenAlex is down) keeps what an earlier run found.
         self.cache = metadata.Cache(os.path.join(output_dir, metadata.CACHE_NAME)) if lookup else None
+        self.skipped = 0  # PDFs found already extracted by the last plan()
 
     def known_papers(self) -> pd.DataFrame:
         """The papers the database already has (papers.csv). Raises UnreadableTable when it cannot be
@@ -108,16 +109,18 @@ class NaLiXPipeline:
                      if re.fullmatch(r"[0-9a-f]{64}", row.get("file_sha256", "") or "")}
         sha_before = {paper_id: sha for sha, paper_id in id_before.items()}
         work: List[_Work] = []
+        self.skipped = 0  # PDFs of the folder already extracted: each one is said and passed over
         pdfs = sorted(f for f in os.listdir(self.input_dir) if f.lower().endswith(".pdf"))
         for filename in pdfs:
             path = os.path.join(self.input_dir, filename)
             namesakes = by_name.get(filename, [])
             if namesakes and not any(re.fullmatch(r"[0-9a-f]{64}", n.get("file_sha256", "") or "") for n in namesakes):
-                continue  # recorded before checksums were: taken to be this file
+                self._already(filename)  # recorded before checksums were: taken to be this file
+                continue
             sha = file_sha256(path)
             if sha in by_content:
-                if not namesakes:
-                    logging.info(f"{filename} is the same file as {by_content[sha]}, already in the database: skipped.")
+                self._already(filename, "" if namesakes or by_content[sha] == filename
+                              else f"the same file as {by_content[sha]}")
                 continue
             by_content[sha] = filename
             own = f"{filename}#{sha[:8]}"
@@ -137,6 +140,10 @@ class NaLiXPipeline:
             planned.add(paper_id)
             work.append(_Work(row.get("filename") or os.path.basename(path), path, paper_id))
         return work
+
+    def _already(self, filename: str, why: str = "") -> None:
+        self.skipped += 1
+        logging.info(f"Already extracted: {filename}{f' ({why})' if why else ''} — skipped.")
 
     @staticmethod
     def _archived_papers(archives: List[str]) -> List[Dict[str, str]]:
@@ -331,7 +338,6 @@ class NaLiXPipeline:
         known = self.known_papers()
         rebuilt_from = StrictExporter.pending_rebuilds(self.output_dir)
         work = self.plan(known, rebuilt_from)
-        processed_files = set(known["filename"]) if "filename" in known.columns else set()
 
         if not work:
             if rebuilt_from:
@@ -339,11 +345,13 @@ class NaLiXPipeline:
             elif not any(f.lower().endswith(".pdf") for f in os.listdir(self.input_dir)):
                 logging.info(f"No PDFs found in {self.input_dir}. Add some and re-run.")
             else:
-                logging.info("All PDFs in the folder have already been processed. Database is up to date.")
+                logging.info(f"All {self.skipped} PDF(s) in the folder are already extracted — nothing to do. "
+                             "The database is up to date.")
             return 0
         new_pdfs = work
 
-        logging.info(f"Skipping {len(processed_files)} existing papers.")
+        if self.skipped:
+            logging.info(f"{self.skipped} PDF(s) already extracted were skipped.")
         logging.info(f"Starting extraction for {len(new_pdfs)} new papers...")
 
         exporter = StrictExporter(self.output_dir)

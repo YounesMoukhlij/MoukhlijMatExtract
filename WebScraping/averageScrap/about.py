@@ -12,9 +12,9 @@ DESCRIPTION = (
     "coefficients from it."
 )
 
-# Relative to the folder the commands are run from. (The fetched PDFs go where the job file says:
-# WebScraping/papers unless it says otherwise.) The job file is in the working folder's configs/,
-# shared with Fetch_DOIs/get_dois.py, which reads the same queries.
+# Relative to ~/MoukhlijMatExtract, where every command works. (The fetched PDFs go where the job
+# file says: WebScraping/papers unless it says otherwise.) The job file is in its configs/, shared
+# with Fetch_DOIs/get_dois.py, which reads the same queries.
 DEFAULT_JOB = os.path.join("configs", "sse.yaml")
 DEFAULT_OUTPUT = os.path.join("WebScraping", "web_output")
 # A ready-made job (the solid-state-electrolyte queries) ships with the package: when the working

@@ -33,6 +33,7 @@ OPENALEX_API_KEY, SEMANTIC_SCHOLAR_API_KEY); none is required.
 import argparse
 import csv
 import difflib
+import json
 import logging
 import math
 import os
@@ -41,6 +42,7 @@ import signal
 import sys
 import threading
 import time
+from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import quote, unquote
@@ -50,11 +52,16 @@ import yaml
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+if not __package__:  # run as a script (python WebScraping/Fetch_DOIs/get_dois.py): make the project root importable
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from LocalExtraction.about import PROJECT_HOME, enter_project_home  # noqa: E402
+
 HERE = Path(__file__).resolve().parent            # WebScraping/Fetch_DOIs (where the code lives)
-# The DOI list and the job file live in the folder the user runs in — not where the package is
-# installed — so they sit next to the rest of the project's data (and match where the scraper looks).
-OUTPUT = Path.cwd() / "WebScraping" / "Fetch_DOIs" / "dois.csv"
-JOB_FILE = Path.cwd() / "configs" / "sse.yaml"
+# The DOI list and the job file live in ~/MoukhlijMatExtract — not where the package is installed —
+# next to the rest of the project's data (and where the scraper looks).
+OUTPUT = PROJECT_HOME / "WebScraping" / "Fetch_DOIs" / "dois.csv"
+JOB_FILE = PROJECT_HOME / "configs" / "sse.yaml"
 # The API keys stay with the installed package (shared across the folders you work in).
 ENV_FILE = HERE.parent / "averageScrap" / ".env"
 
@@ -64,6 +71,7 @@ SCHOLAR_TIMEOUT = 180  # seconds before giving up on Google Scholar
 EXTRA_PER_SOURCE = 50  # results asked per source for a keyword made of topic + property words
 EXTRA_MIN_SHARE = 5    # new DOIs one such keyword may add at least (fewer keywords, faster runs)
 LOOKUP_EVERY = 50      # extra keywords between two look-ups of the details the sources left out
+SEARCH_KEPT_DAYS = 30  # a keyword a source answered in full is not asked again for this many days (--refresh: now)
 
 # The words extra keywords are made of when the job file lists none (screen.topic_words / property_words).
 FALLBACK_TOPICS = ["solid electrolyte", "solid-state electrolyte", "superionic conductor", "fast ion conductor",
@@ -227,11 +235,12 @@ def from_openalex(keyword, limit, years):
     filters = OPENALEX_FILTER + (f",publication_year:{years[0]}-{years[1]}" if years else "")
     params = {"search": keyword, "filter": filters, "per-page": min(100, limit),
               "select": OPENALEX_FIELDS, **openalex_auth()}
+    paging = "api_key" in params  # OpenAlex refuses (HTTP 401) a page past the first without a key
     found, cursor = [], "*"
     while cursor and len(found) < limit:
         data = get("https://api.openalex.org/works", {**params, "cursor": cursor}).json()
         found += [openalex_record(work, "given by OpenAlex") for work in data["results"]]
-        cursor = data["meta"].get("next_cursor") if data["results"] else None
+        cursor = data["meta"].get("next_cursor") if data["results"] and paging else None
     return found[:limit]
 
 
@@ -514,13 +523,19 @@ def fill_details(rows, only=None):
 
 
 def load(path, unlooked=None):
-    """The list earlier runs saved. A detail marked "not listed" or "not looked up yet" is emptied,
-    to be looked up again this run; the DOIs marked "not looked up yet" go into `unlooked`."""
+    """The list earlier runs saved: the CSV, and the bare DOIs of the text file next to it — a DOI in
+    either one is already in the list, so it is never added twice nor dropped when the list is saved
+    again (a DOI only in the text file, e.g. added by hand, gets a row of its own). One row per DOI,
+    whatever its case. A detail marked "not listed" or "not looked up yet" is emptied, to be looked
+    up again this run; the DOIs marked "not looked up yet" go into `unlooked`."""
     rows = {}
     if path.exists():
         with path.open(newline="", encoding="utf-8-sig") as file:
             for line in csv.DictReader(file):
                 row = {column: line.get(column) or "" for column in COLUMNS}
+                row["doi"] = clean_doi(row["doi"]) or row["doi"].strip().lower()
+                if not row["doi"]:
+                    continue
                 for column in SETS:
                     row[column] = set(filter(None, row[column].split("; ")))
                 for field in DETAILS:
@@ -528,7 +543,21 @@ def load(path, unlooked=None):
                         unlooked.add(row["doi"])
                     if row[field] in (NOT_LISTED, NOT_LOOKED_UP):
                         row[field] = ""  # try again this run
-                rows[row["doi"]] = row
+                if row["doi"] in rows:  # the same DOI twice (another case): one row with what both say
+                    kept = rows[row["doi"]]
+                    for column in SETS:
+                        kept[column] |= row[column]
+                    for field in DETAILS:
+                        kept[field] = kept[field] or row[field]
+                else:
+                    rows[row["doi"]] = row
+    text = path.with_suffix(".txt")
+    if text.exists():
+        for line in text.read_text(encoding="utf-8-sig").splitlines():
+            doi = clean_doi(line)
+            if doi and doi not in rows:
+                rows[doi] = new_row(doi)
+                rows[doi]["found_by"].add(f"{text.name} (not in {path.name})")
     return rows
 
 
@@ -562,6 +591,49 @@ def save_doi_list(rows, path):
             if row["doi"]:
                 file.write(row["doi"] + "\n")
     temporary.replace(path)  # never leaves a half-written list
+
+
+# ---------------- searches already done ----------------
+
+def searched_path(out):
+    """Where the searches already run are remembered: next to the list (dois.csv -> dois.searched.json)."""
+    return out.with_suffix(".searched.json")
+
+
+def load_searched(path):
+    try:
+        with path.open(encoding="utf-8") as file:
+            data = json.load(file)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_searched(searched, path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    with temporary.open("w", encoding="utf-8") as file:
+        json.dump(searched, file, indent=1, sort_keys=True)
+    temporary.replace(path)
+
+
+def search_key(source, keyword, years):
+    return f"{source}|{simple(keyword)}|{list(years) if years else 'all years'}"
+
+
+def already_searched(searched, key, depth):
+    """The day `key` was searched in full, at least `depth` results deep, within SEARCH_KEPT_DAYS;
+    None when it has to be searched."""
+    entry = searched.get(key) if searched is not None else None
+    if not entry or entry.get("depth", 0) < depth:
+        return None
+    try:
+        at = datetime.fromisoformat(entry["at"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if (datetime.now(timezone.utc) - at).total_seconds() > SEARCH_KEPT_DAYS * 86400:
+        return None
+    return at.date().isoformat()
 
 
 # ---------------- keywords ----------------
@@ -606,7 +678,8 @@ def extra_keywords(base, topics, properties, anchor=None):
     return keywords
 
 
-def collect(rows, keywords, sources, limit, years, count=None, extra=(), after_keyword=None, used=None):
+def collect(rows, keywords, sources, limit, years, count=None, extra=(), after_keyword=None, used=None,
+            searched=None, refresh=False):
     """Ask every source every keyword and add what they find to `rows`; return how many new DOIs
     were added.
 
@@ -615,7 +688,9 @@ def collect(rows, keywords, sources, limit, years, count=None, extra=(), after_k
     for the next), so the new DOIs come from all the keywords. If the base keywords run dry first, it
     goes on with the `extra` ones. Without `count`, it uses every base keyword, then every extra one,
     until none is left or the search is stopped. `after_keyword(phase, number, total)` is called
-    after each keyword (the caller saves there); `used` counts the base and extra keywords used."""
+    after each keyword (the caller saves there); `used` counts the base and extra keywords used.
+    `searched` (optional) remembers which source answered which keyword in full: one already answered
+    is skipped (unless `refresh`), and each one answered in full now is added to it."""
     used = used if used is not None else {}
     added = 0
     for phase, words, depth in (("base", list(keywords), limit),
@@ -638,18 +713,31 @@ def collect(rows, keywords, sources, limit, years, count=None, extra=(), after_k
                   f"   (new DOIs so far: {so_far})")
             for name, search in list(sources):
                 asked = min(depth, SCHOLAR_MAX) if name == "Google Scholar" else depth
+                key = search_key(name, keyword, years)
+                when = None if refresh else already_searched(searched, key, asked)
+                if when:
+                    print(f"  {name}: already fetched on {when} — skipped")
+                    used["skipped"] = used.get("skipped", 0) + 1
+                    continue
+                complete = True
                 try:
                     found = search(keyword, asked, years)
                 except ScholarBlocked as exc:
-                    found = exc.records
+                    found, complete = exc.records, False
                     sources.remove((name, search))
                     print(f"  {name}: {exc}; not asked again in this run")
                 except Exception as exc:  # one failing source must not stop the others
                     print(f"  {name}: failed ({exc.__class__.__name__}: {exc})")
                     continue
+                given = {rec["doi"] for rec in found if rec["doi"]}
+                fresh = {doi for doi in given if doi not in rows}
                 new = add_all(rows, found, name, keyword, room)
                 added += new
-                print(f"  {name}: {len(found)} DOIs ({new} new)")
+                known = len(given) - len(fresh)
+                print(f"  {name}: {len(found)} DOIs ({new} new"
+                      + (f", {known} already in the list — skipped" if known else "") + ")")
+                if searched is not None and complete and new == len(fresh):  # every DOI it gave is in
+                    searched[key] = {"depth": asked, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
                 if room is not None:
                     room -= new
                     if room <= 0:
@@ -689,10 +777,14 @@ def main():
                              f"(default: the job's max_per_query, else {PER_SOURCE})")
     parser.add_argument("--out", type=Path, default=OUTPUT, help=f"CSV file (default: WebScraping/Fetch_DOIs/{OUTPUT.name})")
     parser.add_argument("--no-scholar", action="store_true", help="skip Google Scholar")
+    parser.add_argument("--refresh", action="store_true",
+                        help=f"ask the sources again the keywords they already answered (by default a keyword a "
+                             f"source answered in the last {SEARCH_KEPT_DAYS} days is skipped)")
     parser.add_argument("--no-expand", action="store_true",
                         help="use only the keywords given: do not go on with keywords made of topic and "
                              "property words when they run dry")
     args = parser.parse_args()
+    enter_project_home("dois")
 
     if not args.job.exists() and args.job != JOB_FILE:
         sys.exit(f"There is no job file {args.job}")
@@ -739,7 +831,8 @@ def main():
     unlooked = set()  # DOIs whose missing details have not been looked up yet
     rows = load(args.out, unlooked)
     before = len(rows)
-    print(f"The list holds {before} DOIs; new ones are added to it.")
+    print(f"The list holds {before} DOIs ({args.out.name} and {args.out.with_suffix('.txt').name}); a DOI already in it is "
+          "skipped, only new ones are added.")
     known = set(rows)
     retry = {doi for doi, row in rows.items() if missing_details(row)}  # details to look up this run
 
@@ -757,12 +850,15 @@ def main():
             retry.clear()
             unlooked.clear()
         save(rows, args.out, unlooked)
+        save_searched(searched, searched_file)
 
+    searched_file = searched_path(args.out)
+    searched = load_searched(searched_file)
     used = {}
     stopped = False
     _on_signals(_on_stop)
     try:
-        collect(rows, keywords, sources, limit, years, args.count, extra, checkpoint, used)
+        collect(rows, keywords, sources, limit, years, args.count, extra, checkpoint, used, searched, args.refresh)
         checkpoint(lookup=True)  # the details of the last DOIs, and the final save
     except StopRequested:
         stopped = True
@@ -783,6 +879,8 @@ def main():
     else:
         print(f"\n{added} new DOIs added" + (f" (you asked for {args.count})" if args.count else "")
               + f", from {keywords_used}; {total} in the list.")
+    if used.get("skipped"):
+        print(f"{used['skipped']} keyword searches were already fetched and skipped (--refresh asks them again).")
     print(f"Saved: {args.out} (full records) and {args.out.with_suffix('.txt')} (bare DOIs, one per "
           f"line — the input for moukhlij4scraping).")
     return 0

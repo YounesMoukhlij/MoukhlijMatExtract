@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "moukhlijmatextract"
-version = "1.0.1"
+version = "1.0.2"
 description = "Extract, rank and classify solid-state-electrolyte data from scientific papers (activation energies, conductivities, diffusion coefficients)."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -40,6 +40,7 @@ dependencies = [
     "pint>=0.23",
     "requests>=2.31",
     "pyyaml>=6",
+    "Send2Trash>=1.8",  # "Delete outputs…" moves files to the Trash, not deleted for good
 ]
 
 [project.optional-dependencies]

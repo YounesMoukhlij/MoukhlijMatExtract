@@ -4,8 +4,9 @@ and which data to extract. Plain YAML. A key the loader does not know is an erro
 being ignored — a misspelled `min_score` would otherwise quietly keep its default."""
 
 import difflib
+import json
 import os
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import dataclass, field, fields
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import yaml
@@ -61,8 +62,9 @@ KEY_GROUPS = (
              KEY_SIGNUP["ELSEVIER_API_KEY"]),
     KeyGroup("Wiley", "Full texts of Wiley journals, for text and data mining.", _METHOD_1,
              (("WILEY_TDM_TOKEN", "Text-and-data-mining token"),), KEY_SIGNUP["WILEY_TDM_TOKEN"]),
-    KeyGroup("OpenAlex", "The main search index. It works without a key; one gives higher limits.", _BOTH,
-             (("OPENALEX_API_KEY", "API key (optional)"),), "https://openalex.org"),
+    KeyGroup("OpenAlex", "The main search index. Without a key it gives the first 100 results of each search, on "
+             "a daily budget shared with your network; a free key gives every result and a budget of its own.", _BOTH,
+             (("OPENALEX_API_KEY", "API key (optional)"),), "https://openalex.org/settings/api"),
     KeyGroup("Semantic Scholar", "Searches and abstracts. It works without a key; one makes it steadier.", _BOTH,
              (("SEMANTIC_SCHOLAR_API_KEY", "API key (optional)"),), KEY_SIGNUP["SEMANTIC_SCHOLAR_API_KEY"]),
     KeyGroup("CORE", "Full texts of the world's repositories: their search, and copies of the papers.", _METHOD_1,
@@ -91,6 +93,30 @@ ABSTRACT_SOURCES = ("openaire", "crossref", "europepmc", "semanticscholar", "spr
 # network connection.
 RESOLVERS = ("elsevier", "wiley", "aps", "openalex", "unpaywall", "arxiv", "pmc", "osti", "hal",
              "semanticscholar", "ads", "openaire", "core", "crossref")
+# How the window names them.
+LABELS = {
+    "openalex": "OpenAlex", "arxiv": "arXiv", "crossref": "Crossref", "semanticscholar": "Semantic Scholar",
+    "europepmc": "Europe PMC", "openaire": "OpenAIRE", "doaj": "DOAJ", "jstage": "J-STAGE", "core": "CORE",
+    "springernature": "Springer Nature", "scopus": "Scopus", "ads": "NASA ADS", "ieee": "IEEE Xplore",
+    "wos": "Web of Science", "elsevier": "Elsevier", "wiley": "Wiley", "aps": "APS", "unpaywall": "Unpaywall",
+    "pmc": "PubMed Central", "osti": "OSTI", "hal": "HAL",
+}
+# The setting of the .env file a source or a copy source cannot work without (all the others need none).
+NEEDS = {
+    "scopus": "ELSEVIER_API_KEY", "core": "CORE_API_KEY", "springernature": "SPRINGER_NATURE_API_KEY",
+    "ads": "ADS_API_TOKEN", "ieee": "IEEE_API_KEY", "wos": "WOS_API_KEY", "elsevier": "ELSEVIER_API_KEY",
+    "wiley": "WILEY_TDM_TOKEN", "unpaywall": "MME_EMAIL",
+}
+# The numbers of a job a person may set, and their bounds (the window and the loader both hold them).
+LIMITS = {
+    "max_per_query": (1, 1000),   # results asked of each source for each query
+    "min_score": (0, 20),         # the screening score a paper needs
+    "workers": (1, 8),            # downloads at once: more is impolite to the servers
+    "max_pdf_mb": (1, 500),       # the largest PDF accepted
+    "years": (1900, 2100),
+}
+# The folder of the downloaded PDFs is not a setting a person changes: both web methods, the ledger
+# and "Delete outputs" all look for the papers there.
 
 
 @dataclass
@@ -213,18 +239,126 @@ def save_env(values: Dict[str, str], path: str = ENV_PATH) -> None:
             os.environ.pop(name, None)
 
 
-def dump_job(job: Job) -> str:
-    """The job as the text of a job file: what `load_job` reads back as the same job. (A job file
-    written by hand may carry comments; they are not part of the job and are not kept.)"""
-    data: Dict[str, Any] = {"name": job.name, "contact_email": job.contact_email}
+HEADER = "# Job file of MoukhlijMatExtract's web project (see the README for every setting)."
+# The lists of words a person groups under "# headings" (kept when the job is saved again).
+WORD_LISTS = ("search.queries", "screen.topic_words", "screen.property_words", "screen.exclude_words")
+
+
+def _scalar(key: str, value: Any, indent: str) -> List[str]:
+    """`key: value` as YAML lines, a list on one line (wrapped) as the shipped job writes it."""
+    text = yaml.safe_dump({key: value}, sort_keys=False, allow_unicode=True, default_flow_style=True, width=110)
+    text = text.strip()
+    if text.startswith("{") and text.endswith("}"):
+        text = text[1:-1]
+    lines = text.splitlines()
+    return [indent + lines[0]] + [indent + "  " + line.strip() for line in lines[1:]]
+
+
+def dump_job(job: Job, headings: Optional[Dict[str, List[str]]] = None,
+             notes: Optional[Dict[str, List[str]]] = None) -> str:
+    """The job as the text of a job file: what `load_job` reads back as the same job.
+
+    The comments a person wrote are kept when given: `notes` are the comment lines above a setting
+    ("screen.exclude_words" → its lines), `headings` the "# …" lines among the words of a list
+    (`read_comments` reads both from a file). A heading is kept only between words it was among."""
+    headings, notes = headings or {}, notes or {}
+    out = [HEADER, ""]
+
+    def note(name: str, indent: str) -> None:
+        out.extend(indent + line for line in notes.get(name, []))
+
+    for key in ("name", "contact_email"):
+        note(key, "")
+        out.extend(_scalar(key, getattr(job, key), ""))
     for section in ("search", "screen", "fetch", "extract"):
-        data[section] = asdict(getattr(job, section))
-    if job.search.years:
-        data["search"]["years"] = list(job.search.years)
-    else:
-        del data["search"]["years"]
-    return ("# Job file of MoukhlijMatExtract's web project (see the README for every setting).\n"
-            + yaml.safe_dump(data, sort_keys=False, allow_unicode=True, default_flow_style=None, width=110))
+        out.append("")
+        note(section, "")
+        out.append(f"{section}:")
+        for f in fields(getattr(job, section)):
+            name, value = f"{section}.{f.name}", getattr(getattr(job, section), f.name)
+            if name == "search.years":
+                if not value:
+                    continue
+                value = list(value)
+            note(name, "  ")
+            if name in WORD_LISTS and value:
+                out.append(f"  {f.name}:")
+                for entry in _with_headings(value, headings.get(name, [])):
+                    out.append(f"    {entry}" if entry.startswith("#") else
+                               "    - " + json.dumps(entry, ensure_ascii=False))
+            else:
+                out.extend(_scalar(f.name, value, "  "))
+    return "\n".join(out) + "\n"
+
+
+def _with_headings(words: List[str], layout: List[str]) -> List[str]:
+    """The words, with the headings of `layout` (an earlier list: words and "# …" lines) put back
+    before the first word that followed them there. Headings whose words are all gone are dropped."""
+    if not layout:
+        return list(words)
+    before: Dict[str, List[str]] = {}
+    waiting: List[str] = []
+    for entry in layout:
+        if entry.startswith("#"):
+            waiting.append(entry)
+        else:
+            if waiting and entry not in before:
+                before[entry] = waiting
+            waiting = []
+    out: List[str] = []
+    for word in words:
+        out.extend(before.pop(word, []))
+        out.append(word)
+    return out
+
+
+def read_comments(path: str) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
+    """The comments of a job file: (headings, notes) as `dump_job` takes them back. Only comments on
+    lines of their own are read (one after a value is not kept)."""
+    headings: Dict[str, List[str]] = {}
+    notes: Dict[str, List[str]] = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return headings, notes
+    section, current, pending = "", "", []
+    for line in lines:
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip())
+        if not stripped:
+            continue
+        if stripped.startswith("#"):
+            if stripped == HEADER:
+                continue
+            if current in WORD_LISTS and indent >= 4:
+                headings[current].append(stripped)
+            else:
+                pending.append(stripped)
+            continue
+        if stripped.startswith("- ") and current in WORD_LISTS:
+            try:
+                word = yaml.safe_load(stripped[2:])
+            except yaml.YAMLError:
+                continue
+            if isinstance(word, str) and word.strip():
+                headings[current].append(word.strip())
+            continue
+        key = stripped.partition(":")[0].strip()
+        if indent == 0:
+            section = key if key in ("search", "screen", "fetch", "extract") else ""
+            current = key
+        elif section and indent == 2:
+            current = f"{section}.{key}"
+        else:
+            continue
+        if pending:
+            notes[current] = pending
+            pending = []
+        if current in WORD_LISTS:
+            headings[current] = []
+    # A list of words a heading stands in only counts if its words are the words of the job.
+    return {name: layout for name, layout in headings.items() if any(e.startswith("#") for e in layout)}, notes
 
 
 def _build(cls, data: Any, where: str):
@@ -277,6 +411,8 @@ def load_job(path: str) -> Job:
         if not (isinstance(s.years, (list, tuple)) and len(s.years) == 2 and all(isinstance(y, int) for y in s.years)
                 and s.years[0] <= s.years[1]):
             raise ValueError("search.years: expected [first_year, last_year], e.g. [2015, 2026]")
+        if not all(LIMITS["years"][0] <= y <= LIMITS["years"][1] for y in s.years):
+            raise ValueError(f"search.years: years from {LIMITS['years'][0]} to {LIMITS['years'][1]}")
         s.years = (s.years[0], s.years[1])
     if not s.queries and not s.ids_file:
         raise ValueError("search: give at least one query or an ids_file")
@@ -291,8 +427,12 @@ def load_job(path: str) -> Job:
     bad = [name for name in f.sources if name not in RESOLVERS]
     if bad:
         raise ValueError(f"fetch.sources: unknown {bad}; known: {list(RESOLVERS)}")
-    if f.workers < 1:
-        raise ValueError("fetch.workers: must be at least 1")
+    for where, value, limit in (("search.max_per_query", s.max_per_query, "max_per_query"),
+                                ("screen.min_score", c.min_score, "min_score"),
+                                ("fetch.workers", f.workers, "workers"), ("fetch.max_pdf_mb", f.max_pdf_mb, "max_pdf_mb")):
+        low, high = LIMITS[limit]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high:
+            raise ValueError(f"{where}: must be a number from {low} to {high}")
 
     e = job.extract
     # A job file written for an earlier version may still ask for a property under its old name.

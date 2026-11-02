@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # LocalExtraction/cli.py
-"""The command line of Project 1: the PDFs of a folder into a database. Run from the project root.
+"""The command line of Project 1: the PDFs of a folder into a database. Works inside
+~/MoukhlijMatExtract (made with LocalExtraction/papers and LocalExtraction/local_output if missing),
+from wherever it is started.
 
 Usage:
 	MoukhlijMatExtract (MME) — author: Younes Moukhlij
-	python -m LocalExtraction                        (same as: python -m LocalExtraction extract)
+	mme-local  /  python -m LocalExtraction          (same as: python -m LocalExtraction extract)
 	python -m LocalExtraction --input LocalExtraction/papers --output LocalExtraction/local_output --workers 4
 	python -m LocalExtraction --input /path/to/pdfs --output /path/to/database -v
 	python -m LocalExtraction --rebuild              (extract every PDF again; the present files are kept aside)
@@ -19,7 +21,8 @@ import sys
 import threading
 from typing import Callable, Dict, Iterable, List, Optional
 
-from .about import CREDIT_TEXT, DEFAULT_INPUT, DEFAULT_OUTPUT, DESCRIPTION, FULL_NAME, print_banner
+from .about import (CREDIT_TEXT, command_name, DEFAULT_INPUT, DEFAULT_OUTPUT, DESCRIPTION, FULL_NAME, PROJECT_HOME,
+					enter_project_home, print_banner)
 from .exporter import StrictExporter, UnreadableTable
 from .models import PaperData
 from .pipeline import NaLiXPipeline
@@ -29,9 +32,10 @@ _COMMANDS = ("extract", "gui")
 
 def _add_folders(parser: argparse.ArgumentParser) -> None:
 	parser.add_argument("--input", "-i", default=DEFAULT_INPUT,
-						help=f"Directory containing input PDFs (default: {DEFAULT_INPUT})")
+						help=f"Directory containing input PDFs, relative to {PROJECT_HOME} (default: {DEFAULT_INPUT})")
 	parser.add_argument("--output", "-o", default=DEFAULT_OUTPUT,
-						help=f"Directory to write the extracted database into (default: {DEFAULT_OUTPUT})")
+						help=f"Directory to write the extracted database into, relative to {PROJECT_HOME} "
+							 f"(default: {DEFAULT_OUTPUT})")
 	parser.add_argument("--workers", "-w", type=int, default=4,
 						help="Number of PDFs to process in parallel (default: 4)")
 	parser.add_argument("--verbose", "-v", action="store_true",
@@ -42,7 +46,7 @@ def _add_folders(parser: argparse.ArgumentParser) -> None:
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 	parser = argparse.ArgumentParser(
-		prog="python -m LocalExtraction",
+		prog=command_name("mme-local", "LocalExtraction"),
 		description="Project 1 of MoukhlijMatExtract: extract structured battery-materials data from the PDFs in a "
 					"folder. extract (the default): from this terminal. gui: from a window.",
 		epilog=CREDIT_TEXT,
@@ -104,6 +108,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 	if not argv or argv[0] not in (*_COMMANDS, "-h", "--help"):
 		argv = ["extract", *argv]
 	args = parse_args(argv)
+	enter_project_home("local")
 
 	logging.basicConfig(
 		level=logging.DEBUG if args.verbose else logging.INFO,
@@ -119,7 +124,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 		return 0
 
 	rebuild_if_asked(args.output, args.rebuild)
-	print(f"--> Processing papers from {args.input} to {args.output}")
+	print(f"--> Processing papers from {os.path.abspath(args.input)} to {os.path.abspath(args.output)}")
 	print(f"Using {args.workers} parallel workers")
 
 	try:

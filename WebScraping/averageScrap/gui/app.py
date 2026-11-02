@@ -22,7 +22,7 @@ class App(Window):
         self._job_path, self._output_dir = job_path, output_dir
         super().__init__(root, "MoukhlijMatExtract (MME) · Web scraping",
                          "search the literature, download the legal copies, extract them", workers,
-                         size="1280x860", minsize=(1000, 660))
+                         size="1280x860", minsize=(860, 600))
 
     def header_buttons(self, bar: ttk.Frame) -> None:
         ttk.Button(bar, text="API keys…", command=self._settings).pack(side="right")

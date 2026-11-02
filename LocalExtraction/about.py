@@ -1,8 +1,11 @@
 # LocalExtraction/about.py
-"""The name and author of the program, and where Project 1 reads and writes unless told otherwise."""
+"""The name and author of the program, the project folder every part works in, and where Project 1
+reads and writes unless told otherwise."""
 
 import os
+import sys
 import textwrap
+from pathlib import Path
 
 NAME = "MoukhlijMatExtract"
 ABBREVIATION = "MME"
@@ -17,9 +20,67 @@ DESCRIPTION = (
     "materials and their properties, and exports linked CSV, Excel and JSON."
 )
 
-# Relative to the project root, where the commands are run from.
+# The "About" of the windows: the project and its author, and where to find them.
+REPOSITORY = "https://github.com/YounesMoukhlij/MoukhlijMatExtract"
+CONTACT_EMAIL = "younes.moukhlij@usms.ac.ma"
+LICENSE_NAME = "MIT License"
+ABOUT_PROJECT = (
+    f"{FULL_NAME} is an open-source research tool for mining the scientific literature on solid-state "
+    "electrolytes. It reads papers — your own PDFs, or articles found and retrieved online from open "
+    "sources — and extracts their ion-transport data (activation energies, ionic and electronic "
+    "conductivities, diffusion coefficients) into a structured database, recording the source of every "
+    "value. The materials are then ranked by activation energy and classified by crystal-structure type "
+    "and structure family, to support the data-driven screening of candidate electrolytes."
+)
+ABOUT_AUTHOR = (
+    f"{AUTHOR} is a PhD researcher working on solid-state electrolytes at the Faculté Polydisciplinaire de "
+    "Khouribga (FPK), Université Sultan Moulay Slimane (USMS), and a software-engineering student at "
+    f"1337 Coding School. {ABBREVIATION} brings the two together: software engineering put to work for "
+    "materials research."
+)
+CITE_TEXT = f"If you use {ABBREVIATION} in your research, please cite it (CITATION.cff in the repository)."
+
+
+def command_name(command: str, module: str) -> str:
+    """The name to show in a part's help: its mme-* command when started that way (mme-rank),
+    else how it was started (python -m SelectingTopMaterial)."""
+    return command if Path(sys.argv[0]).name.startswith(command) else f"python -m {module}"
+
+
+def version() -> str:
+    """The installed version of the package; "" when it is run from a copy that is not installed."""
+    try:
+        from importlib.metadata import PackageNotFoundError, version as installed
+        return installed("moukhlijmatextract")
+    except Exception:  # PackageNotFoundError, or no metadata at all
+        return ""
+
+
+# Every command works inside ~/MoukhlijMatExtract, whatever folder it is started from, so the parts
+# always find each other's files. The folders each part makes there, if missing, when it starts:
+PROJECT_HOME = Path.home() / NAME
+PART_FOLDERS = {
+    "local": ("LocalExtraction/papers", "LocalExtraction/local_output"),
+    "web": ("WebScraping/papers", "WebScraping/web_output"),
+    "dois": ("WebScraping/Fetch_DOIs",),
+    "rank": ("SelectingTopMaterial/results",),
+    "classify": ("Classification/crystal_structure", "Classification/structure_families"),
+}
+
+# Relative to PROJECT_HOME.
 DEFAULT_INPUT = os.path.join("LocalExtraction", "papers")
 DEFAULT_OUTPUT = os.path.join("LocalExtraction", "local_output")
+
+
+def enter_project_home(*parts: str) -> Path:
+    """Makes ~/MoukhlijMatExtract and the folders of these parts (keys of PART_FOLDERS) when they are
+    missing, then works from there, so every relative path of the project lands inside it."""
+    PROJECT_HOME.mkdir(parents=True, exist_ok=True)
+    for part in parts:
+        for folder in PART_FOLDERS[part]:
+            (PROJECT_HOME / folder).mkdir(parents=True, exist_ok=True)
+    os.chdir(PROJECT_HOME)
+    return PROJECT_HOME
 
 
 def print_banner(title: str, description: str) -> None:

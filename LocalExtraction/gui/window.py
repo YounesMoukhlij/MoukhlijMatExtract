@@ -34,6 +34,18 @@ class _ToWindow(logging.Handler):
         self._post(self._write, self.format(record))
 
 
+def fit_to_screen(root: tk.Misc, size):
+    """A window size ("1100x820" or (900, 620)) made to fit the screen: never wider than 95 % of it,
+    nor higher than 88 % (room for the menu bar, the dock or the taskbar)."""
+    if isinstance(size, str):
+        width, height = (int(n) for n in size.lower().split("x"))
+    else:
+        width, height = size
+    width = min(width, int(root.winfo_screenwidth() * 0.95))
+    height = min(height, int(root.winfo_screenheight() * 0.88))
+    return f"{width}x{height}" if isinstance(size, str) else (width, height)
+
+
 class Window:
     """A window around one panel. A subclass gives the panel (`build_panel`) and, if it has any,
     the buttons of its title bar (`header_buttons`)."""
@@ -42,8 +54,8 @@ class Window:
                  size: str = "1100x820", minsize: tuple = (900, 620)):
         self.root = root
         root.title(title)
-        root.geometry(size)
-        root.minsize(*minsize)
+        root.geometry(fit_to_screen(root, size))
+        root.minsize(*fit_to_screen(root, minsize))
         self._events: "queue.Queue" = queue.Queue()
         # One extraction at a time writes the files of a folder.
         self._locks: Dict[str, threading.Lock] = {}
@@ -73,11 +85,13 @@ class Window:
         top = ttk.Frame(self.root, padding=(12, 10, 12, 8))
         top.pack(fill="x")
         ttk.Label(top, text=title, font=("TkDefaultFont", 16, "bold")).pack(side="left")
-        ttk.Label(top, text=subtitle, foreground="#555555").pack(side="left", padx=12)
+        # The buttons and the number are packed before the subtitle: when the window narrows, the
+        # subtitle is what gets cut, never a control.
         self.header_buttons(top)
         self.workers_var = tk.IntVar(value=workers)
         ttk.Spinbox(top, from_=1, to=32, textvariable=self.workers_var, width=4).pack(side="right", padx=(4, 16))
         ttk.Label(top, text="PDFs read at once:").pack(side="right")
+        ttk.Label(top, text=subtitle, foreground="#8c8c8c").pack(side="left", padx=12)
 
         ttk.Label(self.root, text=CREDIT_TEXT.partition(" — ")[2], foreground="gray",
                   font=("TkDefaultFont", 9)).pack(side="bottom", anchor="e", padx=12, pady=(0, 4))

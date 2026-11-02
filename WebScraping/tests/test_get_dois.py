@@ -4,9 +4,11 @@ what is kept when a run is stopped. The sources are stand-ins; nothing goes on t
 
 import argparse
 import csv
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from WebScraping.Fetch_DOIs import get_dois as gd
 
@@ -32,6 +34,70 @@ def run(rows, keywords, table, count=None, extra=(), used=None):
 
 def new_dois(rows, before):
     return [doi for doi in rows if doi not in before]
+
+
+class AlreadyFetchedTests(unittest.TestCase):
+    def test_a_second_run_adds_no_doi_twice(self):
+        with tempfile.TemporaryDirectory() as folder, mock.patch("builtins.print") as said:
+            out = Path(folder, "dois.csv")
+            rows = gd.load(out)
+            run(rows, ["k1"], {"k1": ["a", "b"]})
+            gd.save(rows, out)
+            rows = gd.load(out)
+            self.assertEqual(run(rows, ["k1"], {"k1": ["a", "b", "c"]}), 1)  # only c is new
+            gd.save(rows, out)
+            lines = out.with_suffix(".txt").read_text(encoding="utf-8").split()
+        self.assertEqual(sorted(lines), ["10.1234/a", "10.1234/b", "10.1234/c"])
+        self.assertTrue(any("2 already in the list — skipped" in str(c) for c in said.call_args_list))
+
+    def test_a_doi_only_in_the_text_file_is_known_and_kept(self):
+        with tempfile.TemporaryDirectory() as folder, mock.patch("builtins.print"):
+            out = Path(folder, "dois.csv")
+            rows = gd.load(out)
+            run(rows, ["k1"], {"k1": ["a"]})
+            gd.save(rows, out)
+            with out.with_suffix(".txt").open("a", encoding="utf-8") as f:
+                f.write("10.1234/BY-HAND\n")  # added by hand, in another case
+            rows = gd.load(out)
+            self.assertIn("10.1234/by-hand", rows)
+            self.assertEqual(run(rows, ["k2"], {"k2": ["by-hand", "a"]}), 0)  # both known: nothing added
+            gd.save(rows, out)
+            lines = out.with_suffix(".txt").read_text(encoding="utf-8").split()
+        self.assertEqual(sorted(lines), ["10.1234/a", "10.1234/by-hand"])  # not dropped by the save
+
+    def test_book_chapters_are_their_own_dois(self):
+        rows = {}
+        with mock.patch("builtins.print"):
+            run(rows, ["k"], {"k": ["978-3-031-30477-4", "978-3-031-30477-4_3"]})
+        self.assertEqual(len(rows), 2)  # a book and its chapter 3: two publications
+
+    def test_a_keyword_a_source_already_answered_is_skipped(self):
+        asked = []
+
+        def search(keyword, limit, years):
+            asked.append(keyword)
+            return [paper(f"{keyword}-1"), paper(f"{keyword}-2")]
+        searched, rows = {}, {}
+        with mock.patch("builtins.print"):
+            gd.collect(rows, ["k1", "k2"], [("Stand-in", search)], 100, None, searched=searched)
+            self.assertEqual(asked, ["k1", "k2"])
+            used = {}
+            with mock.patch("builtins.print") as said:
+                gd.collect(rows, ["k1", "k2", "k3"], [("Stand-in", search)], 100, None, used=used, searched=searched)
+        self.assertEqual(asked, ["k1", "k2", "k3"])  # k1 and k2 were not asked again
+        self.assertEqual(used["skipped"], 2)
+        self.assertTrue(any("already fetched" in str(c) for c in said.call_args_list))
+        with mock.patch("builtins.print"):
+            gd.collect(rows, ["k1"], [("Stand-in", search)], 100, None, searched=searched, refresh=True)
+        self.assertEqual(asked[-1], "k1")  # --refresh asks again
+
+    def test_a_search_cut_short_by_the_count_is_not_remembered(self):
+        def search(keyword, limit, years):
+            return [paper("a"), paper("b"), paper("c")]
+        searched = {}
+        with mock.patch("builtins.print"):
+            gd.collect({}, ["k1"], [("Stand-in", search)], 100, None, count=1, searched=searched)
+        self.assertEqual(searched, {})  # two of its DOIs were left out: asked again next time
 
 
 class CountTests(unittest.TestCase):
@@ -179,6 +245,18 @@ class KeywordTests(unittest.TestCase):
         self.assertIn("graph neural network shear modulus solid electrolyte", extra)
         self.assertIn("solid electrolyte shear modulus", extra)         # already on the topic: no anchor
         self.assertIn("solid-state electrolyte shear modulus", extra)   # shares "electrolyte": no anchor
+
+
+class OpenAlexTests(unittest.TestCase):
+    def test_pages_past_the_first_only_with_a_key(self):
+        pages = [{"results": [{"doi": "https://doi.org/10.1234/a"}], "meta": {"next_cursor": "page-2"}},
+                 {"results": [{"doi": "https://doi.org/10.1234/b"}], "meta": {"next_cursor": None}}]
+        for key, wanted in (("", 1), ("key", 2)):  # OpenAlex refuses (HTTP 401) a second page without a key
+            answers = iter(pages)
+            with mock.patch.dict(os.environ, {"OPENALEX_API_KEY": key}), \
+                    mock.patch.object(gd, "get", side_effect=lambda url, params: mock.Mock(json=lambda: next(answers))) as get:
+                self.assertEqual(len(gd.from_openalex("garnet", 200, None)), wanted, key)
+            self.assertEqual(get.call_count, wanted)
 
 
 if __name__ == "__main__":

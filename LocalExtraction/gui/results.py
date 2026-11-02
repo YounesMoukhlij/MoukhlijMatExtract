@@ -21,7 +21,7 @@ _COLUMNS = (
     ("material_formula", "material", 140), ("activation_energy_eV", "Ea (eV)", 58), ("extracted_from", "from", 54),
     ("page", "page", 42), ("reported_as", "called", 104), ("structure", "structure", 104),
     ("temperature", "temperature", 104), ("data_origin", "origin", 84), ("transport_component", "component", 84),
-    ("attribution", "result of", 66), ("n_assumed", "assumed", 60), ("paper_id", "paper", 180),
+    ("attribution", "result of", 66), ("n_assumed", "assumed", 60), ("title", "article", 260),
 )
 
 
@@ -56,7 +56,7 @@ class EnergiesView(ttk.Frame):
         files.pack(side="right")
         ttk.Button(bar, text="Refresh", command=self.show).pack(side="right", padx=4)
         WrapLabel(bar, textvariable=self.count, wraplength=300).pack(side="left", fill="x", expand=True)
-        self.table = Table(self, _COLUMNS, on_open=self._details, stretch="paper_id")
+        self.table = Table(self, _COLUMNS, on_open=self._details, stretch="title")
         self.table.pack(fill="both", expand=True)
 
     def show(self) -> None:

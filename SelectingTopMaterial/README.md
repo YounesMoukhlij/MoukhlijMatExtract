@@ -120,7 +120,8 @@ A check never moves a material to another class.
 | `confidence` | Mean extraction confidence of its values |
 | `structure`, `data_origin`, `transport_component`, `attribution`, `temperature` | What its values say of each; when they differ, each answer with its count: `simulation (2) \| experimental (1)` |
 | `papers` | The papers its values come from |
-| `source_paper`, `source_page`, `source_sentence` | Where the reported value closest to its Ea was read |
+| `articles` | The titles of those papers, in the same order |
+| `source_paper`, `source_title`, `source_page`, `source_sentence` | Where the reported value closest to its Ea was read: the paper, its title, the page and the sentence |
 
 `values.csv` has one line per activation energy: the material it counts for, the value and its
 own class, then the columns of the database (`reported_as`, structure, temperature, pressure,

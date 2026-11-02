@@ -21,6 +21,9 @@ import webbrowser
 from collections.abc import Sequence
 from pathlib import Path
 
+from LocalExtraction.about import command_name, enter_project_home
+from LocalExtraction.done import already_done, fingerprint, mark_done
+
 from . import console, exporters, html_report, loader
 from .about import DEFAULT_RESULTS, NAME, PROJECT_ROOT, VERSION
 from .criteria import POLICIES, Criteria, CriteriaError
@@ -32,11 +35,12 @@ FORMATS = ("csv", "xlsx", "json", "html")
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog=f"python -m {NAME}",
+        prog=command_name("mme-rank", NAME),
         description="Ranks the materials of the MoukhlijMatExtract database by activation energy and sorts them "
                     "into the classes of criteria.toml (Superionic, Performant, Acceptable, Rejected).",
         epilog="The database is only read. The ranking is written into SelectingTopMaterial/results/. "
-               f"The window: python -m {NAME} gui (python -m {NAME} gui --help for its options). "
+               f"The window: {command_name('mme-rank', NAME)} gui ({command_name('mme-rank', NAME)} gui --help "
+               "for its options). "
                "MoukhlijMatExtract (MME) — Created by Younes Moukhlij.")
     parser.add_argument("--source", "-s", nargs="+", action="extend", metavar="DIR",
                         help="Results folder(s) to read, the most trusted first (default: "
@@ -74,12 +78,15 @@ def build_parser() -> argparse.ArgumentParser:
     shown.add_argument("--open", action="store_true", help="Open the report in the browser once written")
     shown.add_argument("--quiet", "-q", action="store_true", help="Say nothing but what goes wrong")
     shown.add_argument("--no-color", action="store_true", help="No colours in the terminal")
+    parser.add_argument("--force", "-f", action="store_true",
+                        help="Rank again even when nothing has changed since the last ranking written")
     parser.add_argument("--version", action="version", version=f"{NAME} {VERSION}")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    enter_project_home("rank")
     if argv[:1] == ["gui"]:
         from .gui import main as gui_main  # Tk is loaded only when the window is asked for
         return gui_main(argv[1:])
@@ -104,6 +111,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     filters = Filters(min_confidence=args.min_confidence, origin=args.origin or "",
                       attribution=(args.attribution or "").replace("-", " "), component=args.component or "",
                       elements=tuple(dict.fromkeys(args.element or ())))
+    # The same databases, criteria, options and code as the ranking already in --out: already done.
+    settings = {"databases": [str(Path(d).resolve()) for d in databases], "criteria": repr(criteria),
+                "policy": args.policy, "by_phase": args.by_phase, "filters": repr(filters), "top": args.top,
+                "formats": sorted(args.format or FORMATS)}
+    stamp = fingerprint(databases, settings, code=[Path(__file__).resolve().parent])
+    when = None if args.force or args.no_files else already_done(out_dir, "rank", stamp)
+    if when:
+        if not args.quiet:
+            print(f"\n  Already ranked: nothing has changed since the last ranking ({when}) — skipped.\n"
+                  f"  The ranking is in {_shown(out_dir)} (add --force to rank again).")
+        report = out_dir / "report.html"
+        if args.open and report.exists():
+            webbrowser.open(report.resolve().as_uri())
+        return 0
+
     selection = select_from(databases, criteria, root=PROJECT_ROOT, policy=args.policy,
                             by_phase=args.by_phase, filters=filters)
 
@@ -113,6 +135,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             written = write_files(selection, out_dir, args.format or FORMATS, args.top)
         except OSError as error:
             return _fail(str(error))
+        mark_done(out_dir, "rank", stamp, written)
 
     if not args.quiet or not selection.materials:
         stream = sys.stdout if selection.materials else sys.stderr

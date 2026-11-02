@@ -6,22 +6,29 @@ review list, so a run started in the terminal goes on here and the other way rou
 import logging
 import os
 import threading
+import time
+from collections import Counter
 import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
 
+from LocalExtraction import outputs
+from LocalExtraction.gui.delete_outputs import delete_outputs_button
 from LocalExtraction.gui.dialogs import DetailsDialog
+from LocalExtraction.gui.outcomes import extraction_outcome, snapshot
+from LocalExtraction.gui.result_card import BAD, FAILED as CARD_FAILED, GOOD, GREY, NOTHING, WARNING, Outcome as Card, ResultCard, Stat, number
 from LocalExtraction.gui.results import EnergiesView, pending_pdfs
 from LocalExtraction.gui.summary import final_summary, summarize_paper
-from LocalExtraction.gui.widgets import FolderRow, LogPane, Row, Stopped, Table, WrapLabel
+from LocalExtraction.gui.widgets import FolderRow, LogPane, Row, Stopped, Table, WrapLabel, open_path
 from LocalExtraction.models import PaperData
 
 from ..fetch import Outcome
 from ..harvest import MAX_ATTEMPTS, Harvest
 from ..job import Job, load_job
 from ..ledger import APPROVED, CLOSED, DOWNLOADED, EXTRACTED, FAILED, NO, REJECTED, SCREENED, YES, Candidate, abstract_basis
-from .dialogs import CheckDialog, JobDialog
+from .dialogs import CheckDialog
+from .job_dialog import JobDialog, open_job_settings, when_saved
 
 if TYPE_CHECKING:
     from LocalExtraction.gui.window import Window
@@ -83,14 +90,15 @@ class WebPanel(ttk.LabelFrame):
         self.job_file = FolderRow(row, "Job file:", job_path, pick="file", file_types=[("Job file", "*.yaml *.yml")],
                                   on_change=self.load_job, label_width=15)
         self.job_file.pack(side="left", fill="x", expand=True)
-        self.edit_button = ttk.Button(row, text="Edit…", command=self._edit_job, width=7)
+        self.edit_button = ttk.Button(row, text="Search settings…", command=self._edit_job)
         self.edit_button.pack(side="left", padx=(6, 0))
+        when_saved(self._settings_saved)
         self.check_button = ttk.Button(row, text="Check setup", command=self._check)
         self.check_button.pack(side="left", padx=(6, 0))
         self.output = FolderRow(self, "Results folder:", output_dir, label_width=15, on_change=self.show_results)
         self.output.pack(fill="x", pady=(4, 0))
         self.job_summary = tk.StringVar()
-        WrapLabel(self, textvariable=self.job_summary, foreground="#666666").pack(fill="x", pady=(2, 8))
+        WrapLabel(self, textvariable=self.job_summary, foreground="#8c8c8c").pack(fill="x", pady=(2, 8))
 
         steps = ttk.Frame(self)
         steps.pack(fill="x")
@@ -102,6 +110,12 @@ class WebPanel(ttk.LabelFrame):
         self.extract_button.pack(side="left", padx=(6, 0))
         self.stop_button = ttk.Button(steps, text="Stop", command=self.stop, state="disabled")
         self.stop_button.pack(side="left", padx=(6, 0))
+        # The ledger is let go of while the dialog is open (it may be deleted), and opened again after.
+        self.delete_button = delete_outputs_button(steps, "web", before=self.close, after=self._outputs_deleted)
+        self.delete_button.pack(side="right")
+        outputs.register("web", self.running, "a step of the web scraping is running")
+        outputs.register("web", self.holds_ledger, "the “Search and download” window has the ledger open: "
+                                                   "close it, or delete from that window", groups=("papers",))
         options = ttk.Frame(self)
         options.pack(fill="x", pady=(6, 0))
         ttk.Label(options, text="Download at most").pack(side="left")
@@ -119,6 +133,7 @@ class WebPanel(ttk.LabelFrame):
         WrapLabel(progress, textvariable=self.status).pack(side="left", fill="x", expand=True)
 
         self.book = ttk.Notebook(self)
+        self.card = ResultCard(self, before=self.book)  # what the last step did, above the tabs
         self.book.pack(fill="both", expand=True)
         self.review = ttk.Frame(self.book, padding=(0, 6, 0, 0))
         bar = ttk.Frame(self.review)
@@ -138,7 +153,7 @@ class WebPanel(ttk.LabelFrame):
         ttk.Button(decide, text="✓ Yes", command=lambda: self._decide(YES), width=6).pack(side="left")
         ttk.Button(decide, text="✗ No", command=lambda: self._decide(NO), width=6).pack(side="left", padx=4)
         self.counts = tk.StringVar()
-        WrapLabel(decide, textvariable=self.counts, foreground="#333333").pack(side="left", fill="x", expand=True, padx=(6, 0))
+        WrapLabel(decide, textvariable=self.counts).pack(side="left", fill="x", expand=True, padx=(6, 0))
         self.table = Table(self.review, _COLUMNS, on_open=self._details, stretch="title")
         self.table.tag("no", foreground="#9a9a9a")
         self.table.tag("done", foreground="#1a7f37")
@@ -171,7 +186,7 @@ class WebPanel(ttk.LabelFrame):
         self.close()
         self.job, path = None, self.job_file.get()
         if not path:
-            self._no_job("Choose a job file: it says what to search for (configs/sse.yaml is an example), or press Edit… "
+            self._no_job("Choose a job file: it says what to search for (configs/sse.yaml is an example), or press Search settings… "
                          "to write one.")
             return
         try:
@@ -213,8 +228,19 @@ class WebPanel(ttk.LabelFrame):
 
     def _edit_job(self) -> None:
         if self.running():
+            messagebox.showinfo("MoukhlijMatExtract", "A step is running: change the settings once it is done.", parent=self)
             return
-        JobDialog(self, self.job or Job(), self.job_file.get() or os.path.join("configs", "my_job.yaml"), self._job_saved)
+        path = self.job_file.get()
+        if path and os.path.exists(path):
+            open_job_settings(self, path, self._job_saved)
+        else:
+            JobDialog(self, self.job or Job(), path or os.path.join("configs", "my_job.yaml"), self._job_saved)
+
+    def _settings_saved(self, path: str) -> None:
+        """Settings saved from another window (the web chooser, method 2): this job file reloaded."""
+        mine = self.job_file.get()
+        if mine and not self.running() and os.path.abspath(mine) == os.path.abspath(path):
+            self.load_job()
 
     def _job_saved(self, path: str) -> None:
         relative = os.path.relpath(path)
@@ -290,10 +316,23 @@ class WebPanel(ttk.LabelFrame):
             button.configure(state=ready)
         self.stop_button.configure(state="normal" if busy else "disabled")
         self.edit_button.configure(state="disabled" if busy else "normal")
+        self.delete_button.configure(state="disabled" if busy else "normal")
+
+    def holds_ledger(self) -> bool:
+        return self.harvest is not None
+
+    def _outputs_deleted(self, deleted: bool) -> None:
+        if deleted:
+            self._papers = []
+            self.activity.write("--- Outputs deleted.")
+        self.load_job()  # the ledger again (a new one if it was deleted), and what it holds
+        self.app.database_changed()
 
     def _run(self, work: Callable[..., None], *arguments: object) -> None:
         """Starts a step on its own thread; `_finished` puts the buttons back whatever happens."""
         self.stop_event.clear()
+        self.card.hide()
+        self._started, self._services, self._fetched_titles = time.time(), Counter(), []
 
         def guarded() -> None:
             try:
@@ -303,6 +342,9 @@ class WebPanel(ttk.LabelFrame):
             except Exception as error:  # the window must survive a failed step
                 logging.getLogger(__name__).exception("A step of the web scraping failed")
                 self.app.post(self.activity.write, f"This step failed: {type(error).__name__}: {error}")
+                self.app.post(self.card.show, Card("This step failed", CARD_FAILED, f"{type(error).__name__}: {error}",
+                                                   actions=[("Show the log", lambda: self.book.select(self.activity))],
+                                                   started=self._started))
             finally:
                 self.app.post(self._finished)
 
@@ -345,6 +387,28 @@ class WebPanel(ttk.LabelFrame):
                             "Review them in the Candidates tab, then press “2 · Download”.")
         self.filter_var.set(_FILTERS[0])
         self.book.select(self.review)
+        self.card.show(self._search_card(added, proposed))
+
+    def _search_card(self, added: int, proposed: int) -> Card:
+        everything = self.harvest.ledger.all() if self.harvest is not None else []
+        waiting = [c for c in everything if c.status in _REVIEWABLE and c.decision == YES]
+        closed = sum(1 for c in everything if c.status in _REVIEWABLE and "no-open-copy-known" in (c.flags or []))
+        best = sorted(waiting, key=lambda c: -c.score)[:3]
+        actions = [("Review the candidates", lambda: self.book.select(self.review))]
+        if waiting:
+            actions.append((f"Download the {number(len(waiting))} proposed", self.download))
+        if not added:
+            return Card("Search finished — nothing new", NOTHING,
+                        f"The searches gave no paper the list did not have ({number(len(everything))} in it). Change "
+                        "or add searches in “Search settings…”.", actions=actions, started=self._started)
+        return Card("Search finished", "done",
+                    f"{number(added)} new paper{'s' if added != 1 else ''} found; {number(proposed)} proposed for download. "
+                    "Check the list in the Candidates tab, then download.",
+                    [Stat(number(added), "new papers", hint=f"{number(len(everything))} in the list"),
+                     Stat(number(len(waiting)), "proposed", GOOD, "waiting to be downloaded"),
+                     Stat(number(closed), "no open copy known", GREY, "kept aside")],
+                    [f"Best match: {c.title or c.key} ({c.year or 'year ?'}, score {c.score:g})" for c in best],
+                    actions, self._started)
 
     # 2 · Download ---------------------------------------------------------
     def download(self) -> None:
@@ -385,8 +449,27 @@ class WebPanel(ttk.LabelFrame):
         self.app.post(self.activity.write,
                       f"Download finished: {results.get(DOWNLOADED, 0)} downloaded, {results.get(FAILED, 0)} failed "
                       f"(tried again next time), {results.get(CLOSED, 0)} with no copy to be had.")
+        self._downloads = dict(results)
         if then_extract and not self.stop_event.is_set():
             self._extract_work(harvest, output, workers)
+        else:
+            self.app.post(self._show_download_card, dict(results))
+
+    def _show_download_card(self, results: Dict[str, int]) -> None:
+        got, failed, closed = results.get(DOWNLOADED, 0), results.get(FAILED, 0), results.get(CLOSED, 0)
+        stopped = self.stop_event.is_set()
+        status = WARNING if stopped or (failed and got) else CARD_FAILED if failed and not got else \
+            NOTHING if not got else "done"
+        folder = self.job.fetch.folder if self.job else ""
+        self.card.show(Card(
+            "Download stopped" if stopped else "Download finished",
+            status, f"{number(got)} PDF(s) saved in {folder}." + (" Extract them next (“3 · Extract”)." if got else ""),
+            [Stat(number(got), "downloaded", GOOD), Stat(number(failed), "failed", BAD, "tried again next time"),
+             Stat(number(closed), "no copy to be had", GREY)],
+            [f"From {service}: {number(n)}" for service, n in self._services.most_common(3)]
+            + [f"Saved: {title}" for title in self._fetched_titles[:2]],
+            [("Extract them", self.extract), ("Open the papers folder", lambda: open_path(folder)),
+             ("Show the log", lambda: self.book.select(self.activity))], self._started))
 
     def _paper_fetched(self, key: str, outcome: Outcome, done: int, total: int) -> None:
         self.progress.configure(maximum=max(total, 1), value=done)
@@ -394,6 +477,10 @@ class WebPanel(ttk.LabelFrame):
         detail = f"via {outcome.service}" if outcome.status == DOWNLOADED else outcome.error
         self.activity.write(f"[{done}/{total}] {outcome.status}: {key} {detail}")
         candidate = self.harvest.ledger.get(key) if self.harvest is not None else None
+        if outcome.status == DOWNLOADED:
+            self._services[outcome.service] += 1
+            if candidate is not None and candidate.title:
+                self._fetched_titles.append(candidate.title)
         if candidate is not None:
             self._candidates[key] = candidate
             self.table.update_row(_row(candidate))
@@ -407,15 +494,16 @@ class WebPanel(ttk.LabelFrame):
 
     def _extract_work(self, harvest: Harvest, output: str, workers: int) -> None:
         harvest.output_dir = output
+        before = snapshot(output)
         total = pending_pdfs(harvest.folder, output)
         self.app.post(self._extraction_started, total, harvest.folder, output)
         with self.app.writing("Web scraping", output, self.stop_event):
             harvest.extract(max_workers=workers, stop_event=self.stop_event,
                             progress_callback=lambda name, paper: self.app.post(self._paper_extracted, name, paper))
-        self.app.post(self._extraction_finished, total)
+        self.app.post(self._extraction_finished, total, output, before)
 
     def _extraction_started(self, total: int, folder: str, output: str) -> None:
-        self._total, self._done, self._papers = total, 0, []
+        self._total, self._done, self._papers, self._failed = total, 0, [], 0
         self.progress.configure(mode="determinate", maximum=max(total, 1), value=0)
         self.status.set(f"Extracting {total} downloaded article(s) …" if total else "Every downloaded article is in the database already.")
         self.activity.write(f"--- Extraction of {folder} into {output}: {total} new PDF(s)")
@@ -425,12 +513,27 @@ class WebPanel(ttk.LabelFrame):
         self.progress.configure(value=self._done)
         self.status.set(f"Extracting: {self._done} / {self._total} — {filename}")
         if paper is None:
+            self._failed += 1
             self.activity.write(f"[FAILED] {filename}")
             return
         self._papers.append(paper)
         self.activity.write(f"[DONE] {filename}\n{summarize_paper(paper)}")
 
-    def _extraction_finished(self, total: int) -> None:
+    def _extraction_finished(self, total: int, output: str = "", before=None) -> None:
         self.activity.write(final_summary(self._papers) if total else "Nothing new to extract.")
         if self._papers:
             self.book.select(self.energies)
+        if before is None:
+            return
+        downloads = getattr(self, "_downloads", None)
+        prefix = (f"Downloaded {number(downloads.get(DOWNLOADED, 0))} PDF(s), then extracted them: "
+                  if downloads else "")
+        self._downloads = None
+        workbook = os.path.join(output, "database.xlsx")
+        stopped = self.stop_event.is_set()
+        self.card.show(extraction_outcome(
+            output, before, failed=getattr(self, "_failed", 0), stopped=stopped, started=self._started, prefix=prefix,
+            pdfs_pending=pending_pdfs(self.job.fetch.folder, output) if stopped and self.job else None,
+            actions=[("Show the activation energies", lambda: self.book.select(self.energies)),
+                     ("Open the workbook", lambda: open_path(workbook) if os.path.exists(workbook) else None),
+                     ("Open the results folder", lambda: open_path(output))]))

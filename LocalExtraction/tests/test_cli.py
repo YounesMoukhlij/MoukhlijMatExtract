@@ -12,6 +12,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest import mock
 
 import pandas as pd
@@ -19,8 +20,8 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 os.environ["MME_OFFLINE"] = "1"  # the tests never go on the network
 
-from LocalExtraction import cli
-from LocalExtraction.about import DEFAULT_INPUT, DEFAULT_OUTPUT
+from LocalExtraction import about, cli
+from LocalExtraction.about import DEFAULT_INPUT, DEFAULT_OUTPUT, PART_FOLDERS
 
 
 class GateTests(unittest.TestCase):
@@ -78,6 +79,28 @@ class GateTests(unittest.TestCase):
             cli.main(["--input", "pdfs", "--output", "out"])
             cli.main(["--input", "pdfs", "--output", "out", "--offline"])
         self.assertEqual(lookups, [True, False])
+
+    def test_it_works_inside_the_project_home_and_makes_its_folders(self):
+        home = Path(tempfile.mkdtemp()) / "MoukhlijMatExtract"
+        self.addCleanup(shutil.rmtree, home.parent, True)
+        self.addCleanup(os.chdir, os.getcwd())
+        with mock.patch.object(about, "PROJECT_HOME", home), mock.patch.object(cli, "run_extraction", return_value=0), \
+                mock.patch.object(cli, "print_banner"), redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main([]), 0)  # makes the home folder and the folders of part 1
+            self.assertEqual(cli.main([]), 0)  # finds them already there
+        self.assertEqual(sorted(path.name for path in (home / "LocalExtraction").iterdir()), ["local_output", "papers"])
+        self.assertEqual(Path.cwd().resolve(), home.resolve())
+
+    def test_every_part_has_its_folders_made(self):
+        home = Path(tempfile.mkdtemp()) / "MoukhlijMatExtract"
+        self.addCleanup(shutil.rmtree, home.parent, True)
+        self.addCleanup(os.chdir, os.getcwd())
+        with mock.patch.object(about, "PROJECT_HOME", home):
+            about.enter_project_home(*PART_FOLDERS)
+        for folders in PART_FOLDERS.values():
+            for folder in folders:
+                self.assertTrue((home / folder).is_dir(), folder)
+
 
 if __name__ == "__main__":
     unittest.main()

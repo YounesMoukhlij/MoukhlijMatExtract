@@ -91,6 +91,27 @@ class WindowTests(WindowTest):
         self.app.panel.load_job()
         self.assertEqual(self.app.panel.harvest.ledger.get("10.1000/other").decision, "yes")
 
+    def test_each_step_ends_with_its_results_card(self):
+        import time
+        from collections import Counter
+        from WebScraping.averageScrap.ledger import CLOSED, FAILED
+        web = self.app.panel
+        web._started, web._services, web._fetched_titles = time.time(), Counter(), []
+        web._searched(2)
+        card = web.card.outcome
+        self.assertEqual((card.title, card.status), ("Search finished", "done"))
+        self.assertEqual({s.label: s.value for s in card.stats}["proposed"], "1")  # the paper marked yes, not fetched
+        self.assertIn("Argyrodite conductors", card.highlights[0])
+        self.assertIn("Download the 1 proposed", [label for label, _ in card.actions])
+        web._searched(0)
+        self.assertEqual(web.card.outcome.status, "nothing")
+        web._services, web._fetched_titles = Counter({"pmc": 1}), ["Garnet conductors"]
+        web._show_download_card({DOWNLOADED: 1, FAILED: 1, CLOSED: 0})
+        card = web.card.outcome
+        self.assertEqual((card.title, card.status), ("Download finished", "warning"))
+        self.assertIn("From pmc: 1", card.highlights)
+        self.assertIn("Extract them", [label for label, _ in card.actions])
+
     def test_the_job_form_gives_back_the_job_it_was_given(self):
         from WebScraping.averageScrap.gui.dialogs import JobDialog
         saved = []

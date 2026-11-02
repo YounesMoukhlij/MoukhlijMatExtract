@@ -82,5 +82,63 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(read_env(self.env)["MME_EMAIL"], "me@uni.edu")  # the file is unchanged
 
 
+@unittest.skipUnless(has_screen(), "the window needs a screen")
+class StartTests(unittest.TestCase):
+    """The question asked each time the Web scraping window opens."""
+
+    def setUp(self):
+        import tkinter as tk
+        from WebScraping.averageScrap import job
+        self.env = os.path.join(tempfile.mkdtemp(), ".env")
+        for patcher in (mock.patch.dict(os.environ), mock.patch.object(job, "ENV_PATH", self.env)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        os.environ.pop("MME_EMAIL", None)
+        self.root = tk.Tk()
+        self.root.attributes("-alpha", 0.0)
+        self.addCleanup(self.root.destroy)
+
+    def open_window(self):
+        from tkinter import ttk
+        from WebScraping import webgui
+        from WebScraping.averageScrap.gui.dialogs import StartDialog
+        window = webgui.open_chooser(self.root)
+        window.attributes("-alpha", 0.0)
+        self.root.update_idletasks()
+        question, = [child for child in window.winfo_children() if isinstance(child, StartDialog)]
+        question.attributes("-alpha", 0.0)
+
+        def widgets(parent):
+            for child in parent.winfo_children():
+                yield child
+                yield from widgets(child)
+        opens = [w for w in widgets(window) if isinstance(w, ttk.Button) and w.cget("text") == "Open"]
+        self.assertEqual(len(opens), 2)
+        return window, question, opens
+
+    def test_the_methods_wait_for_an_email_which_is_then_saved(self):
+        window, question, opens = self.open_window()
+        self.assertTrue(all(button.instate(["disabled"]) for button in opens))
+        with mock.patch("WebScraping.averageScrap.gui.dialogs.messagebox.showerror") as error:
+            question._continue()  # no e-mail yet
+            question.email.set("not an address")
+            question._continue()
+        self.assertEqual(error.call_count, 2)
+        self.assertTrue(all(button.instate(["disabled"]) for button in opens))
+        question.email.set(" me@uni.edu ")
+        question._continue()
+        self.assertFalse(question.winfo_exists())
+        self.assertTrue(all(not button.instate(["disabled"]) for button in opens))
+        self.assertEqual((read_env(self.env)["MME_EMAIL"], os.environ["MME_EMAIL"]), ("me@uni.edu", "me@uni.edu"))
+
+    def test_it_is_asked_every_time_from_the_saved_email_and_closing_it_closes_the_window(self):
+        with open(self.env, "w", encoding="utf-8") as f:
+            f.write("MME_EMAIL=saved@uni.edu\n")
+        window, question, _ = self.open_window()
+        self.assertEqual(question.email.get(), "saved@uni.edu")
+        question._cancel()
+        self.assertFalse(window.winfo_exists())
+
+
 if __name__ == "__main__":
     unittest.main()

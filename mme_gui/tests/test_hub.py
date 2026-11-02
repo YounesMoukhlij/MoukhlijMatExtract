@@ -40,6 +40,10 @@ class ManualTests(unittest.TestCase):
         for needed in ("Tesseract", "Google Chrome", "spacy download en_core_web_sm", "API keys",
                        "Local extraction", "Web scraping", "Ranking", "Classification"):
             self.assertIn(needed, hub.MANUAL, needed)
+        # … and the features a newcomer would not find alone.
+        for needed in ("Search settings", "Fetched DOIs", "main results folder", "results card", "Delete outputs",
+                       "skipped"):
+            self.assertIn(needed, hub.MANUAL, needed)
 
 
 @unittest.skipUnless(has_screen(), "the window needs a screen")
@@ -99,3 +103,46 @@ def _descendants(widget):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(has_screen(), "the window needs a screen")
+class FolderButtonTests(unittest.TestCase):
+    """The main results folder button: "Create …" while ~/MoukhlijMatExtract is missing, then "Open …"."""
+
+    def setUp(self):
+        import tkinter as tk
+        import shutil
+        from LocalExtraction import about
+        base = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, base, True)
+        self.home = base / "MoukhlijMatExtract"
+        patch = mock.patch.object(about, "PROJECT_HOME", self.home)
+        patch.start()
+        self.addCleanup(patch.stop)
+        cwd = os.getcwd()
+        self.addCleanup(os.chdir, cwd)
+        self.root = tk.Tk()
+        self.root.attributes("-alpha", 0.0)
+        self.addCleanup(self.root.destroy)
+
+    def button(self, row):
+        return [w for w in row.winfo_children() if w.winfo_class() == "TButton"][0]
+
+    def test_create_then_open(self):
+        row = hub.folder_button(self.root, self.root)
+        self.assertEqual(self.button(row).cget("text"), "Create the main results folder")
+        with mock.patch("tkinter.messagebox.showinfo") as told:
+            self.button(row).invoke()
+        told.assert_called_once()
+        self.assertTrue((self.home / "LocalExtraction" / "papers").is_dir())
+        self.assertTrue((self.home / "Classification" / "crystal_structure").is_dir())
+        self.assertEqual(self.button(row).cget("text"), "Open the main results folder")
+        with mock.patch("LocalExtraction.gui.widgets.open_path") as opened:
+            self.button(row).invoke()
+        opened.assert_called_once_with(str(self.home))
+
+    def test_the_hub_does_not_make_the_folder_but_a_part_does(self):
+        hub.build(self.root)
+        self.assertFalse(self.home.exists())
+        hub._open(self.root, lambda root: None)
+        self.assertTrue(self.home.is_dir())

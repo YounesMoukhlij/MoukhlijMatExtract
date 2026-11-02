@@ -361,6 +361,15 @@ class LedgerTests(unittest.TestCase):
         self.ledger = Ledger(os.path.join(self.folder, "ledger.sqlite"))
         self.addCleanup(self.ledger.close)
 
+    def test_a_search_already_run_is_remembered_for_a_while(self):
+        search = "openalex|li argyrodite|[2015, 2026]|True"
+        self.assertIsNone(self.ledger.searched(search, 200))
+        self.ledger.mark_searched(search, 200)
+        self.assertIsNotNone(self.ledger.searched(search, 200))
+        self.assertIsNotNone(self.ledger.searched(search, 100))   # less deep: done already
+        self.assertIsNone(self.ledger.searched(search, 500))      # deeper: not yet
+        self.assertIsNone(self.ledger.searched(search, 200, max_age_days=0))  # too long ago: run again
+
     def test_two_sources_one_paper(self):
         self.assertTrue(self.ledger.add(candidate(oa_urls=["https://a/x.pdf"], found_by=["openalex: q"], journal="")))
         self.ledger.update("10.1000/test", status=APPROVED, decision="yes", score=4.0)
@@ -454,7 +463,9 @@ class OpenAlexTests(unittest.TestCase):
             work = {**WORK, "doi": f"https://doi.org/10.1000/p{cursor}"}
             return FakeResponse(200, json_data={"results": [work], "meta": {"next_cursor": "second" if cursor == "*" else None}})
         session = FakeSession([("api.openalex.org/works", page)])
-        found = list(OpenAlex(client_for(session), contact="x@example.org").search("solid electrolyte", (2015, 2026), limit=10))
+        # With a key: without one, OpenAlex gives only the first page.
+        found = list(OpenAlex(client_for(session), contact="x@example.org", api_key="test-key")
+                     .search("solid electrolyte", (2015, 2026), limit=10))
         self.assertEqual([c.key for c in found], ["10.1000/p*", "10.1000/psecond"])
         first = session.calls[0][1]
         self.assertIn("from_publication_date:2015-01-01", first["filter"])
@@ -667,6 +678,15 @@ class DownloaderTests(unittest.TestCase):
 
     def test_nothing_to_try_means_closed(self):
         self.assertEqual(self.downloader([], []).fetch(candidate()).status, CLOSED)
+
+    def test_a_pdf_already_in_the_folder_is_not_downloaded_again(self):
+        Path(self.folder, "10.1000_test.pdf").write_bytes(self.pdf)  # e.g. saved by moukhlij4scraping
+        d = self.downloader([], [FetchOption("openalex", "https://repo.example.org/p.pdf")])
+        with self.assertLogs(level="INFO") as said:
+            outcome = d.fetch(candidate())
+        self.assertEqual((outcome.status, outcome.file), (DOWNLOADED, "10.1000_test.pdf"))
+        self.assertEqual(self.session.calls, [])  # nothing was asked of the network
+        self.assertIn("Already fetched", "\n".join(said.output))
 
     def test_robots_txt_stops_a_file_download(self):
         d = self.downloader([("robots.txt", FakeResponse(200, "User-agent: *\nDisallow: /")),
@@ -953,6 +973,13 @@ class HarvestTests(unittest.TestCase):
         self.assertEqual(os.listdir(self.job.fetch.folder).count("10.1000_good.pdf"), 0)
         self.assertEqual({c.key: c.decision for c in self.harvest.ledger.all()}, {"10.1000/good": "yes", "10.1000/other": "no"})
         pipeline.assert_not_called()
+
+    def test_a_source_without_a_key_that_refuses_the_search_is_skipped(self):
+        self.session.routes.insert(0, ("api.openalex.org/works", FakeResponse(401, b'{"error": "API key required"}')))
+        with self.assertLogs(level="WARNING") as said:
+            code, _, _ = self.run_stage(start="discover")
+        self.assertEqual(code, 0)
+        self.assertTrue(any("openalex: it refused the search (HTTP 401)" in line for line in said.output), said.output)
 
     def test_fetch_after_the_review_then_a_second_run_does_nothing(self):
         self.run_stage(start="discover")

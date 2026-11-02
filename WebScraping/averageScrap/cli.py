@@ -1,5 +1,6 @@
 # WebScraping/cli.py
-"""The command line of Project 2: search, review, fetch, extract. Run from the project root.
+"""The command line of Project 2: search, review, fetch, extract. Works inside ~/MoukhlijMatExtract
+(made with WebScraping/papers and WebScraping/web_output if missing), from wherever it is started.
 
     python -m WebScraping                            search + screen (configs/sse.yaml), stop for your review
     python -m WebScraping --stage fetch              after the review: fetch what you approved, then extract it
@@ -16,7 +17,7 @@ import os
 import sys
 from typing import List, Optional
 
-from LocalExtraction.about import CREDIT_TEXT, FULL_NAME, print_banner
+from LocalExtraction.about import CREDIT_TEXT, FULL_NAME, command_name, enter_project_home, print_banner
 from LocalExtraction.cli import rebuild_if_asked
 from LocalExtraction.exporter import UnreadableTable
 
@@ -39,7 +40,7 @@ def _add_common(parser: argparse.ArgumentParser, job_default: Optional[str]) -> 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="python -m WebScraping",
+        prog=command_name("mme-web", "WebScraping"),
         description="Project 2 of MoukhlijMatExtract: find papers online, fetch the legal copies into "
                     "WebScraping/papers/ and extract from them. run (the default): from this terminal. "
                     "gui: from a window.",
@@ -57,6 +58,9 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     run.add_argument("--limit", type=int, help="Fetch at most this many papers in this run")
     run.add_argument("--check", action="store_true", help="Test the setup (network, API keys, folders) and exit")
     run.add_argument("--probe-doi", help="With --check: an Elsevier DOI to test the Elsevier API key with")
+    run.add_argument("--refresh", action="store_true",
+                     help="Search again the queries already searched (by default a query a source answered "
+                          "in the last 30 days is skipped)")
     run.add_argument("--rebuild", action="store_true",
                      help="Extract every fetched PDF again instead of only the new ones. The present database "
                           "files are not deleted: they are moved to <output>/previous_<date>/")
@@ -86,7 +90,7 @@ def run_web(args: argparse.Namespace) -> int:
         return check(job, PoliteClient(job.email()), args.probe_doi or "", os.path.join(args.output, "papers.csv"))
     try:
         return Harvest(job, args.output).run(start=args.stage, approve=args.yes, limit=args.limit,
-                                             workers=args.workers, job_path=args.job)
+                                             workers=args.workers, job_path=args.job, refresh=args.refresh)
     except UnreadableTable as error:  # nothing was written over: say which file, and how to go on
         logging.error(str(error))
         return 1
@@ -98,6 +102,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not argv or argv[0] not in (*_COMMANDS, "-h", "--help"):
         argv = ["run", *argv]
     args = parse_args(argv)
+    enter_project_home("web")
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,

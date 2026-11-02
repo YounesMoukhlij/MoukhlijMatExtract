@@ -31,7 +31,7 @@ class DetailsDialog(Dialog):
         text = tk.Text(self.body, wrap="word", relief="flat", padx=8, pady=6, font=("TkDefaultFont", 11))
         bar = ttk.Scrollbar(self.body, orient="vertical", command=text.yview)
         text.configure(yscrollcommand=bar.set)
-        text.tag_configure("name", font=("TkDefaultFont", 10, "bold"), foreground="#555555", spacing1=8)
+        text.tag_configure("name", font=("TkDefaultFont", 10, "bold"), foreground="#8c8c8c", spacing1=8)
         for name, value in pairs:
             text.insert("end", f"{name}\n", "name")
             text.insert("end", f"{value}\n")

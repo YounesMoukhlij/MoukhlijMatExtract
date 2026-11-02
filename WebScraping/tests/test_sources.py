@@ -11,7 +11,7 @@ import unittest
 from contextlib import redirect_stdout
 from unittest import mock
 
-from WebScraping.tests.test_web import FakeResponse, FakeSession, candidate, client_for  # also: offline, sys.path
+from WebScraping.tests.test_web import WORK, FakeResponse, FakeSession, candidate, client_for  # also: offline, sys.path
 
 from WebScraping.averageScrap import abstracts, screening, sources
 from WebScraping.averageScrap.doctor import check as check_setup
@@ -29,6 +29,7 @@ from WebScraping.averageScrap.sources.europepmc import EuropePMC
 from WebScraping.averageScrap.sources.ieee import IEEE
 from WebScraping.averageScrap.sources.jstage import JStage
 from WebScraping.averageScrap.sources.openaire import OpenAIRE
+from WebScraping.averageScrap.sources.openalex import OpenAlex
 from WebScraping.averageScrap.sources.scopus import Scopus, build_query as scopus_query
 from WebScraping.averageScrap.sources.semanticscholar import SemanticScholar
 from WebScraping.averageScrap.sources.springernature import SpringerNature
@@ -94,6 +95,18 @@ class CommonTests(unittest.TestCase):
 # One source each
 # ----------------------------------------------------------------------
 class SearchTests(KeyedTestCase):
+    def test_openalex_pages_past_the_first_only_with_a_key(self):
+        works = [{**WORK, "doi": f"https://doi.org/10.1000/{n}"} for n in range(3)]
+        pages = [FakeResponse(200, json_data={"results": works[:2], "meta": {"next_cursor": "page-2"}}),
+                 FakeResponse(200, json_data={"results": works[2:], "meta": {"next_cursor": None}})]
+        os.environ.pop("OPENALEX_API_KEY", None)
+        session = FakeSession([("api.openalex.org/works", list(pages))])
+        self.assertEqual(len(first(OpenAlex(client_for(session)), limit=200)), 2)
+        self.assertEqual(session.hits("api.openalex.org"), 1)  # OpenAlex refuses (HTTP 401) a second page without a key
+        session = FakeSession([("api.openalex.org/works", list(pages))])
+        self.assertEqual(len(first(OpenAlex(client_for(session), api_key="key"), limit=200)), 3)
+        self.assertEqual(session.hits("api.openalex.org"), 2)
+
     def test_crossref(self):
         item = {"DOI": "10.1149/1945-7111/ABC0A9", "title": ["Li<sub>6</sub>PS<sub>5</sub>Cl conduction"], "type": "journal-article",
                 "abstract": f"<jats:p>{ABSTRACT}</jats:p>", "issued": {"date-parts": [[2021, 3]]},

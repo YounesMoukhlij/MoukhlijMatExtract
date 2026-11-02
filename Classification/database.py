@@ -20,6 +20,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from LocalExtraction.exporter import COLUMNS, article_title
+
 from .about import CRYSTAL_STRUCTURE, STRUCTURE_FAMILIES, UNCLASSIFIED
 from .classify import (COMPONENT_WORDS, COMPONENTS, NO_FAMILY, Material, classify_the_rest, composition, material_key,
                        number)
@@ -103,7 +105,10 @@ def _rows(classified: Classified, table: str) -> pd.DataFrame:
         frame["material_key"] = keys
         frames.append(frame)
     if not frames:
-        return pd.DataFrame(columns=["database", "material_key"])
+        # No row in any database: the table is still written with its own header.
+        given = next((list(s.tables[table].columns) for s in classified.sources if len(s.tables[table].columns)), [])
+        known = given or COLUMNS.get(table, [])
+        return pd.DataFrame(columns=[*known, "database", "material_key", *(column for _, _, column in AXES)])
     rows = pd.concat(frames, ignore_index=True, sort=False).fillna("NONE")
     rows = rows[rows["material_key"] != ""]
     for _, attribute, column in AXES:
@@ -265,8 +270,23 @@ def _sheet_name(label: str, taken: set[str]) -> str:
     return name
 
 
-def _write_csv(frame: pd.DataFrame, path: Path) -> None:
-    frame.to_csv(path, index=False, encoding="utf-8-sig")
+def _write_csv(frame: pd.DataFrame, path: Path, titles: dict[str, str] | None = None) -> None:
+    (frame if titles is None else titled(frame, titles)).to_csv(path, index=False, encoding="utf-8-sig")
+
+
+def titled(frame: pd.DataFrame, titles: dict[str, str]) -> pd.DataFrame:
+    """A table with the name of its articles: `title` after `paper_id`, `articles` after `papers`
+    (the titles of the papers a material's values come from) — when it does not have them yet."""
+    def title(paper: str) -> str:
+        return titles.get(paper) or article_title("", paper)
+    if "paper_id" in frame.columns and "title" not in frame.columns:
+        frame = frame.copy()
+        frame.insert(list(frame.columns).index("paper_id") + 1, "title", [title(p) for p in frame["paper_id"]])
+    if "papers" in frame.columns and "articles" not in frame.columns:
+        frame = frame.copy()
+        frame.insert(list(frame.columns).index("papers") + 1, "articles",
+                     [" | ".join(title(p.strip()) for p in str(v).split(" | ") if p.strip()) for v in frame["papers"]])
+    return frame
 
 
 def write(classified: Classified, out_dir: Path) -> dict[str, pd.DataFrame]:
@@ -283,12 +303,14 @@ def write(classified: Classified, out_dir: Path) -> dict[str, pd.DataFrame]:
                        ignore_index=True, sort=False) if any(not s.tables[PAPERS].empty for s in classified.sources) \
         else pd.DataFrame(columns=["paper_id", "database"])
     papers = papers.fillna("NONE").drop_duplicates("paper_id")  # the most trusted database first
+    titles = {row["paper_id"]: article_title(row.get("title"), row.get("filename") or row["paper_id"])
+              for _, row in papers.iterrows()}
 
     energies = energies_of(classified)
     rows = material_rows(classified, energies, conductivities_of(classified))
 
     def ordered(keys: list[str]) -> pd.DataFrame:
-        return _lowest_first(pd.DataFrame([rows[key] for key in keys]))
+        return titled(_lowest_first(pd.DataFrame([rows[key] for key in keys])), titles)
 
     summaries: dict[str, pd.DataFrame] = {}
     for axis, attribute, column in AXES:
@@ -313,9 +335,9 @@ def write(classified: Classified, out_dir: Path) -> dict[str, pd.DataFrame]:
             its_papers = {paper for key in keys for paper in classified.materials[key].papers}
             _write_csv(materials, folder / f"{MATERIALS}.csv")
             for name, table in its.items():
-                _write_csv(table, folder / f"{name}.csv")
+                _write_csv(table, folder / f"{name}.csv", titles)
             _write_csv(papers[papers["paper_id"].isin(its_papers)], folder / f"{PAPERS}.csv")
-            for component in _component_folders(folder, keys, its, papers, classified):
+            for component in _component_folders(folder, keys, its, papers, classified, titles):
                 places[(label, component)] = f"{axis}/{place}/{component}"
             sheets[label] = materials
             best = materials.iloc[0] if len(materials) and number(materials.iloc[0]["Ea_min_eV"]) is not None else None
@@ -341,7 +363,7 @@ def write(classified: Classified, out_dir: Path) -> dict[str, pd.DataFrame]:
             shutil.rmtree(target)
         staging.rename(target)
 
-    every = pd.DataFrame(list(rows.values()))
+    every = titled(pd.DataFrame(list(rows.values())), titles)
     every = every.sort_values(["crystal_structure", "structure_family", "material"],
                               key=lambda c: c.str.casefold() if c.dtype == object else c)
     _write_csv(every, out_dir / "all_materials.csv")
@@ -363,7 +385,7 @@ def sub_classes(*tables: pd.DataFrame) -> list[str]:
 
 
 def _component_folders(folder: Path, keys: set[str], its: dict[str, pd.DataFrame], papers: pd.DataFrame,
-                       classified: Classified) -> list[str]:
+                       classified: Classified, titles: dict[str, str] | None = None) -> list[str]:
     """Inside a class folder, its sub-classes: one database per transport component — NASICON/bulk/,
     NASICON/grain_boundary/, NASICON/total/ — each holding the values of that component only (the
     activation energies, ionic and electronic conductivities and diffusion coefficients that
@@ -392,9 +414,9 @@ def _component_folders(folder: Path, keys: set[str], its: dict[str, pd.DataFrame
             rows.append(_component_row(row, component))
         place = folder / component
         place.mkdir()
-        _write_csv(_lowest_first(pd.DataFrame(rows, columns=list(header))), place / f"{MATERIALS}.csv")
+        _write_csv(_lowest_first(pd.DataFrame(rows, columns=list(header))), place / f"{MATERIALS}.csv", titles or {})
         for name, table in tables.items():
-            _write_csv(table, place / f"{name}.csv")
+            _write_csv(table, place / f"{name}.csv", titles or {})
         cited = {paper for found in papers_of.values() for paper in found}
         _write_csv(papers[papers["paper_id"].isin(cited)], place / f"{PAPERS}.csv")
     return present

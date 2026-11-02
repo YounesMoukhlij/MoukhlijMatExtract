@@ -5,6 +5,7 @@ App(root, ...) class that uses only root-safe calls, so every part opens on a fr
 hub — no second Tk(), nothing rebuilt. tkinter is imported lazily, as in every other part."""
 
 import logging
+import os
 from pathlib import Path
 from typing import Callable
 
@@ -36,24 +37,35 @@ $ pip install "moukhlijmatextract[scrape]"
   Without any key the open sources still work; each key just opens more papers.
 
 § How to use it — the four steps
-Steps 1 and 2 build the database; steps 3 and 4 read it. Everything is saved in the folder you
-start the program from, so start it from the same folder each time.
+Steps 1 and 2 build the database; steps 3 and 4 read it. Everything is saved in the folder
+MoukhlijMatExtract of your home folder (~/MoukhlijMatExtract), whatever folder you start from.
 
-• 1 · Local extraction — put your own PDFs in  LocalExtraction/papers/ , then open this part. It
-  reads them into a database at  LocalExtraction/local_output/ .
+• 1 · Local extraction — put your own PDFs in  ~/MoukhlijMatExtract/LocalExtraction/papers/ , then
+  open this part. It reads them into a database at  LocalExtraction/local_output/ .
 • 2 · Web scraping — find papers online. Two methods, one database:
     - Search open sources — search by keywords, download the legal copies, extract them.
-    - moukhlij4scraping — collect DOIs (you choose how many), fetch a PDF for each (needs Chrome),
-      then extract. Its first button always asks how many DOIs you want.
+    - moukhlij4scraping — collect DOIs (you choose how many), fetch a PDF for each, then extract.
+      “Fetched DOIs (N)…” shows the list and where each DOI stands. “Scrape articles” asks how many
+      DOIs to try and whether to start with the legal open-access copies.
+    - “Search settings…” changes what both methods look for (searches, years, sources, words).
 • 3 · Ranking — ranks the materials by activation energy: Superionic, Performant, Acceptable or
   Rejected. The report is written to  SelectingTopMaterial/results/ .
 • 4 · Classification — sorts the materials by crystal family (NASICON, garnet, …) and by structure
   family (oxide, sulfide, halide, …), one database per class in  Classification/ .
 
 § Where your files go
-Everything lands in the folder you run from:  LocalExtraction/ ,  WebScraping/ ,
-SelectingTopMaterial/results/  and  Classification/ . Use the same folder every time so each part
-finds what the others made.
+Everything lands in  ~/MoukhlijMatExtract , the main results folder:  LocalExtraction/ ,
+WebScraping/ ,  SelectingTopMaterial/results/  and  Classification/ . The button under the title
+makes it (“Create the main results folder”) and then opens it (“Open the main results folder”);
+opening a part makes it too. Every table names its articles (a title column).
+
+§ When a step ends
+• A results card appears above the tables: done, with problems, or nothing new; the numbers; the main
+  findings with their articles; and buttons for the next step.
+• Work already done is skipped and said so (“Already extracted”, “Already ranked”, …): running a part
+  again only does what is new.
+• “Delete outputs…”, next to each part here and in each window, starts a part over. The files go to
+  the Trash; your own PDFs, the search settings and the API keys are never deleted.
 
 § Good to know
 • This button is red until you have opened this guide, then it turns green. You can reopen it any time.
@@ -173,23 +185,90 @@ def open_classify(root) -> None:
     App(_toplevel(root))
 
 
-# (button text, one-line description, what it opens)
+# (button text, one-line description, what it opens, its key in LocalExtraction.outputs.PARTS)
 PARTS = (
-    ("1 · Local extraction", "Your own PDFs (LocalExtraction/papers/) into a database.", open_local),
-    ("2 · Web scraping", "Find papers online and extract them — two methods, one database.", open_web),
-    ("3 · Ranking", "Rank the materials by activation energy.", open_rank),
-    ("4 · Classification", "Sort the materials by crystal family and structure family.", open_classify),
+    ("1 · Local extraction", "Your own PDFs (~/MoukhlijMatExtract/LocalExtraction/papers/) into a database.",
+     open_local, "local"),
+    ("2 · Web scraping", "Find papers online and extract them — two methods, one database.", open_web, "web"),
+    ("3 · Ranking", "Rank the materials by activation energy.", open_rank, "rank"),
+    ("4 · Classification", "Sort the materials by crystal family and structure family.", open_classify, "classify"),
 )
 
 
-def _open(root, opener: Callable) -> None:
+def open_delete(root, part: str) -> None:
+    """The "Delete outputs…" dialog of one part."""
+    from LocalExtraction.gui.delete_outputs import DeleteOutputsDialog
+    DeleteOutputsDialog(root, part)
+
+
+def home_ready() -> "Path":
+    """Makes the main results folder (~/MoukhlijMatExtract) and every part's folders when missing,
+    and works from there. A part needs them before it opens."""
+    from LocalExtraction.about import PART_FOLDERS, enter_project_home
+    return enter_project_home(*PART_FOLDERS)
+
+
+def folder_button(parent, root):
+    """The button of the main results folder, ~/MoukhlijMatExtract, which holds the folders of every
+    part: "Create the main results folder" while it does not exist, then "Open the main results
+    folder". It looks again each time the hub comes to the front (the folder may have been deleted)."""
+    from tkinter import messagebox, ttk
+
+    from LocalExtraction.about import PROJECT_HOME
+    from LocalExtraction.gui import widgets
+    from LocalExtraction.gui.widgets import WrapLabel
+
+    row = ttk.Frame(parent)
+    button = ttk.Button(row)
+    button.pack(side="left")
+    where = WrapLabel(row, foreground="#8c8c8c", justify="left")
+    where.pack(side="left", padx=10, fill="x", expand=True)
+    try:
+        shown = "~/" + str(PROJECT_HOME.relative_to(Path.home()))
+    except ValueError:
+        shown = str(PROJECT_HOME)
+
+    def refresh(event=None) -> None:
+        exists = PROJECT_HOME.is_dir()
+        button.configure(text="Open the main results folder" if exists else "Create the main results folder")
+        where.configure(text=f"{shown} — every part's PDFs, databases and results are kept here"
+                        if exists else f"{shown} does not exist yet: it is made here, or when a part first opens")
+
+    def press() -> None:
+        if PROJECT_HOME.is_dir():
+            widgets.open_path(str(PROJECT_HOME))
+        else:
+            try:
+                home_ready()
+            except OSError as error:
+                messagebox.showerror("MoukhlijMatExtract", f"The folder could not be made:\n{error}", parent=root)
+                return
+            messagebox.showinfo("MoukhlijMatExtract", f"Made {PROJECT_HOME}, with a folder for each part:\n\n"
+                                "LocalExtraction/papers — put your own PDFs here\nLocalExtraction/local_output\n"
+                                "WebScraping/papers, web_output, Fetch_DOIs\nSelectingTopMaterial/results\n"
+                                "Classification/crystal_structure, structure_families", parent=root)
+        refresh()
+
+    button.configure(command=press)
+    refresh()
+    root.bind("<FocusIn>", lambda event: refresh() if event.widget is root else None, add="+")
+    row.refresh = refresh  # the hub refreshes it after opening a part (which makes the folder)
+    return row
+
+
+def _open(root, opener: Callable, make_home: bool = True) -> None:
     from tkinter import messagebox
     try:
+        if make_home:
+            home_ready()
         opener(root)
     except Exception as error:  # one part failing to open must not take the hub down
         logging.getLogger(__name__).exception("Could not open a part from the hub")
         messagebox.showerror("MoukhlijMatExtract",
                              f"This part could not be opened:\n{type(error).__name__}: {error}", parent=root)
+    refresh = getattr(root, "_mme_folder_refresh", None)
+    if refresh is not None:
+        refresh()
 
 
 def build(root):
@@ -198,7 +277,7 @@ def build(root):
     from tkinter import ttk
 
     root.title("MoukhlijMatExtract (MME)")
-    root.minsize(640, 500)
+    root.minsize(780, 500)
 
     frame = ttk.Frame(root, padding=24)
     frame.pack(fill="both", expand=True)
@@ -209,24 +288,79 @@ def build(root):
     requirements = add_requirements_button(top, root)
     requirements.pack(side="right")
 
-    ttk.Label(frame, foreground="#555555",
+    ttk.Label(frame, foreground="#8c8c8c",
               text="Pick a step. Each opens in its own window; the pipeline runs left to right — "
-                   "1 or 2 build the database, 3 and 4 read it.").pack(anchor="w", pady=(6, 18))
+                   "1 or 2 build the database, 3 and 4 read it.").pack(anchor="w", pady=(6, 10))
+    folder = folder_button(frame, root)
+    folder.pack(fill="x", pady=(0, 14))
+    root._mme_folder_refresh = folder.refresh
 
-    for label, description, opener in PARTS:
+    for label, description, opener, part in PARTS:
         card = ttk.Frame(frame)
         card.pack(fill="x", pady=5)
         ttk.Button(card, text=label, width=22, command=lambda o=opener: _open(root, o)).pack(side="left")
-        ttk.Label(card, foreground="#555555", text=description, wraplength=320,
+        ttk.Button(card, text="Delete outputs…",
+                   command=lambda p=part: _open(root, lambda r: open_delete(r, p), make_home=False)).pack(side="right")
+        ttk.Label(card, foreground="#8c8c8c", text=description, wraplength=320,
                   justify="left").pack(side="left", padx=12)
 
-    ttk.Label(frame, foreground="gray", font=("TkDefaultFont", 9),
-              text="MoukhlijMatExtract (MME) — Younes Moukhlij").pack(anchor="e", pady=(20, 0))
+    about_footer(frame).pack(side="bottom", fill="x", pady=(20, 0))
     return requirements
 
 
-def main() -> None:
+def about_footer(parent):
+    """The bottom of the hub: what the project is, who made it, and where to find them."""
     import tkinter as tk
+    import webbrowser
+    from tkinter import ttk
+
+    from LocalExtraction.about import (ABOUT_AUTHOR, ABOUT_PROJECT, CITE_TEXT, CONTACT_EMAIL, FULL_NAME,
+                                       LICENSE_NAME, REPOSITORY, version)
+
+    footer = ttk.Frame(parent)
+    ttk.Separator(footer).pack(fill="x", pady=(0, 12))
+    columns = ttk.Frame(footer)
+    columns.pack(fill="x")
+    for column, (heading, text) in enumerate((("About the project", ABOUT_PROJECT),
+                                              ("About the author", ABOUT_AUTHOR))):
+        block = ttk.Frame(columns)
+        block.grid(row=0, column=column, sticky="nw", padx=(0, 24) if column == 0 else 0)
+        columns.columnconfigure(column, weight=1, uniform="about")
+        ttk.Label(block, text=heading, font=("TkDefaultFont", 11, "bold")).pack(anchor="w")
+        text_label = ttk.Label(block, text=text, justify="left", wraplength=340)
+        text_label.pack(anchor="w", pady=(4, 0))
+        # The text follows the width of its column when the window is resized.
+        block.bind("<Configure>", lambda event, label=text_label: label.configure(wraplength=max(200, event.width)))
+
+    ttk.Label(footer, text=CITE_TEXT, foreground="#888888", font=("TkDefaultFont", 9)).pack(anchor="w", pady=(12, 0))
+    line = ttk.Frame(footer)
+    line.pack(fill="x", pady=(4, 0))
+    number = version()
+    ttk.Label(line, foreground="#888888", font=("TkDefaultFont", 9),
+              text=f"{FULL_NAME}{f' v{number}' if number else ''} · {LICENSE_NAME} · ").pack(side="left")
+    for index, (label, target) in enumerate((("GitHub ↗", REPOSITORY), (CONTACT_EMAIL, f"mailto:{CONTACT_EMAIL}"))):
+        if index:
+            ttk.Label(line, text=" · ", foreground="#888888", font=("TkDefaultFont", 9)).pack(side="left")
+        link = tk.Label(line, text=label, fg="#4a90d9", cursor="hand2", font=("TkDefaultFont", 9, "underline"),
+                        bg=ttk.Style().lookup("TFrame", "background") or None)
+        link.pack(side="left")
+        link.bind("<Button-1>", lambda event, url=target: webbrowser.open(url))
+    return footer
+
+
+def main(argv=None) -> None:
+    import argparse
+    import tkinter as tk
+
+    from LocalExtraction.about import PROJECT_HOME, version
+    parser = argparse.ArgumentParser(
+        prog="mme-gui", description="Open the MoukhlijMatExtract window: one button per part.")
+    parser.add_argument("--version", action="version", version=f"MoukhlijMatExtract {version()}")
+    parser.parse_args(argv)
+    # The main results folder is not made here: "Create the main results folder" makes it, or the
+    # first part opened. When it is there, the hub works from it.
+    if PROJECT_HOME.is_dir():
+        os.chdir(PROJECT_HOME)
     root = tk.Tk()
     build(root)
     root.mainloop()

@@ -6,7 +6,8 @@ and WebScraping/web_output:
   - moukhlij4scraping      method 2: collect DOIs, fetch a PDF for each, extract
 
 Each method opens in its own window. Reached from the one project GUI (mme_gui) or on its own with
-`python -m WebScraping gui`. tkinter is imported lazily so importing this module stays cheap."""
+`python -m WebScraping gui`. Each time it opens it first asks for the contact e-mail and points to
+the API keys and Google Chrome. tkinter is imported lazily so importing this module stays cheap."""
 
 import os
 from typing import Optional
@@ -45,13 +46,19 @@ def open_keys(parent):
     return SettingsDialog(parent)  # saving also sets them for this session: both methods use them at once
 
 
+def open_settings(parent):
+    """The settings of the web search (configs/sse.yaml), used by both methods."""
+    from WebScraping.averageScrap.gui.job_dialog import open_job_settings
+    return open_job_settings(parent)
+
+
 def open_chooser(parent=None):
     """The two-method chooser. On its own it is the root window; inside the hub it is a child."""
     import tkinter as tk
     from tkinter import ttk
     win = _window(parent)
     win.title("MoukhlijMatExtract (MME) · Web scraping")
-    win.minsize(520, 300)
+    win.minsize(640, 300)
 
     frame = ttk.Frame(win, padding=24)
     frame.pack(fill="both", expand=True)
@@ -60,29 +67,49 @@ def open_chooser(parent=None):
     ttk.Label(top, text="Web scraping — two ways to the same database",
               font=("TkDefaultFont", 15, "bold")).pack(side="left")
     ttk.Button(top, text="API keys…", command=lambda: open_keys(win)).pack(side="right")
-    ttk.Label(frame, foreground="#555555",
+    ttk.Button(top, text="Search settings…", command=lambda: open_settings(win)).pack(side="right", padx=(0, 6))
+    ttk.Label(frame, foreground="#8c8c8c",
               text="Both save their PDFs in WebScraping/papers/ and extract into WebScraping/web_output/.",
               ).pack(anchor="w", pady=(2, 16))
 
     one = ttk.LabelFrame(frame, text=" 1 · Search open sources ", padding=12)
     one.pack(fill="x")
-    ttk.Label(one, foreground="#555555", wraplength=440, justify="left",
+    ttk.Label(one, foreground="#8c8c8c", wraplength=440, justify="left",
               text="Search OpenAlex, arXiv, Crossref and eleven more by keyword, keep the papers worth "
                    "reading, download the legal copies and extract them.").pack(anchor="w", pady=(0, 8))
-    ttk.Button(one, text="Open", command=lambda: open_search(win)).pack(anchor="w")
+    open_one = ttk.Button(one, text="Open", command=lambda: open_search(win))
+    open_one.pack(anchor="w")
 
     two = ttk.LabelFrame(frame, text=" 2 · moukhlij4scraping ", padding=12)
     two.pack(fill="x", pady=(14, 0))
-    ttk.Label(two, foreground="#555555", wraplength=440, justify="left",
+    ttk.Label(two, foreground="#8c8c8c", wraplength=440, justify="left",
               text="Collect the DOIs of a topic, fetch a PDF for each, then "
                    "extract them. Needs Google Chrome and this tool's own packages.").pack(anchor="w", pady=(0, 8))
-    ttk.Button(two, text="Open", command=lambda: open_moukhlij(win)).pack(anchor="w")
+    open_two = ttk.Button(two, text="Open", command=lambda: open_moukhlij(win))
+    open_two.pack(anchor="w")
+    ask_before_start(win, (open_one, open_two))
     return win
+
+
+def ask_before_start(win, buttons):
+    """The question shown each time the window opens (the e-mail, the API keys, Google Chrome). The
+    buttons wait for its answer; closing it closes the window."""
+    from WebScraping.averageScrap import job
+    from WebScraping.averageScrap.gui.dialogs import StartDialog
+    for button in buttons:
+        button.state(["disabled"])
+
+    def ready():
+        for button in buttons:
+            button.state(["!disabled"])
+    return StartDialog(win, on_continue=ready, on_cancel=win.destroy, path=job.ENV_PATH)
 
 
 def main() -> None:
     """`python -m WebScraping gui`: the chooser as a standalone window."""
+    from LocalExtraction.about import enter_project_home
     from WebScraping.averageScrap.job import load_env
+    enter_project_home("web", "dois")
     load_env()
     root = open_chooser(None)
     root.mainloop()

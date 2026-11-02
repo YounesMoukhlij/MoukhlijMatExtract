@@ -90,7 +90,8 @@ its two classes and their `*_basis`, what its papers state (`structure_types_sta
 systems, polymorphs, space groups), how many papers and from which database, its activation
 energies (count, min, median, max) — and the lowest bulk, grain-boundary and total one apart
 (`Ea_bulk_min_eV`, `Ea_grain_boundary_min_eV`, `Ea_total_min_eV`, with their counts) — and its
-highest ionic conductivity.
+highest ionic conductivity. Its `papers` column is followed by `articles`, the titles of those papers;
+every table of values in a class folder has the article's `title` after `paper_id`.
 
 ## Bulk, grain boundary, total
 

@@ -607,8 +607,10 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(sorted(zip(energies.material_formula, energies.extracted_from, energies.page)),
                          [("Li6PS5Br", "Figure", "5"), ("Li6PS5Cl", "Text", "4"), ("Li7La3Zr2O12", "Table", "6")])
         # ... right after the value itself, in every table of values.
-        self.assertEqual(list(energies.columns[:6]),
-                         ["paper_id", "material_formula", "activation_energy_eV", "reported_as", "extracted_from", "page"])
+        # The article's title follows its id in every table.
+        self.assertEqual(list(energies.columns[:7]),
+                         ["paper_id", "title", "material_formula", "activation_energy_eV", "reported_as", "extracted_from",
+                          "page"])
         properties = self.table("properties")
         at = list(properties.columns).index("unit")
         self.assertEqual(list(properties.columns[at + 1:at + 3]), ["extracted_from", "page"])
@@ -638,7 +640,7 @@ class ExportTests(unittest.TestCase):
                               keep_default_na=False)
         self.assertEqual(list(sheet.ionic_conductivity_S_cm), ["0.003"])
         # A table with no row yet is written with its header.
-        self.assertEqual(list(self.table("methods").columns)[:3], ["paper_id", "category", "property_name"])
+        self.assertEqual(list(self.table("methods").columns)[:3], ["paper_id", "title", "category"])
 
     def test_a_cell_too_long_for_a_workbook_is_cut_there_and_kept_in_the_csv(self):
         StrictExporter(self.folder).export([self.paper("Li6PS5Cl has an ionic conductivity of 3 mS/cm.")], excel=False)

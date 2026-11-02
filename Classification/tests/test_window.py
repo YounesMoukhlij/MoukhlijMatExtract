@@ -16,6 +16,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from Classification.database import classify, energies_of, read, write
 from Classification.gui import NO_VALUE, SIDE_BY_SIDE, kept
@@ -254,6 +255,21 @@ class WindowTests(unittest.TestCase):
         self.assertEqual([(r["component"], r["Ea"], r["known"]) for r in rows],
                          [("bulk", "0.24", "assumed"), ("bulk", "0.3", "stated"), ("grain-boundary", "0.52", "stated"),
                           ("total", "0.42", "assumed")])
+
+
+@unittest.skipUnless(_has_screen(), "the window needs a screen")
+class FreshProjectTests(unittest.TestCase):
+    def test_a_project_with_no_database_yet_opens_without_asking_anything(self):
+        from Classification.gui import App
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        root = tk.Tk()
+        root.attributes("-alpha", 0.0)
+        self.addCleanup(root.destroy)
+        with mock.patch("Classification.gui.messagebox.showinfo") as asked:
+            app = App(root, None, tmp / "classes")  # the databases of the project home, which has none yet
+        asked.assert_not_called()
+        self.assertIn("No database yet", app.status.cget("text"))
 
 
 if __name__ == "__main__":

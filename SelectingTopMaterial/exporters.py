@@ -72,7 +72,9 @@ def material_row(material: RankedMaterial) -> dict[str, Any]:
         "attribution": tally(v.attribution for v in values),
         "temperature": tally(v.temperature for v in values),
         "papers": SEPARATOR.join(dict.fromkeys(v.paper_id for v in values)),
+        "articles": SEPARATOR.join(dict.fromkeys(v.paper_title for v in values)),
         "source_paper": evidence.paper_id,
+        "source_title": evidence.paper_title,
         "source_page": evidence.page,
         "source_sentence": evidence.sentence,
     }
@@ -280,7 +282,7 @@ def _count(number: int, noun: str) -> str:
 _MATERIAL_COLUMNS = (
     "rank", "material", "class", "activation_energy_eV", "Ea_min_eV", "Ea_max_eV", "n_values", "n_papers",
     "class_of_values", "checks", "confidence", "structure", "data_origin", "transport_component", "attribution",
-    "temperature", "papers", "source_paper", "source_page", "source_sentence")
+    "temperature", "papers", "articles", "source_paper", "source_title", "source_page", "source_sentence")
 _VALUE_COLUMNS = (
     "rank", "material", "material_class", "activation_energy_eV", "value_class", "reported_as", "material_formula",
     "structure", "temperature", "pressure", "data_origin", "transport_component", "attribution", "confidence",

@@ -81,8 +81,12 @@ where each key is had (see [Where papers are searched for](#where-papers-are-sea
     its key opens, which method uses it, whether it is set, and a **Get a free key ↗** button to its
     sign-up page. The same button is in the web chooser and the moukhlij4scraping window. They are
     saved in `WebScraping/averageScrap/.env`, which git ignores.
-  - **Edit…** shows the job as a form — queries, years, screening words, sources, the properties
-    to keep — and saves it as a job file the terminal reads too. **Check setup** is `--check`.
+  - **Search settings…** shows the job as a form — searches, years, sources, screening words, where
+    copies are looked for, the properties to keep — each number within its bounds, and saves it as a
+    job file the terminal reads too, keeping its comments and `# headings`. What may not change (the
+    folder of the PDFs, the job's name) is shown, not offered; **Reset to defaults** puts back the
+    shipped job. The same button is in the web chooser and the moukhlij4scraping window.
+    **Check setup** is `--check`.
 
 ## How it works
 

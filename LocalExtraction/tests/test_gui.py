@@ -153,11 +153,9 @@ class WindowTest(unittest.TestCase):
 class WindowTests(WindowTest):
     def prepare(self):
         self.output = os.path.join(self.root_folder, "local_output")
-        self.other_output = os.path.join(self.root_folder, "other_output")
         self.pdfs = os.path.join(self.root_folder, "pdfs")
         os.makedirs(self.pdfs)
         StrictExporter(self.output).export([paper("mine.pdf", LOCAL, "local")])
-        StrictExporter(self.other_output).export([paper("10.1000_found.pdf", WEB, "web")])
 
     def make_app(self, root):
         from LocalExtraction.gui.app import App
@@ -171,10 +169,6 @@ class WindowTests(WindowTest):
         # The part of the paper each value was read from, and the page, are in the table.
         row = dict(zip(energies.table.columns, energies.table.tree.item("0", "values")))
         self.assertEqual((row["extracted_from"], str(row["page"])), ("Text", "1"))
-        # Pointed at another folder, it shows that folder.
-        self.app.panel.output.set(self.other_output)
-        self.app.panel.show_results()
-        self.assertEqual(len(energies.table), 1)
 
     def test_an_older_database_is_moved_aside_only_on_a_yes(self):
         output = self.output

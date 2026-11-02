@@ -80,6 +80,7 @@ class OpenAlex:
         # Neither is required; a contact address puts us in OpenAlex's polite pool, a key lifts its limits.
         key = api_key or os.environ.get("OPENALEX_API_KEY", "")
         self.auth: Dict[str, str] = {**({"api_key": key} if key else {}), **({"mailto": contact} if contact else {})}
+        self._said_first_page_only = False
 
     def search(self, query: str, years: Optional[Tuple[int, int]] = None, limit: int = 200,
                include_preprints: bool = True) -> Iterator[Candidate]:
@@ -101,6 +102,12 @@ class OpenAlex:
                         return
             cursor = (data.get("meta") or {}).get("next_cursor")
             if not data.get("results"):
+                return
+            if "api_key" not in self.auth:  # OpenAlex refuses (HTTP 401) a page past the first without a key
+                if cursor and not self._said_first_page_only:
+                    logging.info("OpenAlex: without OPENALEX_API_KEY only the first page of each search is given "
+                                 f"({seen} results); a free key gives the rest: https://openalex.org/settings/api")
+                    self._said_first_page_only = True
                 return
 
     def available(self) -> bool:

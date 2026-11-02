@@ -12,6 +12,7 @@ numpy
 pint>=0.23
 requests>=2.31
 pyyaml>=6
+Send2Trash>=1.8   # "Delete outputs…" moves files to the Trash, not deleted for good
 
 # Fetch_DOIs
 scholarly          # the Google Scholar search of get_dois.py

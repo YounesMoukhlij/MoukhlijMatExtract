@@ -24,7 +24,7 @@ from WebScraping.averageScrap.http import Disallowed, PoliteClient
 from WebScraping.averageScrap.ids import file_stem
 from WebScraping.averageScrap.ledger import CLOSED, DOWNLOADED, FAILED, Candidate
 from WebScraping.averageScrap.resolve import FetchOption, Resolver
-from WebScraping.averageScrap.sidecar import write_sidecar
+from WebScraping.averageScrap.sidecar import sidecar_path, write_sidecar
 
 # Fraction of a title's words that must be found in the first pages for the file to count as the paper.
 _MIN_TITLE_MATCH = 0.5
@@ -178,7 +178,30 @@ class Downloader:
     # ------------------------------------------------------------------
     # One paper
     # ------------------------------------------------------------------
+    def _on_disk(self, candidate: Candidate) -> Optional[str]:
+        """The PDF of this paper already in the folder — saved by an earlier run, or by the other
+        scraping method (moukhlij4scraping names a file after its DOI, "/" made "_"). None if there
+        is none."""
+        names = [f"{file_stem(candidate.key)}.pdf"]
+        if candidate.doi:
+            names.append(f"{candidate.doi.replace('/', '_')}.pdf")
+        for name in dict.fromkeys(names):
+            path = os.path.join(self.folder, name)
+            if os.path.isfile(path) and os.path.getsize(path) > 0:
+                return path
+        return None
+
     def fetch(self, candidate: Candidate) -> Outcome:
+        existing = self._on_disk(candidate)
+        if existing:
+            with open(existing, "rb") as f:
+                data = f.read()
+            check = check_pdf(data, candidate.title)
+            if check.ok:
+                logging.info(f"Already fetched: {candidate.key} ({os.path.basename(existing)} is in the folder) "
+                             "— download skipped.")
+                return self._save(candidate, FetchOption("already in the folder", f"file://{existing}"), data,
+                                  check, path=existing)
         tried, offered = [], False
         for option in self.resolver.options(candidate):
             if option.service in self._disabled:
@@ -197,27 +220,33 @@ class Downloader:
             return Outcome(candidate.key, CLOSED, error="no legal copy found: needs a manual PDF")
         return Outcome(candidate.key, FAILED, error="; ".join(tried)[:500])
 
-    def _save(self, candidate: Candidate, option: FetchOption, data: bytes, check: PdfCheck) -> Outcome:
+    def _save(self, candidate: Candidate, option: FetchOption, data: bytes, check: PdfCheck,
+              path: Optional[str] = None) -> Outcome:
+        """Saves the PDF (unless `path`: it is there already) and its sidecar."""
         os.makedirs(self.folder, exist_ok=True)
-        path = os.path.join(self.folder, f"{file_stem(candidate.key)}.pdf")
-        part = path + ".part"
-        with open(part, "wb") as f:
-            f.write(data)
-        os.replace(part, path)  # the PDF appears whole or not at all
+        path_given = path is not None
+        if path is None:
+            path = os.path.join(self.folder, f"{file_stem(candidate.key)}.pdf")
+            part = path + ".part"
+            with open(part, "wb") as f:
+                f.write(data)
+            os.replace(part, path)  # the PDF appears whole or not at all
         sha256 = hashlib.sha256(data).hexdigest()
         retrieved = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        write_sidecar(path, {
-            "key": candidate.key, "arxiv_id": candidate.arxiv_id,
-            # A preprint without a journal DOI has the one arXiv gives it.
-            "doi": candidate.doi or (f"10.48550/arXiv.{candidate.arxiv_id}" if candidate.arxiv_id else ""),
-            "openalex_id": candidate.openalex_id, "title": candidate.title, "authors": candidate.authors,
-            "journal": candidate.journal, "publisher": candidate.publisher, "year": candidate.year,
-            "work_type": candidate.work_type, "is_preprint": candidate.is_preprint,
-            "oa_status": candidate.oa_status, "license": option.license or candidate.license,
-            "source_service": option.service, "source_url": option.url, "retrieved_at": retrieved,
-            "sha256": sha256, "bytes": len(data), "pages": check.pages, "title_match": round(check.title_match, 2),
-            "found_by": candidate.found_by,
-        })
+        # A file already in the folder keeps its own record of where it came from, when it has one.
+        if not (path_given and os.path.exists(sidecar_path(path))):
+            write_sidecar(path, {
+                "key": candidate.key, "arxiv_id": candidate.arxiv_id,
+                # A preprint without a journal DOI has the one arXiv gives it.
+                "doi": candidate.doi or (f"10.48550/arXiv.{candidate.arxiv_id}" if candidate.arxiv_id else ""),
+                "openalex_id": candidate.openalex_id, "title": candidate.title, "authors": candidate.authors,
+                "journal": candidate.journal, "publisher": candidate.publisher, "year": candidate.year,
+                "work_type": candidate.work_type, "is_preprint": candidate.is_preprint,
+                "oa_status": candidate.oa_status, "license": option.license or candidate.license,
+                "source_service": option.service, "source_url": option.url, "retrieved_at": retrieved,
+                "sha256": sha256, "bytes": len(data), "pages": check.pages, "title_match": round(check.title_match, 2),
+                "found_by": candidate.found_by,
+            })
         return Outcome(candidate.key, DOWNLOADED, file=os.path.basename(path), sha256=sha256, service=option.service,
                        url=option.url, license=option.license or candidate.license, pages=check.pages,
                        title_match=check.title_match)

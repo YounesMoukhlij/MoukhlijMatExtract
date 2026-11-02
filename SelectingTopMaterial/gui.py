@@ -4,8 +4,7 @@ a table, and the files it writes one click away.
 
     python -m SelectingTopMaterial gui
 
-Like the rest of the selection it imports nothing from the other parts of the project: it reads the
-results folders and writes into its own results/."""
+It reads the results folders and writes into its own results/ (which "Delete outputs…" empties)."""
 
 from __future__ import annotations
 
@@ -19,7 +18,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+from LocalExtraction.gui.delete_outputs import delete_outputs_button
+from LocalExtraction.gui.result_card import NOTHING, Outcome, ResultCard, Stat, number
+
 from . import loader
+from LocalExtraction.about import command_name
+
 from .about import DEFAULT_RESULTS, NAME, PROJECT_ROOT, VERSION
 from .cli import FORMATS, source_folder, write_files
 from .console import origin_summary
@@ -86,7 +90,7 @@ class App:
         top.pack(fill="x")
         ttk.Label(top, text="Selecting the top materials", font=("TkDefaultFont", 16, "bold")).pack(side="left")
         ttk.Label(top, text="the materials of the databases, ranked by activation energy",
-                  foreground="#555555").pack(side="left", padx=12)
+                  foreground="#8c8c8c").pack(side="left", padx=12)
         ttk.Label(top, text=f"{NAME} {VERSION}", foreground="gray").pack(side="right")
 
         settings = ttk.Frame(self.root, padding=(12, 4, 12, 4))
@@ -121,7 +125,7 @@ class App:
         policy = ttk.Combobox(options, values=tuple(POLICIES), textvariable=self.policy_var, state="readonly", width=13)
         policy.grid(row=0, column=1, sticky="w", padx=4)
         self.policy_meaning = tk.StringVar()
-        ttk.Label(options, textvariable=self.policy_meaning, foreground="#666666").grid(
+        ttk.Label(options, textvariable=self.policy_meaning, foreground="#8c8c8c").grid(
             row=0, column=2, columnspan=3, sticky="w")
         policy.bind("<<ComboboxSelected>>", lambda event: self._policy_changed())
 
@@ -136,7 +140,7 @@ class App:
         ttk.Entry(options, textvariable=self.component_var, width=15).grid(row=2, column=1, sticky="w", padx=4, pady=(6, 0))
         ttk.Label(options, text="Elements").grid(row=2, column=2, sticky="e", pady=(6, 0))
         ttk.Entry(options, textvariable=self.elements_var, width=13).grid(row=2, column=3, sticky="w", padx=4, pady=(6, 0))
-        ttk.Label(options, text="(bulk, total, … · Li Na)", foreground="#666666").grid(
+        ttk.Label(options, text="(bulk, total, … · Li Na)", foreground="#8c8c8c").grid(
             row=2, column=4, sticky="w", pady=(6, 0))
 
         ttk.Label(options, text="Confidence ≥").grid(row=3, column=0, sticky="w", pady=(6, 0))
@@ -144,7 +148,7 @@ class App:
             row=3, column=1, sticky="w", padx=4, pady=(6, 0))
         ttk.Label(options, text="Show the first").grid(row=3, column=2, sticky="e", pady=(6, 0))
         ttk.Entry(options, textvariable=self.top_var, width=6).grid(row=3, column=3, sticky="w", padx=4, pady=(6, 0))
-        ttk.Label(options, text="(empty: all that pass)", foreground="#666666").grid(
+        ttk.Label(options, text="(empty: all that pass)", foreground="#8c8c8c").grid(
             row=3, column=4, sticky="w", pady=(6, 0))
 
         ttk.Checkbutton(options, text="Rank the phases of a composition apart (cubic / tetragonal, β / γ)",
@@ -160,8 +164,9 @@ class App:
         self.write_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(actions, text="and write the files into", variable=self.write_var).pack(side="left", padx=(10, 4))
         self.out_var = tk.StringVar(value=str(out_dir))
-        ttk.Entry(actions, textvariable=self.out_var, width=48).pack(side="left")
+        ttk.Entry(actions, textvariable=self.out_var, width=30).pack(side="left", fill="x", expand=True)
         ttk.Button(actions, text="Browse…", command=self._pick_out).pack(side="left", padx=4)
+        delete_outputs_button(actions, "rank", after=self._outputs_deleted).pack(side="right", padx=(4, 0))
         self.open_folder_button = ttk.Button(actions, text="Open the folder", command=self._open_folder)
         self.open_folder_button.pack(side="right")
         self.open_workbook_button = ttk.Button(actions, text="Open the workbook", command=lambda: self._open(".xlsx"))
@@ -170,9 +175,12 @@ class App:
         self.open_report_button.pack(side="right")
 
         self.summary = tk.StringVar(value="")
-        ttk.Label(self.root, textvariable=self.summary, wraplength=1200, justify="left", padding=(12, 4)).pack(fill="x")
+        self.summary_label = ttk.Label(self.root, textvariable=self.summary, wraplength=1200, justify="left",
+                                       padding=(12, 4))
+        self.summary_label.pack(fill="x")
 
         self.book = ttk.Notebook(self.root)
+        self.card = ResultCard(self.root, before=self.book, padx=8)  # what the last ranking found
         self.book.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         ranking = ttk.Frame(self.book, padding=(0, 6, 0, 0))
         self.table = ttk.Treeview(ranking, columns=[c for c, _, _, _ in _COLUMNS], show="headings", selectmode="browse")
@@ -193,7 +201,7 @@ class App:
         row = len(self.sources)
         ticked_var, status = tk.BooleanVar(value=ticked), tk.StringVar()
         ttk.Checkbutton(self._sources_frame, text=_shown(folder), variable=ticked_var).grid(row=row, column=0, sticky="w")
-        ttk.Label(self._sources_frame, textvariable=status, foreground="#666666").grid(row=row, column=1, sticky="w", padx=8)
+        ttk.Label(self._sources_frame, textvariable=status, foreground="#8c8c8c").grid(row=row, column=1, sticky="w", padx=8)
         if not (folder / loader.TABLE).is_file():
             status.set("no activation_energy.csv in it yet")
         self.sources.append((folder, ticked_var, status))
@@ -256,6 +264,9 @@ class App:
             messagebox.showerror(NAME, str(error), parent=self.root)
             return
         ticked = [(folder, status) for folder, var, status in self.sources if var.get()]
+        self.card.hide()
+        if not self.summary_label.winfo_manager():
+            self.summary_label.pack(fill="x", before=self.book)
         if not ticked:
             self.summary.set("Tick at least one results folder above. (None yet? Run the extraction first: "
                              "python -m LocalExtraction or python -m WebScraping.)")
@@ -285,6 +296,32 @@ class App:
         self.selection, self.written, self._top = selection, written, top
         self._fill_table()
         self._fill_about()
+        self.show_outcome()
+
+    def show_outcome(self) -> None:
+        """The card of the ranking: how many materials in each class, the best ones and their articles."""
+        selection = self.selection
+        if selection is None:
+            return
+        accepted = [c for c in selection.criteria.classes if c.accepted]
+        colours = dict(zip((c.name for c in accepted), class_colours(len(accepted))))
+        stats = [Stat(number(len(selection.materials)), "materials ranked", hint=f"{number(selection.papers_used)} papers")]
+        for energy_class in selection.criteria.classes:
+            stats.append(Stat(number(selection.count(energy_class)), energy_class.name,
+                              colours.get(energy_class.name, REJECTED), energy_class.rule))
+        best = list(selection.top[:3])
+        highlights = [f"{m.rank}. {m.material} — {format_energy(m.energy_eV)} eV ({m.energy_class.name}), from "
+                      f"{len(m.papers)} paper{'s' if len(m.papers) != 1 else ''}: {m.evidence.paper_title}" for m in best]
+        actions = []
+        if self.written:
+            actions += [("Open the report", lambda: self._open(".html")),
+                        ("Open the workbook", lambda: self._open(".xlsx")),
+                        ("Open the folder", self._open_folder)]
+        actions.append(("Show the rule and the data", lambda: self.book.select(self.about)))
+        title = "Ranking done" if selection.materials else "Nothing to rank"
+        self.summary_label.pack_forget()  # its text is the card's detail
+        self.card.show(Outcome(title, "done" if selection.materials else NOTHING, self.summary.get(),
+                               stats if selection.materials else [], highlights, actions))
 
     def _fill_table(self) -> None:
         self.table.delete(*self.table.get_children())
@@ -359,7 +396,7 @@ class App:
         bar = ttk.Scrollbar(window, orient="vertical", command=text.yview)
         text.configure(yscrollcommand=bar.set)
         text.tag_configure("head", font=("TkDefaultFont", 11, "bold"))
-        text.tag_configure("dim", foreground="#666666")
+        text.tag_configure("dim", foreground="#8c8c8c")
         votes = ", ".join(f"{name} {count}" for name, count in m.votes)
         text.insert("end", f"#{m.rank}  {m.material} — {m.energy_class.name}\n", "head")
         text.insert("end", f"Ea {format_energy(m.energy_eV)} eV ({self.selection.policy if self.selection else ''}) · "
@@ -385,13 +422,20 @@ class App:
         else:
             messagebox.showinfo(NAME, "That file was not written: rank with “write the files” ticked.", parent=self.root)
 
+    def _outputs_deleted(self, deleted: bool) -> None:
+        if deleted:
+            self.written = [p for p in self.written if p.exists()]
+            for button in (self.open_folder_button, self.open_workbook_button, self.open_report_button):
+                button.configure(state="normal" if self.written else "disabled")
+            self.summary.set("The ranking files were deleted. Press Rank to write them again.")
+
     def _open_folder(self) -> None:
         if self.written:
             open_path(self.written[0].parent)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog=f"python -m {NAME} gui", description="The window of the selection.")
+    parser = argparse.ArgumentParser(prog=f"{command_name('mme-rank', NAME)} gui", description="The window of the selection.")
     parser.add_argument("--source", "-s", nargs="+", action="extend", metavar="DIR",
                         help="Results folder(s) to offer, the most trusted first (default: "
                              + ", ".join(loader.KNOWN_DATABASES) + ")")

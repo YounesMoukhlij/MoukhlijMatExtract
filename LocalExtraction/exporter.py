@@ -78,6 +78,23 @@ COLUMNS: Dict[str, List[str]] = {
     "summary": ["paper_id", "title", "publication_year", "origin", "n_materials", "materials",
                 *(f"n_{table}" for _, table, _, _ in QUANTITY_TABLES), "n_other_properties", "highlights"],
 }
+# Every table but papers and summary (which have it already) carries the article's title right after
+# its id, so a row can be read without looking the paper up.
+_TITLED = [name for name in COLUMNS if name not in ("papers", "summary")]
+for _name in _TITLED:
+    COLUMNS[_name] = ["paper_id", "title", *COLUMNS[_name][1:]]
+del _name
+
+
+def article_title(title: Any, filename: Any) -> str:
+    """The title of a paper as the tables give it: the one it states, else its file name (said so)."""
+    text = str(title).strip() if title is not None and not (isinstance(title, float) and title != title) else ""
+    if text and text not in ("NONE", NOT_RECORDED):
+        return text
+    name = os.path.splitext(os.path.basename(str(filename or "")))[0]
+    return f"{name} (file name: no title found in the paper)" if name else "no title found in the paper"
+
+
 _NONE_LISTED = "none named in the caption"
 # A header pdfplumber makes up for a column it found no name for: "Column", "Column_2", "(a)_3".
 _MADE_UP_HEADER = re.compile(r"^(?:Column|\([a-z]\))(?:_\d+)?$")
@@ -168,6 +185,37 @@ class StrictExporter:
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
 
+    @staticmethod
+    def add_titles(output_dir: str) -> int:
+        """Adds the `title` column to the tables of a database written before it existed, from its
+        papers.csv — nothing is extracted again, and the workbook is written anew. Returns how many
+        tables were given it."""
+        papers_path = os.path.join(output_dir, "papers.csv")
+        if not os.path.exists(papers_path) or os.path.getsize(papers_path) == 0:
+            return 0
+        lacking = []
+        for name in _TITLED:
+            path = os.path.join(output_dir, f"{name}.csv")
+            try:
+                header = _header(path) if os.path.exists(path) and os.path.getsize(path) else []
+            except OSError:
+                continue
+            if header and "paper_id" in header and "title" not in header:
+                lacking.append(path)
+        if not lacking:
+            return 0
+        papers = read_table(papers_path)
+        titles = {row["paper_id"]: article_title(row.get("title"), row.get("filename") or row["paper_id"])
+                  for _, row in papers.iterrows()} if "paper_id" in papers else {}
+        for path in lacking:
+            frame = read_table(path)
+            frame.insert(1, "title", [titles.get(pid) or article_title("", pid) for pid in frame["paper_id"]])
+            _write_atomically(path, lambda part, frame=frame: frame.to_csv(part, index=False, encoding="utf-8-sig"))
+        if os.path.exists(os.path.join(output_dir, "database.xlsx")):
+            StrictExporter(output_dir).export_excel()
+        logging.info(f"Added the article title to {len(lacking)} table(s) of {output_dir}.")
+        return len(lacking)
+
     @classmethod
     def is_outdated(cls, output_dir: str) -> bool:
         """Whether the folder holds a database written by an earlier version: one of its tables is
@@ -176,6 +224,10 @@ class StrictExporter:
         papers = os.path.join(output_dir, "papers.csv")
         if not os.path.exists(papers) or os.path.getsize(papers) == 0:
             return False
+        try:
+            cls.add_titles(output_dir)  # a missing title column is added, not a reason to rebuild
+        except (OSError, UnreadableTable) as error:
+            logging.warning(f"The article titles could not be added to {output_dir}: {error}")
         for name in TABLE_NAMES:
             path = os.path.join(output_dir, f"{name}.csv")
             if not os.path.exists(path):
@@ -382,6 +434,7 @@ class StrictExporter:
     def _build_rows(cls, papers: List[PaperData]) -> Dict[str, List[Dict[str, Any]]]:
         tables: Dict[str, List[Dict[str, Any]]] = {name: [] for name in TABLE_NAMES}
         quantity = {prop: (table, value) for prop, table, value, _ in QUANTITY_TABLES}
+        titles: Dict[str, str] = {}
 
         for paper in papers:
             pid = paper.pid
@@ -504,6 +557,11 @@ class StrictExporter:
 
             tables["summary"].append(cls._summary_row(paper, counts, other))
 
+            titles[pid] = article_title(meta_val("title"), paper.filename)
+
+        for name in _TITLED:
+            for row in tables[name]:
+                row["title"] = titles.get(row.get("paper_id"), "no title found in the paper")
         return tables
 
     # ------------------------------------------------------------------
@@ -546,6 +604,7 @@ class StrictExporter:
         """Every table and the JSON are read before anything is written: a file that cannot be read
         stops it all (UnreadableTable) and every file stays as it was. papers.csv is written last,
         so a paper counts as done only once all of its rows are in."""
+        self.add_titles(self.output_dir)  # the rows already there get their title too
         merged = {name: self._merge(os.path.join(self.output_dir, f"{name}.csv"), frame, replaced)
                   for name, frame in frames.items()}
         json_path = os.path.join(self.output_dir, "database.json")

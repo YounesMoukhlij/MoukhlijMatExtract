@@ -19,6 +19,9 @@ NEW, SCREENED, APPROVED, REJECTED, DOWNLOADED, CLOSED, FAILED, EXTRACTED = (
     "new", "screened", "approved", "rejected", "downloaded", "closed", "failed", "extracted")
 
 YES, NO = "yes", "no"
+# A search already run in full is not run again for this many days (new papers come out; after that,
+# or with --refresh, it is run again).
+SEARCH_KEPT_DAYS = 30
 # What a person may write in the `decision` column of the review list.
 _YES_WORDS = {"yes", "y", "1", "true", "ok", "x", "approve", "approved"}
 _NO_WORDS = {"no", "n", "0", "false", "reject", "rejected"}
@@ -173,6 +176,8 @@ class Ledger:
                 if name not in existing:
                     kind = 'TEXT' if name in _LIST_FIELDS else _sql_type(getattr(defaults, name))
                     self._db.execute(f"ALTER TABLE candidates ADD COLUMN {name} {kind}")
+            # The searches already run in full: (source, query, years, preprints) -> how deep, and when.
+            self._db.execute("CREATE TABLE IF NOT EXISTS searches (search TEXT PRIMARY KEY, depth INTEGER, at TEXT)")
 
     def close(self) -> None:
         with self._lock:
@@ -199,6 +204,29 @@ class Ledger:
             merged = _to_row(_merge(_from_row(row), candidate))
             self._set(candidate.key, {k: v for k, v in merged.items() if k != "key"})
             return False
+
+    # ------------------------------------------------------------------
+    # The searches already done
+    # ------------------------------------------------------------------
+    def searched(self, search: str, depth: int, max_age_days: float = SEARCH_KEPT_DAYS) -> Optional[str]:
+        """When `search` was last run in full at least `depth` results deep, less than `max_age_days`
+        ago ("2026-10-29"); None when it has to be run (never was, not as deep, or too long ago)."""
+        with self._lock:
+            row = self._db.execute("SELECT depth, at FROM searches WHERE search = ?", (search,)).fetchone()
+        if row is None or (row["depth"] or 0) < depth:
+            return None
+        try:
+            at = datetime.fromisoformat(row["at"])
+        except (TypeError, ValueError):
+            return None
+        if (datetime.now(timezone.utc) - at).total_seconds() > max_age_days * 86400:
+            return None
+        return at.date().isoformat()
+
+    def mark_searched(self, search: str, depth: int) -> None:
+        with self._lock, self._db:
+            self._db.execute("INSERT OR REPLACE INTO searches (search, depth, at) VALUES (?, ?, ?)",
+                             (search, depth, _now()))
 
     def _set(self, key: str, values: Dict[str, Any]) -> None:
         values = {**values, "updated": _now()}

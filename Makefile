@@ -23,6 +23,7 @@ install:
 	@test -d .venv || { echo "Creating the venv .venv/..."; python3 -m venv .venv; }
 	@echo "Installing requirements.txt into .venv/..."
 	@.venv/bin/python -m pip install -r requirements.txt
+	@.venv/bin/python -m pip install -e .   # the mme-* commands run the code of this folder
 	@.venv/bin/python -m spacy download en_core_web_sm
 	@echo "Done. Enter the venv in each new terminal with: source .venv/bin/activate"
 

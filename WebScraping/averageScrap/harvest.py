@@ -23,7 +23,8 @@ from WebScraping.averageScrap.fetch import Downloader, Outcome
 from WebScraping.averageScrap.http import HttpError, PoliteClient
 from WebScraping.averageScrap.ids import arxiv_id, candidate_key, normalize_doi
 from WebScraping.averageScrap.job import KEY_SIGNUP, Job
-from WebScraping.averageScrap.ledger import APPROVED, CLOSED, DOWNLOADED, EXTRACTED, FAILED, Candidate, Ledger
+from WebScraping.averageScrap.ledger import (APPROVED, CLOSED, DOWNLOADED, EXTRACTED, FAILED, SEARCH_KEPT_DAYS,
+                                             Candidate, Ledger)
 from WebScraping.averageScrap.resolve import Resolver
 from WebScraping.averageScrap.sidecar import read_provenance
 from WebScraping.averageScrap.sources.arxiv import ArXiv
@@ -59,6 +60,11 @@ class Harvest:
             lines = [line.strip() for line in f if line.strip() and not line.lstrip().startswith("#")]
         for line in lines:
             doi, identifier = normalize_doi(line), arxiv_id(line)
+            known = candidate_key(doi, identifier)
+            if known and self.ledger.get(known) is not None:  # looked up by an earlier run
+                logging.info(f"ids_file: {line} is already in the ledger — skipped.")
+                yield Candidate(key=known, found_by=["list"])
+                continue
             found = (openalex.lookup(doi) if doi and not identifier else None) \
                 or (arxiv.lookup(identifier) if identifier else None) \
                 or (openalex.lookup(doi) if doi else None)
@@ -71,10 +77,11 @@ class Harvest:
             found.found_by = [*found.found_by, "list"] if "list" not in found.found_by else found.found_by
             yield found
 
-    def discover(self) -> int:
+    def discover(self, refresh: bool = False) -> int:
         """Asks every source every query, then completes what was found (OpenAlex's record of a paper
         another source found, the abstracts the records lacked). Returns how many papers were new to
-        the ledger."""
+        the ledger. A query a source already answered in full (as deep, for the same years) less than
+        SEARCH_KEPT_DAYS ago is skipped, unless `refresh`."""
         s = self.job.search
         added = 0
         for name in s.sources:
@@ -86,14 +93,23 @@ class Harvest:
                 continue
             for query in s.queries:
                 found = new = 0
+                search = f"{name}|{query.strip().lower()}|{s.years}|{s.include_preprints}"
+                when = None if refresh else self.ledger.searched(search, s.max_per_query)
+                if when:
+                    logging.info(f"{name}: {query!r} already searched on {when} — skipped "
+                                 f"(searched again after {SEARCH_KEPT_DAYS} days, or with --refresh).")
+                    continue
                 try:
                     for candidate in source.search(query, s.years, s.max_per_query, s.include_preprints):
                         found += 1
                         new += self.ledger.add(candidate)
+                    self.ledger.mark_searched(search, s.max_per_query)  # answered in full: not asked again
                 except HttpError as error:
                     if error.status in (401, 403):
-                        logging.warning(f"{name}: the key was refused (HTTP {error.status}) — is {source.key_name} "
-                                        "right? This source is skipped for the rest of the run.")
+                        key = getattr(source, "key_name", "")  # OpenAlex and arXiv have none
+                        said = (f"the key was refused (HTTP {error.status}) — is {key} right?" if key
+                                else f"it refused the search (HTTP {error.status}).")
+                        logging.warning(f"{name}: {said} This source is skipped for the rest of the run.")
                         break
                     logging.warning(f"{name}: the search for {query!r} stopped early: {error}")
                 except (requests.RequestException, ET.ParseError, ValueError) as error:
@@ -144,6 +160,8 @@ class Harvest:
         decided = self.ledger.apply_decisions(self.review_path)
         logging.info(f"Review list: {decided['approved']} approved, {decided['rejected']} rejected, "
                      f"{decided['waiting']} still waiting for a decision.")
+        for candidate in self.ledger.all(DOWNLOADED, EXTRACTED):
+            logging.info(f"Already fetched: {candidate.key} ({candidate.file or 'in the folder'}) — skipped.")
         todo = self.ledger.all(APPROVED) + [c for c in self.ledger.all(FAILED) if c.attempts < MAX_ATTEMPTS]
         if limit is not None:
             todo = todo[:limit]
@@ -214,13 +232,13 @@ class Harvest:
         return ", ".join(f"{counts[s]} {s}" for s in order if counts.get(s)) or "empty"
 
     def run(self, start: str = "discover", approve: bool = False, limit: Optional[int] = None, workers: int = 4,
-            job_path: str = "", stop_event: Optional[threading.Event] = None) -> int:
+            job_path: str = "", stop_event: Optional[threading.Event] = None, refresh: bool = False) -> int:
         """`start` is the first stage to run: "discover" (everything, up to the review if the job asks
         for one), "fetch" (after the review: fetch the approved papers, then extract) or "extract"."""
         if start not in STAGES:
             raise ValueError(f"unknown stage {start!r}; choose from {STAGES}")
         if start == "discover":
-            added = self.discover()
+            added = self.discover(refresh=refresh)
             waiting = self.screen(approve=approve)
             logging.info(f"Ledger: {self.summary()} ({added} new this run).")
             if self.job.screen.review and not approve:

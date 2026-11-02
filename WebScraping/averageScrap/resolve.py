@@ -106,17 +106,24 @@ class Resolver:
             else:
                 logging.debug(f"{service} has nothing: {error}")  # "not found" is an answer
             return None
-        except (requests.RequestException, ValueError) as error:
-            self._strike(service, "it does not answer" if isinstance(error, requests.RequestException)
-                         else "its answers cannot be read")
+        except requests.RequestException:
+            # No answer even after the client's own retries (minutes of waiting): the service is
+            # down, and asking it again for each paper would cost those minutes paper after paper.
+            self._strike(service, "it does not answer", at_once=True)
+            return None
+        except ValueError:
+            self._strike(service, "its answers cannot be read")
             return None
         with self._lock:
             self._failed[service] = 0
         return answer
 
-    def _strike(self, service: str, why: str) -> None:
+    def _strike(self, service: str, why: str, at_once: bool = False) -> None:
         with self._lock:
-            self._failed[service] = self._failed.get(service, 0) + 1
+            before = self._failed.get(service, 0)
+            if before >= _PATIENCE:
+                return
+            self._failed[service] = _PATIENCE if at_once else before + 1
             if self._failed[service] == _PATIENCE:
                 logging.warning(f"Not asking {service} for the rest of this run: {why}.")
 

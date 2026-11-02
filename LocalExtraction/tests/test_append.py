@@ -47,6 +47,14 @@ class AppendTests(unittest.TestCase):
     def table(self, name: str) -> pd.DataFrame:
         return read_table(os.path.join(self.out, f"{name}.csv"))
 
+    def test_a_pdf_already_extracted_is_said_and_skipped(self):
+        make_pdf(os.path.join(self.pdfs, "a.pdf"), "First paper on argyrodite conductors")
+        self.assertEqual(self.run_pipeline(), 1)
+        with self.assertLogs(level="INFO") as said:
+            self.assertEqual(self.run_pipeline(), 0)
+        self.assertTrue(any("Already extracted: a.pdf" in line for line in said.output))
+        self.assertTrue(any("already extracted — nothing to do" in line for line in said.output))
+
     # ------------------------------------------------------------------
     # The files
     # ------------------------------------------------------------------

@@ -3,11 +3,13 @@
 
 from pathlib import Path
 
+from LocalExtraction.about import PROJECT_HOME
+
 NAME = "SelectingTopMaterial"
 VERSION = "1.0.0"
 
 PACKAGE_DIR = Path(__file__).resolve().parent     # where the code and its data (criteria.toml) live
-# The databases and the results live in the folder the user runs in — not where the package is
-# installed — so an installed copy reads part 1/2's database and writes its own results there too.
-PROJECT_ROOT = Path.cwd()
+# The databases and the results live in ~/MoukhlijMatExtract — not where the package is installed,
+# nor where it is started from — so it always reads part 1/2's database and writes its results there.
+PROJECT_ROOT = PROJECT_HOME
 DEFAULT_RESULTS = PROJECT_ROOT / NAME / "results"
