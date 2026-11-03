@@ -25,12 +25,12 @@ from . import loader
 from LocalExtraction.about import command_name
 
 from .about import DEFAULT_RESULTS, NAME, PROJECT_ROOT, VERSION
-from .cli import FORMATS, source_folder, write_files
+from .cli import FORMATS, source_folder, write_rankings
 from .console import origin_summary
 from .criteria import POLICIES, Criteria, CriteriaError, format_energy
-from .models import Filters, RankedMaterial, Selection
+from .models import COMPONENTS, Filters, RankedMaterial, Selection, component_word
 from .palette import REJECTED, class_colours
-from .selection import select_from
+from .selection import select_from_each
 
 _ANY = "any"
 # (column, heading, width, anchor)
@@ -74,9 +74,10 @@ class App:
         root.geometry("1260x820")
         root.minsize(1000, 640)
         self.criteria_path = criteria_path
-        self.selection: Selection | None = None
+        self.selections: dict[str, Selection] = {}   # one ranking per transport component
         self.written: list[Path] = []
-        self._shown_materials: list[RankedMaterial] = []
+        self.written_by: dict[str, list[Path]] = {}
+        self.tabs: dict[str, dict] = {}                # component → its tab: frame, table, materials shown
         self._top: int | None = None
         known = [PROJECT_ROOT / name for name in loader.KNOWN_DATABASES]
         self._build(list(sources) if sources else known, out_dir, ticked_missing=bool(sources))
@@ -154,7 +155,7 @@ class App:
         ttk.Checkbutton(options, text="Rank the phases of a composition apart (cubic / tetragonal, β / γ)",
                         variable=self.by_phase_var).grid(row=4, column=0, columnspan=5, sticky="w", pady=(6, 0))
         ttk.Checkbutton(options, text="Show the rejected materials too", variable=self.rejected_var,
-                        command=self._fill_table).grid(row=5, column=0, columnspan=5, sticky="w", pady=(2, 0))
+                        command=self._fill_tables).grid(row=5, column=0, columnspan=5, sticky="w", pady=(2, 0))
 
         # Where the ranking is written, and the buttons
         actions = ttk.Frame(self.root, padding=(12, 6, 12, 4))
@@ -182,20 +183,52 @@ class App:
         self.book = ttk.Notebook(self.root)
         self.card = ResultCard(self.root, before=self.book, padx=8)  # what the last ranking found
         self.book.pack(fill="both", expand=True, padx=8, pady=(0, 8))
-        ranking = ttk.Frame(self.book, padding=(0, 6, 0, 0))
-        self.table = ttk.Treeview(ranking, columns=[c for c, _, _, _ in _COLUMNS], show="headings", selectmode="browse")
-        for column, heading, width, anchor in _COLUMNS:
-            self.table.heading(column, text=heading)
-            self.table.column(column, width=width, anchor=anchor, stretch=column == "checks")
-        bar = ttk.Scrollbar(ranking, orient="vertical", command=self.table.yview)
-        self.table.configure(yscrollcommand=bar.set)
-        self.table.pack(side="left", fill="both", expand=True)
-        bar.pack(side="right", fill="y")
-        self.table.bind("<Double-1>", self._opened)
-        self.table.bind("<Return>", self._opened)
-        self.book.add(ranking, text="Ranking")
         self.about = tk.Text(self.book, wrap="word", relief="flat", padx=10, pady=8, state="disabled")
         self.book.add(self.about, text="Rule and data")
+        for component in COMPONENTS:  # bulk, grain boundary, total: each ranked on its own
+            self._ranking_tab(component)
+        self.book.select(0)
+        self.book.bind("<<NotebookTabChanged>>", lambda event: self._buttons())
+
+    def _ranking_tab(self, component: str) -> dict:
+        """The tab of one component's ranking: its own table, before the "Rule and data" tab."""
+        frame = ttk.Frame(self.book, padding=(0, 6, 0, 0))
+        caption = tk.StringVar()
+        ttk.Label(frame, textvariable=caption, foreground="#8c8c8c").pack(anchor="w", pady=(0, 4))
+        box = ttk.Frame(frame)
+        box.pack(fill="both", expand=True)
+        table = ttk.Treeview(box, columns=[c for c, _, _, _ in _COLUMNS], show="headings", selectmode="browse")
+        for column, heading, width, anchor in _COLUMNS:
+            table.heading(column, text=heading)
+            table.column(column, width=width, anchor=anchor, stretch=column == "checks")
+        bar = ttk.Scrollbar(box, orient="vertical", command=table.yview)
+        table.configure(yscrollcommand=bar.set)
+        table.pack(side="left", fill="both", expand=True)
+        bar.pack(side="right", fill="y")
+        table.bind("<Double-1>", self._opened)
+        table.bind("<Return>", self._opened)
+        self.book.insert(self.about, frame, text=component_word(component).capitalize())
+        self.tabs[component] = {"frame": frame, "table": table, "caption": caption, "shown": []}
+        return self.tabs[component]
+
+    # The component of the tab in front, and its ranking.
+    @property
+    def component(self) -> str:
+        current = self.book.select()
+        return next((c for c, tab in self.tabs.items() if str(tab["frame"]) == current),
+                    next(iter(self.tabs)))
+
+    @property
+    def selection(self) -> Selection | None:
+        return self.selections.get(self.component) or next((s for s in self.selections.values() if s.materials), None)
+
+    @property
+    def table(self) -> ttk.Treeview:
+        return self.tabs[self.component]["table"]
+
+    @property
+    def _shown_materials(self) -> list[RankedMaterial]:
+        return self.tabs[self.component]["shown"]
 
     def _add_source(self, folder: Path, ticked: bool) -> None:
         row = len(self.sources)
@@ -281,84 +314,128 @@ class App:
         self.root.configure(cursor="watch")
         self.root.update_idletasks()
         try:
-            selection = select_from([folder for folder, _ in ticked], criteria, root=PROJECT_ROOT,
-                                    policy=self.policy_var.get(), by_phase=self.by_phase_var.get(), filters=filters)
-            written: list[Path] = []
-            if write and selection.materials:
+            selections = select_from_each([folder for folder, _ in ticked], criteria, root=PROJECT_ROOT,
+                                          policy=self.policy_var.get(), by_phase=self.by_phase_var.get(),
+                                          filters=filters)
+            written_by: dict[str, list[Path]] = {}
+            if write and any(s.materials for s in selections.values()):
                 try:
-                    written = write_files(selection, out_dir, FORMATS, top)
+                    written_by = write_rankings(selections, out_dir, FORMATS, top)
                 except OSError as error:
                     messagebox.showerror(NAME, f"The files could not be written:\n{error}", parent=self.root)
         finally:
             self.root.configure(cursor="")
-        for (_, status), report in zip(ticked, selection.databases):
+        first = next(iter(selections.values()))
+        for (_, status), report in zip(ticked, first.databases):
             status.set(loader.describe(report))
-        self.selection, self.written, self._top = selection, written, top
-        self._fill_table()
+        for component in selections:
+            if component not in self.tabs:  # surface, or a component the paper does not state
+                self._ranking_tab(component)
+        self.selections, self.written_by, self._top = selections, written_by, top
+        self.written = [p for paths in written_by.values() for p in paths]
+        self._out_dir = out_dir
+        self._fill_tables()
         self._fill_about()
+        # The tab in front: the one it was on if it has a ranking, else the first that has one.
+        if not self.selections.get(self.component, first).materials:
+            best = next((c for c, s in selections.items() if s.materials), None)
+            if best:
+                self.book.select(self.tabs[best]["frame"])
+        self._buttons()
         self.show_outcome()
 
     def show_outcome(self) -> None:
-        """The card of the ranking: how many materials in each class, the best ones and their articles."""
-        selection = self.selection
-        if selection is None:
+        """The card of the ranking: each component's ranking in a tile — how many materials, how many
+        superionic — and the best materials of each, with their articles."""
+        if not self.selections:
             return
-        accepted = [c for c in selection.criteria.classes if c.accepted]
-        colours = dict(zip((c.name for c in accepted), class_colours(len(accepted))))
-        stats = [Stat(number(len(selection.materials)), "materials ranked", hint=f"{number(selection.papers_used)} papers")]
-        for energy_class in selection.criteria.classes:
-            stats.append(Stat(number(selection.count(energy_class)), energy_class.name,
-                              colours.get(energy_class.name, REJECTED), energy_class.rule))
-        best = list(selection.top[:3])
-        highlights = [f"{m.rank}. {m.material} — {format_energy(m.energy_eV)} eV ({m.energy_class.name}), from "
-                      f"{len(m.papers)} paper{'s' if len(m.papers) != 1 else ''}: {m.evidence.paper_title}" for m in best]
-        actions = []
+        stats, highlights = [], []
+        for component, selection in self.selections.items():
+            word = component_word(component)
+            superionic = next((selection.count(c) for c in selection.criteria.classes if c.accepted), 0)
+            best = selection.materials[0] if selection.materials else None
+            first_class = selection.criteria.classes[0].name
+            stats.append(Stat(number(len(selection.materials)), f"{word} materials",
+                              class_colours(1)[0] if selection.materials else REJECTED,
+                              f"{superionic} {first_class} · best {best.material} {format_energy(best.energy_eV)} eV"
+                              if best else "no value of this component"))
+            for m in selection.top[:2]:
+                highlights.append(f"{word.capitalize()} #{m.rank}: {m.material} — {format_energy(m.energy_eV)} eV "
+                                  f"({m.energy_class.name}), from {len(m.papers)} paper{'s' if len(m.papers) != 1 else ''}: "
+                                  f"{m.evidence.paper_title}")
+        actions = [(f"Show {component_word(c)}", lambda c=c: self.book.select(self.tabs[c]["frame"]))
+                   for c, s in self.selections.items() if s.materials]
         if self.written:
-            actions += [("Open the report", lambda: self._open(".html")),
-                        ("Open the workbook", lambda: self._open(".xlsx")),
+            actions += [("Open the report", lambda: self._open(".html")), ("Browse the files", self._browse),
                         ("Open the folder", self._open_folder)]
-        actions.append(("Show the rule and the data", lambda: self.book.select(self.about)))
-        title = "Ranking done" if selection.materials else "Nothing to rank"
+        ranked = any(s.materials for s in self.selections.values())
         self.summary_label.pack_forget()  # its text is the card's detail
-        self.card.show(Outcome(title, "done" if selection.materials else NOTHING, self.summary.get(),
-                               stats if selection.materials else [], highlights, actions))
+        self.card.show(Outcome("Ranking done — one ranking per transport component" if ranked else "Nothing to rank",
+                               "done" if ranked else NOTHING, self.summary.get(), stats if ranked else [],
+                               highlights[:6], actions))
 
-    def _fill_table(self) -> None:
-        self.table.delete(*self.table.get_children())
-        selection = self.selection
-        if selection is None:
+    def _buttons(self) -> None:
+        """The file buttons: on when the ranking of the tab in front was written."""
+        mine = self.written_by.get(self.component, [])
+        for button, suffix in ((self.open_report_button, ".html"), (self.open_workbook_button, ".xlsx")):
+            button.configure(state="normal" if any(p.suffix == suffix for p in mine) else "disabled")
+        self.open_folder_button.configure(state="normal" if self.written else "disabled")
+
+    def _fill_tables(self) -> None:
+        for component in self.tabs:
+            self._fill_table(component)
+        parts = []
+        for component, selection in self.selections.items():
+            counts = " · ".join(f"{c.name} {selection.count(c)}" for c in selection.criteria.classes)
+            parts.append(f"{component_word(component).capitalize()}: {len(selection.materials)} materials — {counts}"
+                         if selection.materials else f"{component_word(component).capitalize()}: none")
+        first = next(iter(self.selections.values()), None)
+        if first is None:
             return
-        accepted = [c for c in selection.criteria.classes if c.accepted]
-        for energy_class, colour in zip(accepted, class_colours(len(accepted))):
-            self.table.tag_configure(energy_class.name, foreground=colour)
-        self.table.tag_configure(selection.criteria.rejected.name, foreground=REJECTED)
-
-        shown = list(selection.top[:self._top]) + (list(selection.rejected) if self.rejected_var.get() else [])
-        self._shown_materials = shown
-        for index, m in enumerate(shown):
-            spread = (f"{format_energy(m.energy_min_eV)} – {format_energy(m.energy_max_eV)}"
-                      if len(m.values) > 1 else format_energy(m.energy_min_eV))
-            self.table.insert("", "end", iid=str(index), tags=(m.energy_class.name,), values=(
-                m.rank, m.material, m.energy_class.name, format_energy(m.energy_eV), spread, len(m.values),
-                len(m.papers), origin_summary(m), " | ".join(m.checks) or "ok"))
-
-        counts = " · ".join(f"{c.name} {selection.count(c)}" for c in selection.criteria.classes)
-        if selection.materials:
-            text = (f"{len(selection.materials)} materials — {counts}. From {selection.values_used} of the "
-                    f"{selection.values_read} values read ({selection.filters.describe()}), "
-                    f"{selection.papers_used} papers; Ea of a material: {selection.policy}.")
-        elif selection.values_read:
-            text = (f"None of the {selection.values_read} values read passes the filters "
-                    f"({selection.filters.describe()}).")
+        if any(s.materials for s in self.selections.values()):
+            text = ("; ".join(parts) + f". From {sum(s.values_used for s in self.selections.values())} of the "
+                    f"{first.values_read} values read, Ea of a material: {first.policy}.")
+        elif first.values_read:
+            text = f"None of the {first.values_read} values read passes the filters."
         else:
             text = "No activation energy to rank in the folders ticked above."
         if self.written:
-            text += f"  Written to {_shown(self.written[0].parent)}: " + ", ".join(p.name for p in self.written) + "."
-        for note in selection.notes:
+            text += f"  Written to {_shown(self._out_dir)}: one folder per component, and summary.csv."
+        for note in first.notes:
             text += f"  Note: {note}"
         self.summary.set(text)
-        for button in (self.open_report_button, self.open_workbook_button, self.open_folder_button):
-            button.configure(state="normal" if self.written else "disabled")
+        self._buttons()
+
+    def _fill_table(self, component: str) -> None:
+        tab = self.tabs[component]
+        table = tab["table"]
+        table.delete(*table.get_children())
+        selection = self.selections.get(component)
+        word = component_word(component)
+        if selection is None:
+            tab["shown"] = []
+            tab["caption"].set("")
+            return
+        accepted = [c for c in selection.criteria.classes if c.accepted]
+        for energy_class, colour in zip(accepted, class_colours(len(accepted))):
+            table.tag_configure(energy_class.name, foreground=colour)
+        table.tag_configure(selection.criteria.rejected.name, foreground=REJECTED)
+
+        shown = list(selection.top[:self._top]) + (list(selection.rejected) if self.rejected_var.get() else [])
+        tab["shown"] = shown
+        for index, m in enumerate(shown):
+            spread = (f"{format_energy(m.energy_min_eV)} – {format_energy(m.energy_max_eV)}"
+                      if len(m.values) > 1 else format_energy(m.energy_min_eV))
+            table.insert("", "end", iid=str(index), tags=(m.energy_class.name,), values=(
+                m.rank, m.material, m.energy_class.name, format_energy(m.energy_eV), spread, len(m.values),
+                len(m.papers), origin_summary(m), " | ".join(m.checks) or "ok"))
+        self.book.tab(tab["frame"], text=f"{word.capitalize()} ({len(selection.materials)})")
+        tab["caption"].set(
+            f"The materials ranked by their {word} activation energy only — {selection.values_used} values, "
+            f"{selection.papers_used} papers. Double-click a material for its values." if selection.materials else
+            f"No {word} activation energy in the folders ticked above"
+            + ("" if selection.filters.describe() == f"{word} transport" else " with these filters") + ".")
+
 
     def _fill_about(self) -> None:
         selection = self.selection
@@ -416,7 +493,9 @@ class App:
         return window
 
     def _open(self, suffix: str) -> None:
-        path = next((p for p in self.written if p.suffix == suffix), None)
+        """A file of the ranking of the tab in front (else of the first component that has one)."""
+        mine = self.written_by.get(self.component, []) + self.written
+        path = next((p for p in mine if p.suffix == suffix), None)
         if path is not None and path.exists():
             open_path(path)
         else:
@@ -425,13 +504,21 @@ class App:
     def _outputs_deleted(self, deleted: bool) -> None:
         if deleted:
             self.written = [p for p in self.written if p.exists()]
-            for button in (self.open_folder_button, self.open_workbook_button, self.open_report_button):
-                button.configure(state="normal" if self.written else "disabled")
+            self.written_by = {c: [p for p in paths if p.exists()] for c, paths in self.written_by.items()}
+            self._buttons()
             self.summary.set("The ranking files were deleted. Press Rank to write them again.")
+
+    def _browse(self) -> None:
+        """The files of the ranking, table by table."""
+        from LocalExtraction.gui.browser import ResultsBrowser, part_tables
+        title, _, tables = part_tables("rank")
+        folder = getattr(self, "_out_dir", DEFAULT_RESULTS)
+        tables = [(label, folder / path.relative_to(part_tables("rank")[1])) for label, path in tables]
+        ResultsBrowser(self.root, title, folder, tables)
 
     def _open_folder(self) -> None:
         if self.written:
-            open_path(self.written[0].parent)
+            open_path(getattr(self, "_out_dir", self.written[0].parent))
 
 
 def main(argv: Sequence[str] | None = None) -> int:

@@ -334,6 +334,13 @@ class App:
         if path and Path(path) not in self.sources:
             self._add_source(Path(path), ticked=True)
 
+    def _browse(self) -> None:
+        """The tables of the classification, one tab each."""
+        from LocalExtraction.gui.browser import ResultsBrowser, part_tables
+        title, home_folder, tables = part_tables("classify")
+        folder = self.result.written or home_folder
+        ResultsBrowser(self.root, title, folder, [(label, folder / path.relative_to(home_folder)) for label, path in tables])
+
     def _open_folder(self) -> None:
         folder = _folder(self.out.get())
         if folder.is_dir():
@@ -432,7 +439,7 @@ class App:
                    ("Show the structure families", lambda: self.book.select(1))]
         if self.result.written:
             every = self.result.written / "all_materials.csv"
-            actions += [("Open the class folders", self._open_folder),
+            actions += [("Browse the files", self._browse), ("Open the class folders", self._open_folder),
                         ("Open all_materials.csv", lambda: open_path(str(every)))]
         detail = (f"From {', '.join(s.name for s in self.result.sources)}"
                   + (f"; the class folders are written into {_shown(self.result.written)}." if self.result.written

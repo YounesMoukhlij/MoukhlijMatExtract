@@ -15,12 +15,14 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Iterable, Sequence
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
 from . import loader
 from .criteria import POLICIES, Criteria, format_energy
-from .models import DatabaseReport, Filters, Measurement, RankedMaterial, Selection
+from .models import (COMPONENTS, NOT_REPORTED, DatabaseReport, Filters, Measurement, RankedMaterial, Selection,
+                     component_key, component_word)
 
 _PRECISION = 6
 
@@ -96,6 +98,38 @@ def select(values: Iterable[Measurement], criteria: Criteria, *, policy: str | N
     return Selection(criteria=criteria, policy=policy, by_phase=by_phase, filters=filters,
                      materials=tuple(materials), databases=tuple(databases), values_read=len(values),
                      generated_at=datetime.now().astimezone().isoformat(timespec="seconds"), notes=tuple(notes))
+
+
+def components_in(values: Iterable[Measurement]) -> list[str]:
+    """The components to rank: bulk, grain boundary and total always (one may hold no value), then
+    any other the values describe (surface, …), and the values whose component is not stated."""
+    found = {component_key(v.transport_component) for v in values}
+    others = sorted(c for c in found if c and c not in COMPONENTS and c != component_key(NOT_REPORTED))
+    return [*COMPONENTS, *others, *([component_key(NOT_REPORTED)] if component_key(NOT_REPORTED) in found else [])]
+
+
+def select_each(values: Iterable[Measurement], criteria: Criteria, *, policy: str | None = None,
+                by_phase: bool = False, filters: Filters | None = None, databases: Sequence[DatabaseReport] = (),
+                notes: Sequence[str] = ()) -> dict[str, Selection]:
+    """One ranking per transport component — bulk, grain boundary, total — each with its own ranks
+    and classes: a material's bulk Ea is compared with bulk Ea only. A component named in the
+    filters gives that ranking alone."""
+    filters = filters or Filters()
+    values = list(values)
+    wanted = [component_key(filters.component)] if filters.component else components_in(values)
+    return {component: select(values, criteria, policy=policy, by_phase=by_phase,
+                              filters=replace(filters, component=component), databases=databases, notes=notes)
+            for component in wanted}
+
+
+def select_from_each(databases: Sequence[Path], criteria: Criteria, *, root: Path | None = None,
+                     policy: str | None = None, by_phase: bool = False,
+                     filters: Filters | None = None) -> dict[str, Selection]:
+    """One ranking per transport component of what the results folders hold."""
+    values, reports = loader.load(databases, root=root)
+    note = loader.unassigned_note(reports)
+    return select_each(values, criteria, policy=policy, by_phase=by_phase, filters=filters,
+                       databases=reports, notes=(note,) if note else ())
 
 
 def select_from(databases: Sequence[Path], criteria: Criteria, *, root: Path | None = None,

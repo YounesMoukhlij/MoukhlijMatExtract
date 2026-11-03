@@ -39,6 +39,11 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
   is missing, keeps the file's comments and `# headings`, and has **Reset to defaults**. The folder of
   the PDFs and the job's name are shown as fixed. A window whose step is running opens it once the step is done.
 
+- A **results browser**: **Results…** next to each part in `mme-gui` (and **Browse every table** in
+  the extraction windows and on the results cards) opens every table of the part — the list of tables
+  with their row counts, every column of the chosen one, a search over all columns, sorting, and every
+  cell of the selected row; for the web part also the candidates, the downloads and the DOI list; for
+  the ranking each component's tables; for the classification its summaries.
 - A **results card** at the end of every step of every window: the outcome (done, with problems, stopped,
   failed, nothing new), the time it took, tiles with the numbers, the main findings (the lowest
   activation energies, the top materials, the largest classes — each with its article) and buttons for
@@ -65,6 +70,12 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
   source; the window shows the step, the DOI reached and the PDFs saved.
 
 ### Changed
+- **The ranking ranks each transport component on its own** — bulk, grain boundary and total — each
+  with its own ranks and classes, written to `results/bulk/`, `results/grain_boundary/` and
+  `results/total/` with `results/summary.csv` beside them. Before, a material's Ea was the median of its
+  values of every component together. The window has a tab per component; the terminal shows each
+  ranking under its own heading; each report names its component. `--component` ranks one only. The
+  single mixed ranking an earlier version left at the top of `results/` is taken away.
 - Windows open at a size that fits the screen and can be made smaller; the header's controls stay
   visible when a window narrows; method 2's settings and delete buttons have a row of their own.
 - Hints and status lines are readable in dark mode (they were dark grey on a dark background).
@@ -75,6 +86,8 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
   window as `mme-rank gui`, `mme-classify gui`, … (`python -m …` still works and is shown when used).
 
 ### Fixed
+- `mme-rank --component "grain boundary"` matched no value: the database writes `grain_boundary`. Any
+  spelling of a component is now understood.
 - A class folder with no value of one quantity (e.g. no diffusion coefficient) wrote that table with the
   header `database,material_key`; it now has the table's own columns.
   Chrome is started only when a page has to be read, and a Chrome that cannot start no longer ends the

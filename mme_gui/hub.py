@@ -49,7 +49,8 @@ MoukhlijMatExtract of your home folder (~/MoukhlijMatExtract), whatever folder y
       DOIs to try and whether to start with the legal open-access copies.
     - “Search settings…” changes what both methods look for (searches, years, sources, words).
 • 3 · Ranking — ranks the materials by activation energy: Superionic, Performant, Acceptable or
-  Rejected. The report is written to  SelectingTopMaterial/results/ .
+  Rejected — one ranking for each transport component (bulk, grain boundary, total), never mixed.
+  Each is written to its own folder in  SelectingTopMaterial/results/ .
 • 4 · Classification — sorts the materials by crystal family (NASICON, garnet, …) and by structure
   family (oxide, sulfide, halide, …), one database per class in  Classification/ .
 
@@ -58,6 +59,11 @@ Everything lands in  ~/MoukhlijMatExtract , the main results folder:  LocalExtra
 WebScraping/ ,  SelectingTopMaterial/results/  and  Classification/ . The button under the title
 makes it (“Create the main results folder”) and then opens it (“Open the main results folder”);
 opening a part makes it too. Every table names its articles (a title column).
+
+§ Seeing every result
+• “Results…”, next to each part here, opens every table of that part: the papers, the materials,
+  each transport quantity, every property, the methods, the rankings, the classes — searchable and
+  sortable, with every cell of the chosen row.
 
 § When a step ends
 • A results card appears above the tables: done, with problems, or nothing new; the numbers; the main
@@ -256,6 +262,12 @@ def folder_button(parent, root):
     return row
 
 
+def open_results(root, part: str) -> None:
+    """Every result of a part, table by table."""
+    from LocalExtraction.gui.browser import open_results as browse
+    browse(root, part)
+
+
 def _open(root, opener: Callable, make_home: bool = True) -> None:
     from tkinter import messagebox
     try:
@@ -301,6 +313,9 @@ def build(root):
         ttk.Button(card, text=label, width=22, command=lambda o=opener: _open(root, o)).pack(side="left")
         ttk.Button(card, text="Delete outputs…",
                    command=lambda p=part: _open(root, lambda r: open_delete(r, p), make_home=False)).pack(side="right")
+        ttk.Button(card, text="Results…",
+                   command=lambda p=part: _open(root, lambda r: open_results(r, p), make_home=False)).pack(side="right",
+                                                                                                         padx=(0, 6))
         ttk.Label(card, foreground="#8c8c8c", text=description, wraplength=320,
                   justify="left").pack(side="left", padx=12)
 

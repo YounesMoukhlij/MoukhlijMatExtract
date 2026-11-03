@@ -279,8 +279,11 @@ mme-rank --origin experimental --top 20
 mme-rank gui                   # the window
 ```
 
-Each material gets one activation energy (by default the confidence-weighted median of all its values)
-and a class from [`criteria.toml`](SelectingTopMaterial/criteria.toml):
+**Each transport component is ranked on its own — bulk, grain boundary and total.** A bulk Ea and a
+total Ea are different quantities, so they are never mixed: each component has its own ranking, its own
+ranks and its own classes. In each, a material gets one activation energy (by default the
+confidence-weighted median of its values of that component) and a class from
+[`criteria.toml`](SelectingTopMaterial/criteria.toml):
 
 | Class | Activation energy |
 |-------|-------------------|
@@ -295,7 +298,7 @@ and a class from [`criteria.toml`](SelectingTopMaterial/criteria.toml):
 | `--origin experimental\|simulation` | only measured, or only computed values |
 | `--attribution this-work\|cited` | only the papers' own results, or only the values they cite |
 | `--element Li Na …` | only materials containing these elements |
-| `--component bulk\|total\|grain boundary` | only one transport component |
+| `--component bulk\|grain_boundary\|total` | rank one component only (by default each is ranked) |
 | `--min-confidence 0.5` | only values extracted with at least this confidence |
 | `--by-phase` | rank the phases of a composition apart (cubic / tetragonal, …) |
 | `--top N` | keep the first N materials |
@@ -303,8 +306,10 @@ and a class from [`criteria.toml`](SelectingTopMaterial/criteria.toml):
 | `--source DIR …` | read other databases (for example one class from step 4) |
 | `--force` | rank again even if nothing changed |
 
-The ranking is written to `SelectingTopMaterial/results/`: `top_materials.csv`, `all_materials.csv`,
-`values.csv`, `selection.xlsx`, `selection.json` and `report.html`.
+Each ranking is written into its own folder — `SelectingTopMaterial/results/bulk/`, `grain_boundary/`
+and `total/` — each with `top_materials.csv`, `all_materials.csv`, `values.csv`, `selection.xlsx`,
+`selection.json` and `report.html`; `results/summary.csv` puts the components side by side. The window
+has a tab per component.
 
 ### Step 4 — Classify the materials
 
@@ -329,6 +334,23 @@ database of the same form as parts 1 and 2, so you can rank one class alone:
 mme-rank --source ~/MoukhlijMatExtract/Classification/crystal_structure/garnet
 ```
 
+### Seeing every result — Results…
+
+Each part in the main window has a **Results…** button (the extraction windows have it too: **Results →
+Browse every table…**, or **Browse every table** on the results card). It opens every table of that part
+in one window: the list of tables on the left with their number of rows, the chosen table on the right
+with every column — sorted by a click on a heading, searched with one box over all its columns — and
+every cell of the selected row below, with a button to open the paper at doi.org.
+
+| Part | Its tables |
+|------|-----------|
+| 1 · Local extraction | papers, activation energies, ionic and electronic conductivities, diffusion coefficients, all properties, materials, methods, values without a material, the papers' tables, figures, equations, workflow, material ↔ value links, summary per paper |
+| 2 · Web scraping | the same for the web database, plus the candidates of method 1, the downloads of method 2 and the DOI list |
+| 3 · Ranking | the summary of the components, then for bulk, grain boundary and total: top materials, all materials, values |
+| 4 · Classification | every material and its classes, the crystal families and the structure families, each with its Ea by component |
+
+The files are only read: nothing in the window changes them.
+
 ### When a step ends — the results card
 
 Every step of every window ends with a **results card** above its tables: ✓ done, ⚠ done with problems
@@ -342,7 +364,7 @@ findings, and buttons for what comes next.
 | 2 · Download (method 1) | downloaded, failed, no copy to be had | the sources the PDFs came from | extract them |
 | 2 · Fetch DOIs (method 2) | new DOIs, DOIs in the list | the new DOIs of each source | show the DOIs, scrape them |
 | 2 · Scrape articles (method 2) | PDFs saved, not found, DOIs with their PDF, not tried yet | the sources, the articles saved | extract them, show the DOIs |
-| 3 · Ranking | materials ranked, and how many in each class (Superionic, Performant, Acceptable, Rejected) | the top three materials, with their article | open the report, the workbook, the folder |
+| 3 · Ranking | the materials of each component (bulk, grain boundary, total), how many superionic, the best of each | the best two materials of each component, with their article | show each component, open the report, the folder |
 | 4 · Classification | materials, crystal families, structure families, activation energies | the largest crystal families, their lowest Ea and its article | show the classes, open the class folders |
 
 **Every table names its articles.** Each CSV of the databases has the article's `title` right after

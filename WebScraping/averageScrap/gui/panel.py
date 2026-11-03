@@ -382,7 +382,9 @@ class WebPanel(ttk.LabelFrame):
         self.app.post(self._searched, added)
 
     def _searched(self, added: int) -> None:
-        proposed = sum(1 for c in self.harvest.ledger.all(SCREENED) if c.decision == YES) if self.harvest else 0
+        # Proposed: marked yes and not fetched yet, whatever screening left them as (screened or approved).
+        proposed = sum(1 for c in self.harvest.ledger.all() if c.status in _REVIEWABLE and c.decision == YES) \
+            if self.harvest else 0
         self.activity.write(f"Search finished: {added} papers new to the ledger; {proposed} proposed for download. "
                             "Review them in the Candidates tab, then press “2 · Download”.")
         self.filter_var.set(_FILTERS[0])
@@ -450,9 +452,10 @@ class WebPanel(ttk.LabelFrame):
                       f"Download finished: {results.get(DOWNLOADED, 0)} downloaded, {results.get(FAILED, 0)} failed "
                       f"(tried again next time), {results.get(CLOSED, 0)} with no copy to be had.")
         self._downloads = dict(results)
-        if then_extract and not self.stop_event.is_set():
+        if then_extract and not self.stop_event.is_set() and results.get(DOWNLOADED, 0):
             self._extract_work(harvest, output, workers)
-        else:
+        else:  # nothing new to extract: the card says how the download went
+            self._downloads = None
             self.app.post(self._show_download_card, dict(results))
 
     def _show_download_card(self, results: Dict[str, int]) -> None:
@@ -535,5 +538,6 @@ class WebPanel(ttk.LabelFrame):
             output, before, failed=getattr(self, "_failed", 0), stopped=stopped, started=self._started, prefix=prefix,
             pdfs_pending=pending_pdfs(self.job.fetch.folder, output) if stopped and self.job else None,
             actions=[("Show the activation energies", lambda: self.book.select(self.energies)),
+                     ("Browse every table", self.energies.browse),
                      ("Open the workbook", lambda: open_path(workbook) if os.path.exists(workbook) else None),
                      ("Open the results folder", lambda: open_path(output))]))

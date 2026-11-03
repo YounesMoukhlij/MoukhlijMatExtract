@@ -19,6 +19,7 @@ import argparse
 import sys
 import webbrowser
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from LocalExtraction.about import command_name, enter_project_home
@@ -27,8 +28,8 @@ from LocalExtraction.done import already_done, fingerprint, mark_done
 from . import console, exporters, html_report, loader
 from .about import DEFAULT_RESULTS, NAME, PROJECT_ROOT, VERSION
 from .criteria import POLICIES, Criteria, CriteriaError
-from .models import Filters
-from .selection import select_from
+from .models import COMPONENTS, Filters, component_word
+from .selection import select_from_each
 
 FORMATS = ("csv", "xlsx", "json", "html")
 
@@ -37,8 +38,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=command_name("mme-rank", NAME),
         description="Ranks the materials of the MoukhlijMatExtract database by activation energy and sorts them "
-                    "into the classes of criteria.toml (Superionic, Performant, Acceptable, Rejected).",
-        epilog="The database is only read. The ranking is written into SelectingTopMaterial/results/. "
+                    "into the classes of criteria.toml (Superionic, Performant, Acceptable, Rejected) — one "
+                    "ranking per transport component: bulk, grain boundary and total.",
+        epilog="The database is only read. Each component's ranking is written into a folder of its own — "
+               "SelectingTopMaterial/results/bulk/, grain_boundary/, total/ — with summary.csv beside them. "
                f"The window: {command_name('mme-rank', NAME)} gui ({command_name('mme-rank', NAME)} gui --help "
                "for its options). "
                "MoukhlijMatExtract (MME) — Created by Younes Moukhlij.")
@@ -63,7 +66,8 @@ def build_parser() -> argparse.ArgumentParser:
     values.add_argument("--attribution", choices=("this-work", "cited"),
                         help="Only the papers' own results, or only the values they cite")
     values.add_argument("--component", metavar="NAME",
-                        help="Only one transport component: bulk, total, grain boundary, ...")
+                        help="Rank one transport component only: bulk, grain_boundary (or \"grain boundary\"), "
+                             "total. By default each is ranked on its own, into a folder of its own")
     values.add_argument("--element", nargs="+", action="extend", metavar="SYMBOL", type=_element,
                         help="Only the materials that contain these elements (--element Na: the sodium conductors)")
     values.add_argument("--min-confidence", type=_confidence, default=0.0, metavar="0-1",
@@ -121,37 +125,83 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not args.quiet:
             print(f"\n  Already ranked: nothing has changed since the last ranking ({when}) — skipped.\n"
                   f"  The ranking is in {_shown(out_dir)} (add --force to rank again).")
-        report = out_dir / "report.html"
-        if args.open and report.exists():
+        report = next((out_dir / c / "report.html" for c in COMPONENTS if (out_dir / c / "report.html").exists()), None)
+        if args.open and report is not None:
             webbrowser.open(report.resolve().as_uri())
         return 0
 
-    selection = select_from(databases, criteria, root=PROJECT_ROOT, policy=args.policy,
-                            by_phase=args.by_phase, filters=filters)
+    selections = select_from_each(databases, criteria, root=PROJECT_ROOT, policy=args.policy,
+                                  by_phase=args.by_phase, filters=filters)
+    ranked = any(s.materials for s in selections.values())
 
-    written: list[Path] = []
-    if selection.materials and not args.no_files:
+    written_by: dict[str, list[Path]] = {}
+    if ranked and not args.no_files:
         try:
-            written = write_files(selection, out_dir, args.format or FORMATS, args.top)
+            written_by = write_rankings(selections, out_dir, args.format or FORMATS, args.top)
         except OSError as error:
             return _fail(str(error))
-        mark_done(out_dir, "rank", stamp, written)
+        mark_done(out_dir, "rank", stamp, [p for paths in written_by.values() for p in paths])
 
-    if not args.quiet or not selection.materials:
-        stream = sys.stdout if selection.materials else sys.stderr
-        stream.write(console.render(
-            selection, top=args.top, written=written, out_dir=_shown(out_dir),
-            colour=console.use_colour(stream, False if args.no_color else None),
-            width=console.terminal_width(stream)))
-    if not selection.materials:
+    if not args.quiet or not ranked:
+        stream = sys.stdout if ranked else sys.stderr
+        colour = console.use_colour(stream, False if args.no_color else None)
+        for component, selection in selections.items():
+            stream.write(f"\n{'═' * 3} {component_word(component).capitalize()} transport {'═' * 40}\n")
+            if selection.materials:
+                stream.write(console.render(
+                    selection, top=args.top, written=written_by.get(component, []),
+                    out_dir=_shown(out_dir / component), colour=colour, width=console.terminal_width(stream)))
+            else:
+                stream.write(f"  No {component_word(component)} activation energy in the databases"
+                             + ("" if selection.filters.describe() == f"{component_word(component)} transport"
+                                else f" with these filters ({selection.filters.describe()})") + ".\n")
+        if written_by.get("summary"):
+            stream.write(f"\n  The components side by side: {_shown(out_dir)}summary.csv\n")
+    if not ranked:
+        first = next(iter(selections.values()))
+        others = replace(first.filters, component="").describe()
+        for report in first.databases:  # what each folder gave, and why nothing when nothing
+            print(f"  Read {report.path}: {loader.describe(report)}", file=sys.stderr)
+        print(f"\n{NAME}: none of the {first.values_read} values read passes the filters ({others})."
+              if first.values_read else f"\n{NAME}: no activation energy to rank in these folders.", file=sys.stderr)
         return 1
 
+    written = [p for paths in written_by.values() for p in paths]
     report = next((path for path in written if path.suffix == ".html"), None)
     if args.open and report:
         webbrowser.open(report.resolve().as_uri())
     elif args.open:
         print("  --open: no report was written (html is not among the formats asked for).", file=sys.stderr)
     return 0
+
+
+# What a ranking of one component writes, and what earlier versions wrote at the top of the folder.
+RANKING_FILES = ("top_materials.csv", "all_materials.csv", "values.csv", "selection.xlsx", "selection.json",
+                 "report.html")
+
+
+def write_rankings(selections: dict, out_dir: Path, formats: Sequence[str], top: int | None) -> dict[str, list[Path]]:
+    """Each component's ranking in a folder of its own — results/bulk/, results/grain_boundary/,
+    results/total/ — and summary.csv beside them. A component with nothing to rank has no folder
+    (one left by an earlier ranking is taken away), and the one ranking earlier versions wrote at
+    the top of the folder is taken away too: it mixed the components. Returns the files by
+    component, and under "summary" the summary."""
+    written: dict[str, list[Path]] = {}
+    for component, selection in selections.items():
+        folder = out_dir / component
+        if selection.materials:
+            written[component] = write_files(selection, folder, formats, top)
+        elif folder.is_dir():
+            for name in RANKING_FILES:
+                (folder / name).unlink(missing_ok=True)
+            try:
+                folder.rmdir()
+            except OSError:  # something else is in it: it stays
+                pass
+    for name in RANKING_FILES:
+        (out_dir / name).unlink(missing_ok=True)
+    written["summary"] = [exporters.write_summary(selections, out_dir)]
+    return written
 
 
 def write_files(selection, out_dir: Path, formats: Sequence[str], top: int | None) -> list[Path]:

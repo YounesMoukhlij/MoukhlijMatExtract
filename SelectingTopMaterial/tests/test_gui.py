@@ -79,13 +79,14 @@ class WindowTests(unittest.TestCase):
 
     def test_rank_writes_the_files_and_opens_them(self):
         self.app.rank()
-        self.assertTrue((self.out / "top_materials.csv").is_file())
-        self.assertTrue((self.out / "report.html").is_file())
+        self.assertTrue((self.out / "total" / "top_materials.csv").is_file())  # one folder per component
+        self.assertTrue((self.out / "total" / "report.html").is_file())
+        self.assertTrue((self.out / "summary.csv").is_file())
         self.assertIn("Written to", self.app.summary.get())
         self.assertEqual(str(self.app.open_report_button["state"]), "normal")
         with mock.patch.object(gui, "open_path") as opened:
             self.app._open(".html")
-        opened.assert_called_once_with(self.out / "report.html")
+        opened.assert_called_once_with(self.out / "total" / "report.html")
 
     def test_the_fields_choose_the_values(self):
         self.app.origin_var.set("experimental")

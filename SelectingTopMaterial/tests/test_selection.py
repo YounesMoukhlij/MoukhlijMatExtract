@@ -380,6 +380,53 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual((ranking.materials, ranking.top, ranking.values_used, ranking.papers_used), ((), (), 0, 0))
 
 
+class ComponentTests(TemporaryFolder):
+    """Bulk, grain boundary and total: each component ranked on its own, never mixed."""
+
+    def setUp(self):
+        super().setUp()
+        self.criteria = Criteria.load()
+        self.values = [value("Li6PS5Cl", 0.18, transport_component="bulk"),
+                       value("Li6PS5Cl", 0.45, transport_component="total"),
+                       value("Li7La3Zr2O12", 0.32, transport_component="grain_boundary"),
+                       value("LiFePO4", 0.6, transport_component="bulk")]
+
+    def test_each_component_has_its_own_ranks(self):
+        from SelectingTopMaterial.selection import select_each
+        rankings = select_each(self.values, self.criteria)
+        self.assertEqual(list(rankings), ["bulk", "grain_boundary", "total"])
+        ranked = {c: [(m.rank, m.material, m.energy_eV) for m in s.materials] for c, s in rankings.items()}
+        self.assertEqual(ranked["bulk"], [(1, "Li6PS5Cl", 0.18), (2, "LiFePO4", 0.6)])
+        self.assertEqual(ranked["grain_boundary"], [(1, "Li7La3Zr2O12", 0.32)])
+        self.assertEqual(ranked["total"], [(1, "Li6PS5Cl", 0.45)])  # its total Ea, not a mix with its bulk one
+        self.assertEqual(rankings["bulk"].materials[0].energy_class.name, "Superionic")
+        self.assertEqual(rankings["total"].materials[0].energy_class.name, "Rejected")
+
+    def test_one_component_when_asked_and_any_spelling_of_it(self):
+        from SelectingTopMaterial.selection import select_each
+        for spelling in ("grain boundary", "Grain-Boundary", "grain_boundary"):
+            rankings = select_each(self.values, self.criteria, filters=Filters(component=spelling))
+            self.assertEqual({c: len(s.materials) for c, s in rankings.items()}, {"grain_boundary": 1}, spelling)
+
+    def test_another_component_gets_a_ranking_too(self):
+        from SelectingTopMaterial.selection import select_each
+        rankings = select_each(self.values + [value("Li3PS4", 0.2, transport_component="surface")], self.criteria)
+        self.assertEqual(list(rankings), ["bulk", "grain_boundary", "total", "surface"])
+
+    def test_the_files_of_each_component_and_what_an_earlier_version_left(self):
+        from SelectingTopMaterial.selection import select_each
+        out = self.tmp / "results"
+        (out / "grain_boundary").mkdir(parents=True)
+        (out / "grain_boundary" / "values.csv").write_text("stale")  # a component that has no value any more
+        (out / "top_materials.csv").write_text("the mixed ranking of an earlier version")
+        (out / "my notes.txt").write_text("kept")
+        rankings = select_each([v for v in self.values if v.transport_component != "grain_boundary"], self.criteria)
+        written = cli.write_rankings(rankings, out, ("csv", "html"), None)
+        self.assertEqual(sorted(written), ["bulk", "summary", "total"])
+        self.assertEqual(sorted(p.name for p in out.iterdir()), ["bulk", "my notes.txt", "summary.csv", "total"])
+        self.assertIn("Top materials by bulk activation energy", (out / "bulk" / "report.html").read_text(encoding="utf-8"))
+
+
 class WritingTests(TemporaryFolder):
     def setUp(self):
         super().setUp()
@@ -540,9 +587,17 @@ class CommandLineTests(TemporaryFolder):
         code, said, complained = self.run_cli("--source", str(self.database), "--out", str(self.out))
         self.assertEqual((code, complained), (0, ""))
         self.assertIn("Top materials (2)", said)
+        # One ranking per transport component, each in its folder (the test values are all of total
+        # transport), and the components side by side in summary.csv.
+        self.assertEqual(sorted(p.name for p in self.out.iterdir() if not p.name.startswith(".")), ["summary.csv", "total"])
         expected = ["all_materials.csv", "report.html", "selection.json", "top_materials.csv", "values.csv"]
-        self.assertEqual(sorted(p.name for p in self.out.iterdir() if p.suffix != ".xlsx" and not p.name.startswith(".")), expected)
-        self.assertEqual((self.out / "selection.xlsx").exists(), openpyxl is not None)
+        total = self.out / "total"
+        self.assertEqual(sorted(p.name for p in total.iterdir() if p.suffix != ".xlsx"), expected)
+        self.assertEqual((total / "selection.xlsx").exists(), openpyxl is not None)
+        with (self.out / "summary.csv").open(encoding="utf-8-sig", newline="") as handle:
+            summary = {line["component"]: line for line in csv.DictReader(handle)}
+        self.assertEqual([summary[c]["materials"] for c in ("bulk", "grain boundary", "total")], ["0", "0", "3"])
+        self.assertIn("No bulk activation energy in the databases.", said)
         self.assertEqual(self.fingerprint(), before)  # the database is as it was: only read
 
     def test_the_same_ranking_is_not_done_twice(self):
@@ -557,19 +612,20 @@ class CommandLineTests(TemporaryFolder):
     def test_options(self):
         code, said, _ = self.run_cli("--source", str(self.database), "--no-files", "--origin", "simulation")
         self.assertEqual(code, 0)
-        self.assertIn("simulation values (1 of 3)", said)
+        self.assertIn("simulation values · total transport (1 of 3)", said)
         self.assertFalse(self.out.exists())
 
         code, said, _ = self.run_cli("--source", str(self.database), "--out", str(self.out), "--format", "csv",
                                      "--top", "1", "--element", "li", "--quiet")
         self.assertEqual((code, said), (0, ""))
-        self.assertEqual(sorted(p.name for p in self.out.iterdir() if not p.name.startswith(".")), ["all_materials.csv", "top_materials.csv", "values.csv"])
-        with (self.out / "all_materials.csv").open(encoding="utf-8-sig", newline="") as handle:
+        self.assertEqual(sorted(p.name for p in (self.out / "total").iterdir()), ["all_materials.csv", "top_materials.csv", "values.csv"])
+        with (self.out / "total" / "all_materials.csv").open(encoding="utf-8-sig", newline="") as handle:
             self.assertEqual([line["material"] for line in csv.DictReader(handle)], ["Li6PS5Cl", "LiFePO4"])
 
     def test_nothing_to_rank_writes_nothing_and_says_why(self):
         code, said, complained = self.run_cli("--source", str(self.database), "--out", str(self.out), "--min-confidence", "0.99")
         self.assertEqual((code, said), (1, ""))
+        self.assertIn("No total activation energy in the databases with these filters", complained)
         self.assertIn("none of the 3 values read passes the filters", complained)
         self.assertFalse(self.out.exists())
 

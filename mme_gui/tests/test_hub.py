@@ -146,3 +146,24 @@ class FolderButtonTests(unittest.TestCase):
         self.assertFalse(self.home.exists())
         hub._open(self.root, lambda root: None)
         self.assertTrue(self.home.is_dir())
+
+
+@unittest.skipUnless(has_screen(), "the window needs a screen")
+class ResultsButtonTests(unittest.TestCase):
+    def test_each_part_has_a_results_button_that_opens_its_tables(self):
+        import tkinter as tk
+        from LocalExtraction.gui.browser import ResultsBrowser
+        root = tk.Tk()
+        root.attributes("-alpha", 0.0)
+        self.addCleanup(root.destroy)
+        hub.build(root)
+
+        def walk(widget):
+            yield widget
+            for child in widget.winfo_children():
+                yield from walk(child)
+        buttons = [w for w in walk(root) if w.winfo_class() == "TButton" and w.cget("text") == "Results…"]
+        self.assertEqual(len(buttons), 4)
+        buttons[0].invoke()
+        root.update()
+        self.assertTrue(any(isinstance(w, ResultsBrowser) for w in walk(root)))

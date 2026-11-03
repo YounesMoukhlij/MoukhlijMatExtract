@@ -26,7 +26,7 @@ from typing import Any
 from . import loader
 from .about import NAME, VERSION
 from .criteria import POLICIES
-from .models import NOT_REPORTED, Measurement, RankedMaterial, Selection
+from .models import NOT_REPORTED, Measurement, RankedMaterial, Selection, component_word
 from .palette import REJECTED, class_colours, ink_on
 
 SEPARATOR = " | "  # between the several answers of one cell, as in the database
@@ -185,6 +185,39 @@ def write_csv(selection: Selection, out_dir: Path, top: int | None = None) -> li
                 writer.writerows(rows)
         written.append(write_file(out_dir / name, save))
     return written
+
+
+SUMMARY_COLUMNS = ("component", "materials", "superionic", "performant", "acceptable", "rejected", "best_material",
+                   "best_Ea_eV", "best_class", "best_article", "values", "papers", "folder")
+
+
+def summary_row(component: str, selection: Selection, folder: str) -> dict[str, Any]:
+    """One line of summary.csv: a component's ranking in a few numbers, and its best material."""
+    counts = {c.name.casefold(): selection.count(c) for c in selection.criteria.classes}
+    best = selection.materials[0] if selection.materials else None
+    none = "no activation energy of this component"
+    return {
+        "component": component_word(component), "materials": len(selection.materials),
+        **{name: counts.get(name, 0) for name in ("superionic", "performant", "acceptable", "rejected")},
+        "best_material": best.material if best else none,
+        "best_Ea_eV": best.energy_eV if best else none,
+        "best_class": best.energy_class.name if best else none,
+        "best_article": best.evidence.paper_title if best else none,
+        "values": selection.values_used, "papers": selection.papers_used,
+        "folder": folder if best else "not written (nothing to rank)",
+    }
+
+
+def write_summary(selections: dict[str, Selection], out_dir: Path) -> Path:
+    """summary.csv: the rankings of the components side by side."""
+    rows = [summary_row(component, selection, f"{component}/") for component, selection in selections.items()]
+
+    def save(path: Path) -> None:
+        with path.open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=SUMMARY_COLUMNS)
+            writer.writeheader()
+            writer.writerows(rows)
+    return write_file(out_dir / "summary.csv", save)
 
 
 def write_json(selection: Selection, out_dir: Path) -> Path:

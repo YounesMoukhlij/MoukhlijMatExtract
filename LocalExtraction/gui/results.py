@@ -48,6 +48,7 @@ class EnergiesView(ttk.Frame):
         self.count = tk.StringVar(value="Nothing extracted yet.")
         files = ttk.Menubutton(bar, text="Results")
         menu = tk.Menu(files, tearoff=False)
+        menu.add_command(label="Browse every table…", command=self.browse)
         menu.add_command(label="Open the folder", command=self._open_folder)
         menu.add_command(label="Open the workbook (Excel)", command=self._open_workbook)
         menu.add_separator()
@@ -86,6 +87,11 @@ class EnergiesView(ttk.Frame):
         pairs = [(name, row[name]) for name in first if name in row] + [
             (name, value) for name, value in row.items() if name not in first]
         DetailsDialog(self, f"{row.get('material_formula', '')}: {row.get('activation_energy_eV', '')} eV", pairs)
+
+    def browse(self) -> None:
+        """Every table of the database, in a window of its own."""
+        from .browser import open_database
+        open_database(self, self._output_dir())
 
     def _open_folder(self) -> None:
         folder = self._output_dir()

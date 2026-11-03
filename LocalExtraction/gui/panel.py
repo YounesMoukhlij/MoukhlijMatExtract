@@ -151,6 +151,7 @@ class LocalPanel(ttk.LabelFrame):
         output = self.output_dir
         workbook = os.path.join(output, "database.xlsx")
         actions = [("Show the activation energies", lambda: self.book.select(self.energies)),
+                   ("Browse every table", self.energies.browse),
                    ("Open the workbook", lambda: open_path(workbook) if os.path.exists(workbook) else None),
                    ("Open the results folder", lambda: open_path(output)),
                    ("Show the log", lambda: self.book.select(self.activity))]

@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 from .exporters import payload, rule_rows, write_file
-from .models import Selection
+from .models import Selection, component_word
 from .palette import REJECTED, class_colours
 
 TEMPLATE = Path(__file__).with_name("report_template.html")
@@ -37,7 +37,11 @@ def render(selection: Selection) -> str:
     template = TEMPLATE.read_text(encoding="utf-8")
     if template.count(_PLACEHOLDER) != 1:  # none: nowhere to put the data; two: one of them is not the data block
         raise ValueError(f"{TEMPLATE.name} must hold the mark {_PLACEHOLDER} once, where the data goes")
-    return template.replace(_PLACEHOLDER, text)
+    page = template.replace(_PLACEHOLDER, text)
+    if selection.component:  # the page names the component it ranks
+        page = page.replace("Top materials by activation energy",
+                            f"Top materials by {component_word(selection.component)} activation energy")
+    return page
 
 
 def write_html(selection: Selection, out_dir: Path) -> Path:

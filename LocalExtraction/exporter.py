@@ -1,6 +1,7 @@
 # LocalExtraction/exporter.py
 
 import csv
+import html
 import io
 import json
 import logging
@@ -90,7 +91,7 @@ def article_title(title: Any, filename: Any) -> str:
     """The title of a paper as the tables give it: the one it states, else its file name (said so)."""
     text = str(title).strip() if title is not None and not (isinstance(title, float) and title != title) else ""
     if text and text not in ("NONE", NOT_RECORDED):
-        return text
+        return html.unescape(text)  # "Halide&#x02010;Eutectic" as some services give it → "Halide‐Eutectic"
     name = os.path.splitext(os.path.basename(str(filename or "")))[0]
     return f"{name} (file name: no title found in the paper)" if name else "no title found in the paper"
 
@@ -421,7 +422,7 @@ class StrictExporter:
                 top = pick(found, key=lambda c: float(c.normalized_value.split(" ", 1)[0]))
                 best.append(f"{prop.replace('_', ' ').lower()}: {top.normalized_value} ({top.material_formula})")
         return {
-            "paper_id": paper.pid, "title": meta.get("title", ExtractedField.empty()).normalized_value,
+            "paper_id": paper.pid, "title": html.unescape(meta.get("title", ExtractedField.empty()).normalized_value),
             "publication_year": meta.get("publication_year", ExtractedField.empty()).normalized_value,
             "origin": paper.origin, "n_materials": len(names),
             "materials": " | ".join(names[:12]) + (" | …" if len(names) > 12 else "") if names else "no material named",
@@ -447,7 +448,7 @@ class StrictExporter:
             provenance = paper.provenance
             tables["papers"].append({
                 "paper_id": pid, "filename": paper.filename,
-                "title": meta_val("title"), "authors": meta_val("authors"), "journal": meta_val("journal"),
+                "title": html.unescape(meta_val("title")), "authors": meta_val("authors"), "journal": meta_val("journal"),
                 "doi": meta_val("doi"), "publication_year": meta_val("publication_year"),
                 "metadata_basis": meta_val("basis"),
                 "n_materials": len(paper.materials), "n_relations": len(paper.relations),

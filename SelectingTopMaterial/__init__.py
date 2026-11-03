@@ -21,9 +21,9 @@ SelectingTopMaterial/results/; it changes nothing of the project. From Python:
 from .about import PACKAGE_DIR, PROJECT_ROOT, VERSION as __version__
 from .criteria import POLICIES, Criteria, CriteriaError, EnergyClass
 from .loader import discover, load
-from .models import DatabaseReport, Filters, Measurement, RankedMaterial, Selection
-from .selection import select, select_from
+from .models import COMPONENTS, DatabaseReport, Filters, Measurement, RankedMaterial, Selection
+from .selection import select, select_each, select_from, select_from_each
 
-__all__ = ["Criteria", "CriteriaError", "DatabaseReport", "EnergyClass", "Filters", "Measurement", "POLICIES",
+__all__ = ["COMPONENTS", "select_each", "select_from_each", "Criteria", "CriteriaError", "DatabaseReport", "EnergyClass", "Filters", "Measurement", "POLICIES",
            "PACKAGE_DIR", "PROJECT_ROOT", "RankedMaterial", "Selection", "discover", "load", "select",
            "select_from", "__version__"]

@@ -28,7 +28,8 @@ except ImportError:  # not installed: deleted for good (the window says so befor
 TO_TRASH = send2trash is not None
 
 # The files the ranking and the classification write: only these are deleted from their folders.
-_RANKING = ("top_materials.csv", "all_materials.csv", "values.csv", "selection.json", "selection.xlsx",
+_RANKING = ("bulk", "grain_boundary", "total", "surface", "not_reported", "summary.csv",  # one folder per component
+            "top_materials.csv", "all_materials.csv", "values.csv", "selection.json", "selection.xlsx",  # earlier versions
             "report.html", ".mme_done.json")
 _CLASSES = ("crystal_structure", "structure_families", "all_materials.csv", ".mme_done.json",
             ".crystal_structure.writing", ".structure_families.writing")

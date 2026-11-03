@@ -7,7 +7,7 @@ Reads the activation energies MoukhlijMatExtract extracted and ranks the materia
 | | |
 |---|---|
 | **Input** | `activation_energy.csv` and `papers.csv` of `LocalExtraction/local_output/` and `WebScraping/web_output/` (whichever exist) — or of any folder named with `--source`, such as a class of [Crystal and Structure Classification](../Classification/README.md) |
-| **Output** | `SelectingTopMaterial/results/` |
+| **Output** | `SelectingTopMaterial/results/` — one ranking per transport component: `bulk/`, `grain_boundary/`, `total/`, and `summary.csv` |
 | **Command** | `python -m SelectingTopMaterial` (the window: `python -m SelectingTopMaterial gui`) |
 
 | Activation energy | Class |
@@ -53,8 +53,25 @@ python -m SelectingTopMaterial gui      # in a window
 what the project already installs; only the Excel workbook needs `openpyxl`, and the other files
 are written without it.
 
-The terminal shows what was read, how many materials each class holds, and the materials that
-pass, best first. The same ranking is written to `SelectingTopMaterial/results/`:
+**Each transport component is ranked on its own.** A bulk activation energy and a total one (bulk
+and grain boundary together) are not the same quantity, so they are never compared: every material
+is ranked once among the bulk values, once among the grain-boundary values and once among the total
+values — each ranking with its own ranks and classes. A material with values of one component only
+is in that ranking only.
+
+The terminal shows, for each component, what was read, how many materials each class holds, and the
+materials that pass, best first. Each ranking is written into a folder of its own:
+
+```
+SelectingTopMaterial/results/
+├── bulk/              ← the ranking of the bulk activation energies
+├── grain_boundary/    ← … of the grain-boundary ones
+├── total/             ← … of the total ones
+└── summary.csv        ← the components side by side: how many materials, how many in each class, the best one and its article
+```
+
+A component the databases hold no value of has no folder (summary.csv says so). Another component a
+paper names (surface) gets a folder of its own too. Each folder holds:
 
 | File | What it holds |
 |---|---|
@@ -66,7 +83,8 @@ pass, best first. The same ranking is written to `SelectingTopMaterial/results/`
 | `report.html` | The ranking as a page: a chart of every material against the limits, and a table where each material opens onto the values it stands on |
 
 The window has the options below as fields: tick the results folders to read, choose the policy
-and the filters, press *Rank*. Each material is a row with its class, Ea, range, values, papers
+and the filters, press *Rank*. It has a tab per component — *Bulk*, *Grain boundary*, *Total*, each
+with its count — and a results card with a tile for each. Each material is a row with its class, Ea, range, values, papers
 and checks; a double click shows every value behind it with its paper, page and sentence. With
 *write the files* ticked it writes the files above, which open from its buttons. It ranks what the
 folders hold as soon as it opens, and writes nothing until *Rank* is pressed. `gui --source DIR`,
@@ -136,7 +154,7 @@ No cell is empty: what the database does not say is written `not reported`.
 python -m SelectingTopMaterial --origin experimental     measured values only
 python -m SelectingTopMaterial --origin simulation       computed values only
 python -m SelectingTopMaterial --attribution this-work   the papers' own results, not what they cite
-python -m SelectingTopMaterial --component bulk          one transport component
+python -m SelectingTopMaterial --component bulk          one transport component only (bulk, grain_boundary, total)
 python -m SelectingTopMaterial --element Na              the sodium conductors
 python -m SelectingTopMaterial --min-confidence 0.5      leave out the least sure extractions
 python -m SelectingTopMaterial --policy conservative     a material is as good as its worst value
@@ -165,11 +183,12 @@ reason. Decimals are written with a point (`0.25`).
 ## From Python
 
 ```python
-from SelectingTopMaterial import PROJECT_ROOT, Criteria, Filters, discover, select_from
+from SelectingTopMaterial import PROJECT_ROOT, Criteria, Filters, discover, select_from_each
 
-ranking = select_from(discover(PROJECT_ROOT), Criteria.load(), filters=Filters(origin="experimental"))
-for material in ranking.top:
-    print(material.rank, material.material, material.energy_class.name, material.energy_eV)
+rankings = select_from_each(discover(PROJECT_ROOT), Criteria.load(), filters=Filters(origin="experimental"))
+for component, ranking in rankings.items():          # "bulk", "grain_boundary", "total"
+    for material in ranking.top:
+        print(component, material.rank, material.material, material.energy_class.name, material.energy_eV)
 ```
 
 ## Tests

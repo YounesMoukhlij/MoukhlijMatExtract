@@ -4,6 +4,7 @@ values earn it, and the whole ranking with what it was built from."""
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from .criteria import Criteria, EnergyClass
@@ -11,6 +12,23 @@ from .criteria import Criteria, EnergyClass
 # What a cell says when the database does not answer it. The database's own word for that is
 # NONE; the tables written here spell it out instead.
 NOT_REPORTED = "not reported"
+
+# The transport components an activation energy can describe, each ranked on its own: a bulk Ea and
+# a total (bulk + grain boundary) Ea are not the same quantity, and are never compared.
+COMPONENTS = ("bulk", "grain_boundary", "total")
+_COMPONENT_WORDS = {"bulk": "bulk", "grain_boundary": "grain boundary", "total": "total",
+                    "not_reported": "component not stated"}
+
+
+def component_key(text: str) -> str:
+    """One spelling of a component: "Grain boundary", "grain-boundary" → "grain_boundary"."""
+    return re.sub(r"[\s\-]+", "_", (text or "").strip().casefold())
+
+
+def component_word(key: str) -> str:
+    """A component in words: "grain_boundary" → "grain boundary"."""
+    key = component_key(key)
+    return _COMPONENT_WORDS.get(key, key.replace("_", " "))
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,7 +73,7 @@ class Filters:
         return (value.confidence >= self.min_confidence
                 and (not self.origin or value.data_origin.casefold() == self.origin.casefold())
                 and (not self.attribution or value.attribution.casefold() == self.attribution.casefold())
-                and (not self.component or value.transport_component.casefold() == self.component.casefold())
+                and (not self.component or component_key(value.transport_component) == component_key(self.component))
                 and all(element in value.elements for element in self.elements))
 
     def describe(self) -> str:
@@ -66,7 +84,7 @@ class Filters:
         if self.attribution:
             parts.append(f"{self.attribution} only")
         if self.component:
-            parts.append(f"{self.component} transport")
+            parts.append(f"{component_word(self.component)} transport")
         if self.elements:
             parts.append(f"materials with {' + '.join(self.elements)}")
         if self.min_confidence > 0:
@@ -151,6 +169,11 @@ class Selection:
     @property
     def papers_used(self) -> int:
         return len({v.paper_key for m in self.materials for v in m.values})
+
+    @property
+    def component(self) -> str:
+        """The transport component this ranking is of ("bulk", "grain_boundary", "total"); "" for all."""
+        return component_key(self.filters.component)
 
     def count(self, energy_class: EnergyClass) -> int:
         return sum(1 for m in self.materials if m.energy_class == energy_class)
