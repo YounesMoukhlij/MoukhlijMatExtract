@@ -8,7 +8,7 @@ the users of the data and for reviewers; every number can be reproduced with the
 
 `mme-eval reference` looks for every entry of two curated databases of lithium solid electrolytes among
 the ionic conductivities MoukhlijMatExtract extracts from the same papers (their legal open copies only).
-Measured on 2026-11-08 with version 1.0.3:
+Measured on 2026-11-08 with version 1.1.0:
 
 | Database | Papers read | Their entries | Material found | Material and value (0.1 decade) | … within 2 % |
 |---|---:|---:|---:|---:|---:|
@@ -53,10 +53,17 @@ depend on the annotation and are not in this document**: report them from `Evalu
 - **Units.** Energies in eV, meV, kJ/mol, kcal/mol; conductivities in S/cm, mS/cm, µS/cm, S/m, mS/m, µS/m and
   inverse ohms (Ω⁻¹ cm⁻¹, mho/cm); diffusion coefficients in cm²/s and m²/s. A value in another unit, or
   with its unit only in a figure axis, is not read.
-- **Composition series.** "Li6+xP1-xGexS5I" is resolved to one compound when the sentence (or the one
-  before it) fixes x, when the paper's own label of the series comes with x, when a sentence pairs several
-  values with several x, and in a table with a column of x values. Otherwise the series is kept as written
-  and never cut down to a compound it is not.
+- **Composition series.** "Li6+xP1-xGexS5I", and mixtures such as "xLi2S–(100−x)P2S5" or
+  "(100−x)(0.75Li2S·0.25P2S5)·xLiBH4", are resolved to one compound when the sentence (or the one before
+  it) fixes x, when the paper's own label of the series comes with x, when a sentence pairs several values
+  with several x, in a table with a column of x values, and when a sentence fixes x pages after the paper
+  named the series, if the paper named only one series that this x fits. Otherwise the series is kept as
+  written and never cut down to a compound it is not.
+- **The material of a value.** A value is tied to the material its sentence names, or to the one the
+  sentences before name. When the sentence names other materials too, the nearest formula wins: in
+  "the sample with x = 50 exhibits 1.8 mS cm⁻¹ … than the 75Li2S·25P2S5 glass and the LiBH4 crystal" the
+  value goes to LiBH4. A doped sample a paper calls by its parent's name ("the samples" of Fe-substituted
+  LLZO) is given to the parent compound. The worked example (`examples/`) shows both cases.
 - **Transport component.** Bulk / grain boundary / total / surface is taken from the paper's words and from
   table headers (Ea,bulk, σ gb, σ tot); without them it is assumed (total for a conductivity) and the basis
   column says so. Filter on `n_assumed` before drawing conclusions from a component.

@@ -34,7 +34,7 @@ python -m spacy download en_core_web_sm   # and the language model (for parts 1 
 
 Then work inside it: enter it (`source .venv/bin/activate`) in every new terminal before you run
 the commands below; your prompt then starts with `(.venv)`. The
-[main README](../README.md#install-once) has the whole setup.
+[main README](../README.md#installation) has the whole setup.
 
 ## Run it
 

@@ -28,7 +28,7 @@ python -m spacy download en_core_web_sm   # and the language model
 
 Then work inside it: enter it (`source .venv/bin/activate`) in every new terminal before you run
 the commands below; your prompt then starts with `(.venv)`. The
-[main README](../README.md#install-once) has the whole setup, Tesseract included.
+[main README](../README.md#installation) has the whole setup, Tesseract included.
 
 ## Run it
 
@@ -370,6 +370,7 @@ set, are sent along.
 | `list_alignment` | "A, B and C … 0.6, 1.2 and 1.5 eV, respectively": the lists are paired off. Also "A and B, with σ = 82 mS/cm (Ea = 0.17 eV) and σ = 177 mS/cm (Ea = 0.11 eV)": materials named together, then as many values, in the same order |
 | `table_row`, `table_caption` | The material of the value's table row; or of the caption, for a table with no material column |
 | `previous_sentence` | The sentence names no material but refers back to one: "Its conductivity …", "… in the γ-phase …" |
+| `paper_series` | The sentence names no material but fixes x ("The x = 50 samples …"), and the paper has named one series with that x: the value is that member's |
 | `paragraph_topic` | (activation energies in running text only) the material the previous sentences are about, when it is one of the paper's main materials. The weakest link: check these rows first |
 
 - *The paper's own names.* A formula defined in brackets — `Na3Zr2Si2PO12 (NZSP)` — is recognised

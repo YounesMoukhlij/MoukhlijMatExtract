@@ -105,6 +105,16 @@ mme-gui --version
 
 ---
 
+### Try it on two example papers
+
+The source code comes with two open-access papers (CC BY) and the values this version extracts from them
+([examples/](examples/README.md)). One command takes them through extraction, ranking and classification,
+with no network and no papers of your own:
+
+```bash
+make demo        # results in examples/output/ — about a minute
+```
+
 ## User manual
 
 ### Step 0 — Open MME

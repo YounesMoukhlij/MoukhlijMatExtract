@@ -45,9 +45,14 @@ if nlp.meta.get("name", "").startswith("core_"):
     NLP_MODEL = f"en_{nlp.meta['name']} {nlp.meta.get('version', '')}".strip()
 else:
     NLP_MODEL = "no language model (blank English, sentence splitter only)"
-    logging.warning("No spaCy language model is installed: sentences are split by punctuation only and "
-                    "fewer values are tied to their material. Install one with: python -m spacy download "
-                    "en_core_web_sm")
+
+
+def warn_if_no_language_model() -> None:
+    """Said when an extraction starts — not when the code is loaded (`--version`, `--help`)."""
+    if NLP_MODEL.startswith("no language model"):
+        logging.warning("No spaCy language model is installed: sentences are split by punctuation only and "
+                        "fewer values are tied to their material. Install one with: python -m spacy download "
+                        "en_core_web_sm")
 
 _HAS_PARSER = "parser" in nlp.pipe_names or "senter" in nlp.pipe_names
 
@@ -918,6 +923,8 @@ class ExtractorEngine:
         study: Study = results["study"]
         results["mentions"].update(m["formula"] for m in materials)
         for mention in materials:
+            if "representative" in mention or mention.get("open_series"):  # a series named as a whole
+                results.setdefault("named_series", {})[mention["formula"]] = mention
             if mention.get("series"):  # "x = 0.25" of a series named as a whole elsewhere
                 results["mentions"][mention["series"]] += 1
                 results["series"][mention["formula"]] = mention["series"]
@@ -1170,7 +1177,7 @@ class ExtractorEngine:
                     earlier = (named[1][item.position], named[0], "previous_sentence")
                 else:
                     # "For x = 0.25, the conductivity reaches ...": the member of the series just named.
-                    earlier = cls._member_of_earlier_series(sent, recent)
+                    earlier = cls._member_of_earlier_series(sent, recent, results.get("named_series", {}))
                     # A caption describes several panels, so the sentence before one says nothing about
                     # the material of the next: only running text may take its paragraph's topic.
                     topical = item.prop in EA_PROPERTIES and source_type == "Text" and not item.about_class
@@ -1285,26 +1292,39 @@ class ExtractorEngine:
         return cls._link_property_to_material(parse(), materials, *item.span)
 
     @staticmethod
-    def _member_of_earlier_series(sent: str, recent: Sequence[Tuple[str, List[Dict[str, Any]]]]
+    def _member_of_earlier_series(sent: str, recent: Sequence[Tuple[str, List[Dict[str, Any]]]],
+                                  named_series: Optional[Dict[str, Dict[str, Any]]] = None
                                   ) -> Optional[Tuple[Dict[str, Any], str, str]]:
         """A sentence that names no material but fixes one composition variable ("For x = 0.25, ...") is
         about that member of the series the nearest of the previous _BACKREF_SENTENCES names — when it
-        names one series only, and the variable is one of its own."""
+        names one series only, and the variable is one of its own. Else, when the paper so far has named
+        one series only with that variable (`named_series`), about that series' member ("The x = 50
+        samples ..." pages after "(100−x)(0.75Li2S·0.25P2S5)·xLiBH4"): a value of x means a series."""
         stated = ChemistryEngine.stated_values(sent)
         if len({name for name, _ in stated}) != 1 or len({value for _, value in stated}) != 1:
             return None
         variable, value = stated[0]
+
+        def has_variable(mention: Dict[str, Any]) -> bool:
+            return variable in re.sub(r"[A-Z][a-z]?", "", mention.get("written", mention["raw"]))
+
         for text, mentions in list(recent)[:_BACKREF_SENTENCES]:
-            series = {m["formula"]: m for m in mentions if "representative" in m}
+            series = {m["formula"]: m for m in mentions if "representative" in m or m.get("open_series")}
             if not mentions:
                 continue
             if len(series) != 1:
-                return None
+                break
             mention = next(iter(series.values()))
-            if variable not in re.sub(r"[A-Z][a-z]?", "", mention.get("written", mention["raw"])):
-                return None
+            if not has_variable(mention):
+                break
             member = ChemistryEngine.member(mention, {variable: value})
             return (member, text, "previous_sentence") if member else None
+        # Only a series this value of x gives a composition: x = 50 is no member of Li7−xPS6−x(BH4)x.
+        members = [(member, m) for m in (named_series or {}).values() if has_variable(m)
+                   for member in [ChemistryEngine.member(m, {variable: value})] if member]
+        if len(members) == 1:
+            member, mention = members[0]
+            return member, mention.get("raw", ""), "paper_series"
         return None
 
     @staticmethod

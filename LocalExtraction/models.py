@@ -126,7 +126,7 @@ class Relation:
     source_page: str
     # apposition ("0.31 eV (LLZO)") | named_with_quantity ("the conductivity of LLZO is ...") |
     # dependency_parse | proximity | list_alignment | table_row, or — when the value's own
-    # sentence/row names no material — previous_sentence | paragraph_topic | table_caption
+    # sentence/row names no material — previous_sentence | paper_series | paragraph_topic | table_caption
     extraction_method: str
 
 

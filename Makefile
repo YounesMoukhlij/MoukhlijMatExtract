@@ -67,6 +67,7 @@ help:
 	@echo "  make install-locked the same, with the exact versions of requirements.lock (to reproduce published results)"
 	@echo "  make lock           write requirements.lock: the exact versions of this venv"
 	@echo "  make dictionary     rewrite docs/DATA_DICTIONARY.md (every column of the database) from LocalExtraction/schema.py"
+	@echo "  make demo           the worked example: two open-access papers through every step -> examples/output/"
 	@echo "  make test          every test        K=<words> (-k)  TESTS=<files or folders>  VERBOSE=1  FAST=1 (-x)  ARGS=<more pytest options>"
 	@echo "  make clean          remove every __pycache__ folder"
 	@echo "  make version        the version of MoukhlijMatExtract"
@@ -151,6 +152,12 @@ lock:
 
 dictionary:
 	@$(PYTHON) -m LocalExtraction.schema
+
+demo:
+	@echo "The worked example: two CC BY papers (examples/README.md) -> examples/output/"
+	$(PYTHON) -m LocalExtraction extract -i "$(CURDIR)/examples/papers" -o "$(CURDIR)/examples/output/database" --offline
+	$(PYTHON) -m SelectingTopMaterial --source "$(CURDIR)/examples/output/database" --out "$(CURDIR)/examples/output/ranking"
+	$(PYTHON) -m Classification --source "$(CURDIR)/examples/output/database" --out "$(CURDIR)/examples/output/classes"
 
 test:
 	$(PYTHON) -m pytest $(TEST_OPTS)
@@ -262,7 +269,7 @@ eval-help:
 release-help:
 	@$(PYTHON) -m Release --help
 
-.PHONY: help install install-locked lock dictionary test clean version gui local local-rebuild local-gui doi web web-check web-fetch web-extract \
+.PHONY: demo help install install-locked lock dictionary test clean version gui local local-rebuild local-gui doi web web-check web-fetch web-extract \
         web-dois web-gui rank rank-gui classify classify-gui gui-help local-help local-gui-help web-help \
         web-gui-help doi-help rank-help rank-gui-help classify-help classify-gui-help eval-sheet eval-score \
         eval-agree eval-reference eval-help release release-help

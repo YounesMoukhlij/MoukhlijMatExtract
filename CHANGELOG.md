@@ -4,7 +4,7 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] — to be released as 1.1.0
 
 ### Removed
   window, the "Fetched DOIs" list, the `[scrape]` extra (selenium, scholarly, …) and the need for Google
@@ -15,6 +15,14 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
   kept: it is **1 · Fetch DOIs** of the web window, and its DOI list is searched with by **2 · Search**.
 
 ### Added
+
+- **A worked example** (`examples/`, `make demo`): two open-access CC BY papers, taken through extraction,
+  ranking and classification with no network; `examples/expected_values.csv` lists the values this version
+  extracts, and a test checks them.
+- **Mixtures inside mixtures** — "(100−x)(0.75Li2S·0.25P2S5)·xLiBH4", "50(0.75Li2S·0.25P2S5)·50LiBH4",
+  "xLiI·(100−x)(…)" — are read as one material: at a stated x, that member with its composition.
+- **A value of x pages after the series** ("The x = 50 samples …") goes to that member when the paper has
+  named only one series this x fits (`material_link` = `paper_series`).
 - **Only legally obtained papers in a published dataset.** `mme-release` releases a web paper when the record
   of the legal source it was downloaded from is kept with it, and the authors' own PDFs (part 1); it leaves
   out — of the databases, and of the ranking and the classification, made again without them — any paper
@@ -244,6 +252,15 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
   (`mme-eval reference`) always re-extracts what an earlier version read.
 
 ### Fixed
+
+- A lone "xLiBH4" (a part of a mixture whose other parts were not read) was taken for a series, and its
+  x = 50 member for LiBH4.
+- The general formula of a series with a group times x was written "Li7-xBxPH(4.0)*(x)S6-x"; it is
+  "Li7-xBxPH4xS6-x".
+- `mme-local --version` and `mme-web --version` warned that no spaCy model is installed (and loaded it):
+  the warning now comes when an extraction starts.
+- Broken links between the READMEs (renamed headings, paths one folder short).
+- Unused imports reported by pyflakes.
 
 - `mme-release` released no paper that an earlier downloader had taken from a shadow library, even after a
   legal copy of it was downloaded again: the legal source recorded with the copy extracted now comes first.

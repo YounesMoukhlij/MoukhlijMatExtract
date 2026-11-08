@@ -22,7 +22,7 @@ from pathlib import Path
 from . import loader
 from .criteria import POLICIES, Criteria, format_energy
 from .models import (COMPONENTS, NOT_REPORTED, DatabaseReport, Filters, Measurement, RankedMaterial, Selection,
-                     component_key, component_word)
+                     component_key)
 
 _PRECISION = 6
 

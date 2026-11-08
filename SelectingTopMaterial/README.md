@@ -38,7 +38,7 @@ python -m spacy download en_core_web_sm   # and the language model (for parts 1 
 
 Then work inside it: enter it (`source .venv/bin/activate`) in every new terminal before you run
 the commands below; your prompt then starts with `(.venv)`. The
-[main README](../README.md#install-once) has the whole setup.
+[main README](../README.md#installation) has the whole setup.
 
 ## Run it
 
@@ -221,5 +221,5 @@ there is no screen.
   tied to a wrong material is ranked as that material. The `checks` column shows where the values
   of a material disagree, and every value keeps its paper, page and sentence: read those of any
   material you rely on. An activation energy is also a default-filled row (see
-  [No open answer for an activation energy](../LocalExtraction/README.md#no-open-answer-for-an-activation-energy)): a computed
+  [No open answer for an activation energy](../LocalExtraction/README.md#no-open-answer)): a computed
   and a measured barrier of one material are both in its group unless you filter with `--origin`.

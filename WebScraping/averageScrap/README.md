@@ -1,16 +1,16 @@
 # WebScraping — Part 2
 
-A part of [MoukhlijMatExtract (MME)](../README.md) · Author: Younes Moukhlij
+A part of [MoukhlijMatExtract (MME)](../../README.md) · Author: Younes Moukhlij
 
 Instead of collecting PDFs by hand, describe what you are looking for and let the program find the
 papers, fetch the ones you can legally read, and extract from them with the pipeline of
-[LocalExtraction](../LocalExtraction/README.md).
+[LocalExtraction](../../LocalExtraction/README.md).
 
 | | |
 |---|---|
 | **Input** | the job file `configs/sse.yaml` (what to search for) and the web |
-| **Output** | the PDFs in `WebScraping/papers/`, and the database `WebScraping/web_output/` — the same files as [LocalExtraction's](../LocalExtraction/README.md#output) |
-| **Read by** | [SelectingTopMaterial](../SelectingTopMaterial/README.md) and [Crystal and Structure Classification](../Classification/README.md) |
+| **Output** | the PDFs in `WebScraping/papers/`, and the database `WebScraping/web_output/` — the same files as [LocalExtraction's](../../LocalExtraction/README.md#output) |
+| **Read by** | [SelectingTopMaterial](../../SelectingTopMaterial/README.md) and [Crystal and Structure Classification](../../Classification/README.md) |
 
 ## Set up (once)
 
@@ -26,7 +26,7 @@ python -m spacy download en_core_web_sm   # and the language model
 
 Then work inside it: enter it (`source .venv/bin/activate`) in every new terminal before you run
 the commands below; your prompt then starts with `(.venv)`. The
-[main README](../README.md#install-once) has the whole setup, Tesseract included.
+[main README](../../README.md#installation) has the whole setup, Tesseract included.
 
 ## Run it
 
@@ -115,7 +115,7 @@ WebScraping/papers/*.pdf (+ .json provenance, ledger.sqlite)
 LocalExtraction's pipeline — the same tables, every cell answered → WebScraping/web_output/
 ```
 
-The extraction is that of [LocalExtraction](../LocalExtraction/README.md), so this folder needs
+The extraction is that of [LocalExtraction](../../LocalExtraction/README.md), so this folder needs
 the `LocalExtraction/` folder beside it.
 
 ## Two ways in: keywords and DOIs
@@ -179,10 +179,10 @@ extraction.
    (a better title, journal and DOI than can be guessed from a PDF's first page) — what the source
    did not report (a license, an OpenAlex id) is completed from OpenAlex — and only the data you
    asked for (`extract.properties`, `extract.require_material`). Every cell of every table is
-   answered, as in [LocalExtraction](../LocalExtraction/README.md#no-open-answer). The result goes to
+   answered, as in [LocalExtraction](../../LocalExtraction/README.md#no-open-answer). The result goes to
    `WebScraping/web_output/` (`--output` to choose another folder), apart from that of your own PDFs.
    Each run **appends** the papers it fetched to the tables already there, never losing a row — see
-   [Adding papers to a database](../LocalExtraction/README.md#adding-papers-to-a-database).
+   [Adding papers to a database](../../LocalExtraction/README.md#adding-papers-to-a-database).
 
 ## What lands where
 

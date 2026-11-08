@@ -27,7 +27,7 @@ from LocalExtraction.done import already_done, fingerprint, mark_done
 from LocalExtraction.provenance import Run
 
 from . import console, exporters, html_report, loader
-from .about import DEFAULT_RESULTS, NAME, PROJECT_ROOT, VERSION
+from .about import DEFAULT_RESULTS, NAME, PROJECT_ROOT
 from .criteria import POLICIES, Criteria, CriteriaError
 from .models import COMPONENTS, Filters, component_word
 from .selection import select_from_each

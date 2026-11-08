@@ -37,3 +37,6 @@ __pycache__/
 # macOS, and the lock files Excel leaves next to a workbook it has open
 .DS_Store
 ~$*
+
+# The worked example's results (make demo)
+examples/output/

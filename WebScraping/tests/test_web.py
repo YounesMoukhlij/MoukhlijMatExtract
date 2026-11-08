@@ -21,7 +21,6 @@ os.environ["MME_OFFLINE"] = "1"  # the tests never go on the network
 
 import pandas as pd
 import pymupdf
-import requests
 
 from WebScraping.averageScrap import screening
 from WebScraping.averageScrap.elsevier import Elsevier
@@ -32,7 +31,7 @@ from WebScraping.averageScrap.doctor import check as check_setup
 from WebScraping.averageScrap.ids import aps_doi, arxiv_id, candidate_key, file_stem, normalize_doi
 from WebScraping.averageScrap.job import (ExtractConfig, FetchConfig, Job, ScreenConfig, SearchConfig, dump_job, load_job, read_env,
                      save_env)
-from WebScraping.averageScrap.ledger import (APPROVED, CLOSED, DOWNLOADED, FAILED, NEW, REJECTED, SCREENED, Candidate, Ledger)
+from WebScraping.averageScrap.ledger import (APPROVED, CLOSED, DOWNLOADED, FAILED, REJECTED, SCREENED, Candidate, Ledger)
 from WebScraping.averageScrap.resolve import FetchOption, Resolver
 from WebScraping.averageScrap.sidecar import read_provenance
 from WebScraping.averageScrap.sources.arxiv import ArXiv, build_query, parse_feed

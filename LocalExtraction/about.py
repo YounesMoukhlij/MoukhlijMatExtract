@@ -58,7 +58,7 @@ def version_text(command: str = "") -> str:
 def version() -> str:
     """The installed version of the package; "" when it is run from a copy that is not installed."""
     try:
-        from importlib.metadata import PackageNotFoundError, version as installed
+        from importlib.metadata import version as installed
         return installed("moukhlijmatextract")
     except Exception:  # PackageNotFoundError, or no metadata at all
         return ""

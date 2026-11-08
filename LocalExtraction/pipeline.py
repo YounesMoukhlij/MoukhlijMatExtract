@@ -16,7 +16,7 @@ import pandas as pd
 
 from . import metadata, runcontrol
 from .exporter import CATEGORY_FIELDS, StrictExporter, read_table
-from .extractor import ExtractorEngine
+from .extractor import ExtractorEngine, warn_if_no_language_model
 from .models import ExtractedField, PaperData
 from .parser import DocumentParser
 from .provenance import Run
@@ -349,6 +349,7 @@ class NaLiXPipeline:
         per-paper feedback instead of waiting for the whole batch to end.
         `batch_size`: papers are saved to the database every this many, not only at the end.
         """
+        warn_if_no_language_model()
         # 1. What the database holds, and what is left to extract (a rebuild under way included)
         run = Run("extraction", Path(self.output_dir), with_model=True, settings={
             "input": os.path.abspath(self.input_dir), "output": os.path.abspath(self.output_dir),

@@ -6,7 +6,7 @@ scholarly literature, downloads their **legal open-access copies** and extracts 
 results into `WebScraping/web_output/` (the same files as part 1).
 
 Work inside the project's virtual environment (`.venv/`); see the
-[main README](../README.md#install-once) for the one-time setup (`make install`), and enter it in
+[main README](../README.md#installation) for the one-time setup (`make install`), and enter it in
 every terminal (`source .venv/bin/activate`).
 
 ```

@@ -26,7 +26,6 @@ from .about import (CREDIT_TEXT, command_name, DEFAULT_INPUT, DEFAULT_OUTPUT, DE
 from . import runcontrol
 from .exporter import StrictExporter, UnreadableTable
 from .models import PaperData
-from .pipeline import NaLiXPipeline
 
 _COMMANDS = ("extract", "gui")
 
@@ -85,6 +84,7 @@ def run_extraction(input_dir: str, output_dir: str, max_workers: int = 4,
 	if is_outdated(output_dir):
 		return 1
 
+	from .pipeline import NaLiXPipeline  # loads the PDF reader and the language model: only to extract
 	pipeline = NaLiXPipeline(input_dir=input_dir, output_dir=output_dir, provenance=provenance,
 							 properties=properties, require_material=require_material, origin=origin, lookup=lookup)
 	pipeline.execute(max_workers=max_workers, stop_event=stop_event, progress_callback=progress_callback)

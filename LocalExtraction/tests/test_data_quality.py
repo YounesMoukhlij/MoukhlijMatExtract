@@ -233,6 +233,36 @@ class SeriesTests(unittest.TestCase):
         found = extract("We studied Li6+xP1-xGexS5I. The conductivity reaches 5.4 mS cm-1 at 25 °C.")
         self.assertNotIn("Li6.25Ge0.25P0.75S5I", [m for m, _ in _conductivities(found)])
 
+    def test_a_mixture_with_a_mixture_inside_it(self):
+        from LocalExtraction.chemistry import ChemistryEngine
+        open_series = ChemistryEngine.find_materials("The (100 −x)(0.75Li2S· 0.25P2S5)·xLiBH4 electrolytes were milled.")
+        self.assertEqual([(m["formula"], m.get("open_series")) for m in open_series],
+                         [("(100-x)(0.75Li2S·0.25P2S5)·xLiBH4", True)])  # one material, not its parts
+        member = ChemistryEngine.find_materials("The (100−x)(0.75Li2S·0.25P2S5)·xLiBH4 sample with x = 50 was hot.")[0]
+        self.assertEqual(member["formula"], "50(0.75Li2S-0.25P2S5)-50LiBH4")
+        self.assertEqual(member["elements"], {"Li": 1.25, "S": 1.0, "P": 0.25, "B": 0.5, "H": 2.0})
+        other_way = ChemistryEngine.find_materials("xLiI·(100−x)(0.75Li2S·0.25P2S5) glass with x = 30")[0]
+        self.assertEqual(other_way["formula"], "30LiI-70(0.75Li2S-0.25P2S5)")
+        # a lone "xLiBH4", the rest of its mixture not read, is no series
+        self.assertFalse(ChemistryEngine.find_materials("added xLiBH4 to it")[0].get("open_series"))
+
+    def test_a_value_of_x_pages_after_the_series(self):
+        found = extract("Samples with compositions of (100 −x)(0.75Li2S·0.25P2S5)·xLiBH4 (mol %) were prepared.",
+                        "The XRD patterns show a new phase.", "The LiBH4 crystal is shown for comparison.",
+                        "The x = 50 samples exhibited a high conductivity of 1.8 × 10−3 S cm−1 at 25 °C.")
+        self.assertEqual(_conductivities(found), [("50(0.75Li2S-0.25P2S5)-50LiBH4", "0.0018 S/cm")])
+
+    def test_x_is_given_only_to_a_series_it_fits(self):
+        # x = 50 is a share of the mixture, not the x of Li7−xPS6−x(BH4)x (it would give Li−43)
+        found = extract("Samples of (100 −x)(0.75Li2S·0.25P2S5)·xLiBH4 (mol %) were prepared.",
+                        "The new phase is the argyrodite Li7−xPS6−x(BH4)x.",
+                        "The x = 50 samples exhibited a high conductivity of 1.8 × 10−3 S cm−1 at 25 °C.")
+        self.assertEqual(_conductivities(found), [("50(0.75Li2S-0.25P2S5)-50LiBH4", "0.0018 S/cm")])
+
+    def test_a_group_times_x_is_written_as_a_chemist_writes_it(self):
+        from LocalExtraction.chemistry import ChemistryEngine
+        self.assertEqual(ChemistryEngine.find_materials("Li7−xPS6−x(BH4)x was made.")[0]["formula"], "Li7-xBxPH4xS6-x")
+
     def test_a_table_with_one_row_per_x(self):
         table = {"type": "Table", "page": 3, "section": "Results", "table_number": "2",
                  "caption": "Table 2. Ionic conductivities of the Li1+xAlxGe2-x(PO4)3 samples at 25 °C.",

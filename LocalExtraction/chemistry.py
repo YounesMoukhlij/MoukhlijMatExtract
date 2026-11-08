@@ -65,6 +65,13 @@ _JOINER = r'[-–−·]'
 TOKEN_REGEX = re.compile(rf'(?<![A-Za-z0-9.]){_PART}(?:{_JOINER}{_PART}){{0,3}}'
                          rf'(?![A-Za-z0-9])(?!\s?[−–+]\s?[{_VARIABLES}])')
 _PART_REGEX = re.compile(rf'({_JOINER})?({_COEFFICIENT})?({_RUN})')
+# A mixture with a mixture inside it, the notation of glass and glass-ceramic electrolytes:
+# "(100−x)(0.75Li2S·0.25P2S5)·xLiBH4", "50(0.75Li2S·0.25P2S5)·50LiBH4", and the other way round,
+# "xLiI·(100−x)(0.75Li2S·0.25P2S5)". The bracket holds a whole mixture, not a group of atoms.
+_INNER = rf'\(\s?((?:{_COEFFICIENT})?{_RUN}(?:\s?{_JOINER}\s?(?:{_COEFFICIENT})?{_RUN}){{1,3}})\s?\)'
+_NESTED_REGEX = re.compile(
+    rf'(?<![A-Za-z0-9.])(?:({_COEFFICIENT})\s?{_INNER}\s?{_JOINER}\s?({_COEFFICIENT})\s?({_RUN})'
+    rf'|({_COEFFICIENT})\s?({_RUN})\s?{_JOINER}\s?({_COEFFICIENT})\s?{_INNER})(?![A-Za-z0-9])')
 _OPENS_WITH_SHARE = re.compile(rf'\(\s?{_NUMBER}\s?{_SIGN}\s?[{_VARIABLES}]\s?\)|[{_VARIABLES}](?=[A-Z(])')
 _SHARE_BEFORE_PART = re.compile(rf'(?<=\d)[-–−](?=[{_VARIABLES}][A-Z(])')
 # "(Li2S)70(P2S5)30": the same mixture written with its shares as subscripts.
@@ -192,9 +199,21 @@ def _evaluate(expression: str, values: Dict[str, float]) -> Optional[Amount]:
 
 
 def _times(amount: Amount, factor: Amount) -> Amount:
+    """The product of two amounts; with an open subscript, written as a chemist writes it: 4 × "x" is
+    "4x", 4 × "1-x" is "4(1-x)"."""
     if isinstance(amount, float) and isinstance(factor, float):
         return round(amount * factor, 6)
-    return str(amount) if factor == 1.0 else str(factor) if amount == 1.0 else f"({amount})*({factor})"
+    if factor == 1.0:
+        return str(amount)
+    if amount == 1.0:
+        return str(factor)
+    number, text = (amount, factor) if isinstance(amount, float) else (factor, amount)
+    if isinstance(number, float):
+        term = re.fullmatch(rf'({_NUMBER})?([{_VARIABLES}])', str(text))
+        if term:  # 4 × "2x" = "8x"
+            return f"{_written(round(number * float(term.group(1) or 1), 6))}{term.group(2)}"
+        return f"{_written(number)}({text})"
+    return f"({amount})({factor})"
 
 
 def _amounts(body: str, values: Dict[str, float]) -> Optional[Dict[str, Amount]]:
@@ -632,12 +651,15 @@ class ChemistryEngine:
     def member(mention: Dict[str, Any], values: Dict[str, float]) -> Optional[Dict[str, Any]]:
         """The compound a mention of a series ("Li6+xP1-xGexS5I") stands for at these values of its
         variables; None when they do not fix its composition."""
-        if "representative" not in mention:
+        if "representative" not in mention and not mention.get("open_series"):
             return None
-        resolved = ChemistryEngine._resolve_token(mention.get("written", mention["raw"]), values)
+        written = mention.get("written", mention["raw"])
+        nested = _NESTED_REGEX.fullmatch(written)
+        resolved = (ChemistryEngine._resolve_nested(nested, values) if nested
+                    else ChemistryEngine._resolve_token(written, values))
         if not resolved or "representative" in resolved or not resolved["elements"]:
             return None
-        del resolved["matched"]
+        resolved.pop("matched", None)
         return {**resolved, "series": mention["formula"], "start": mention["start"], "end": mention["end"]}
 
     @staticmethod
@@ -656,8 +678,18 @@ class ChemistryEngine:
             if len(given) == 1:
                 values[variable] = given.pop()
 
+        # 0. A mixture with a mixture inside it: one material, not its parts.
+        for m in _NESTED_REGEX.finditer(text):
+            material = ChemistryEngine._resolve_nested(m, values)
+            if material:
+                claimed_spans.append((m.start(), m.end()))
+                material["start"], material["end"] = m.start(), m.end()
+                results.append(material)
+
         # 1. Formula tokens (mixtures and hydrates are part of TOKEN_REGEX itself).
         for m in TOKEN_REGEX.finditer(text):
+            if any(s <= m.start() < e for s, e in claimed_spans):
+                continue  # a part of a mixture read whole in step 0
             if m.group()[0] in _VARIABLES and text[:m.start()].rstrip()[-1:] in ("−", "–", "+", "-"):
                 continue  # the tail of a general formula that could not be read as a whole
             if m.group()[0].isdigit() and _SAMPLE_PREFIX.search(text[:m.start()]):
@@ -732,6 +764,42 @@ class ChemistryEngine:
         return sorted(results, key=lambda r: r["start"])
 
     @staticmethod
+    def _resolve_nested(m: "re.Match", values: Dict[str, float]) -> Optional[Dict[str, Any]]:
+        """The material of a mixture with a mixture inside it (see _NESTED_REGEX): at the values its
+        sentence gives x, that member of the series, its elements summed over the parts; else the
+        series as written."""
+        if m.group(1) is not None:
+            outer, inner, share, body = m.group(1), m.group(2), m.group(3), m.group(4)
+        else:
+            share, body, outer, inner = m.group(5), m.group(6), m.group(7), m.group(8)
+        raw = m.group()
+        written = re.sub(r"\s", "", raw).replace("−", "-").replace("–", "-")
+        inner_material = ChemistryEngine._resolve_token(re.sub(r"\s", "", inner))
+        body_material = ChemistryEngine._resolve_token(body)
+        if not inner_material or not body_material or not inner_material.get("elements") \
+                or not body_material.get("elements") or "representative" in body_material:
+            return None
+        first, second = (_evaluate(c.strip("()"), values) for c in (outer, share))
+        if not isinstance(first, float) or not isinstance(second, float):
+            # The shares are left open: a series, kept as written.
+            return {"raw": raw, "matched": raw, "formula": written, "elements": {}, "is_known_alias": False,
+                    "open_series": True}
+        if first < 0 or second < 0:
+            return None
+        total = 100.0 if abs(first + second - 100) < 0.5 else 1.0
+        elements: Dict[str, float] = {}
+        for part_share, material in ((first, inner_material), (second, body_material)):
+            for symbol, amount in material["elements"].items():
+                elements[symbol] = round(elements.get(symbol, 0.0) + part_share / total * amount, 6)
+        inner_formula, body_formula = inner_material["formula"], body_material["formula"]
+        formula = (f"{_written(first)}({inner_formula})-{_written(second)}{body_formula}" if m.group(1) is not None
+                   else f"{_written(second)}{body_formula}-{_written(first)}({inner_formula})")
+        material = {"raw": raw, "matched": raw, "formula": formula, "elements": elements, "is_known_alias": False}
+        if any(c in _VARIABLES for c in outer + share):
+            material["series"] = written
+        return material
+
+    @staticmethod
     def _resolve_token(raw: str, values: Optional[Dict[str, float]] = None) -> Optional[Dict[str, Any]]:
         """The material a formula token names, or None if it names none. `values` are the values
         its sentence gives the composition variables ("x = 0.5"). "matched" is the part of the
@@ -753,7 +821,10 @@ class ChemistryEngine:
             if not isinstance(coefficient, float):
                 # A mixture whose shares are left open ("xLi2S-(100-x)P2S5"): a series, kept as written.
                 written = re.sub(r'\s', '', raw).replace("−", "-").replace("–", "-")
-                return {"raw": raw, "matched": raw, "formula": written, "elements": {}, "is_known_alias": False}
+                # A lone "xLiBH4" is a piece of a mixture whose other parts were not read: no series.
+                whole = len(list(_PART_REGEX.finditer(split))) > 1
+                return {"raw": raw, "matched": raw, "formula": written, "elements": {}, "is_known_alias": False,
+                        **({"open_series": True} if whole else {})}
             parts.append((m.group(1) or "", coefficient, m.group(3)))
         resolved: List[Tuple[str, float, str, Dict[str, Amount]]] = []
         matched = raw
