@@ -338,6 +338,13 @@ class NaLiXPipeline:
     def execute(self, max_workers: int = 4, stop_event: Optional[threading.Event] = None,
                 progress_callback: Optional[Callable[[str, Optional[PaperData]], None]] = None,
                 batch_size: int = BATCH_SIZE) -> int:
+        """See _execute. The computer is kept from going to sleep while it runs (runcontrol.stay_awake)."""
+        with runcontrol.stay_awake("MoukhlijMatExtract is extracting papers"):
+            return self._execute(max_workers, stop_event, progress_callback, batch_size)
+
+    def _execute(self, max_workers: int = 4, stop_event: Optional[threading.Event] = None,
+                 progress_callback: Optional[Callable[[str, Optional[PaperData]], None]] = None,
+                 batch_size: int = BATCH_SIZE) -> int:
         """Runs extraction over every not-yet-processed PDF and exports the results; returns how
         many papers were added to the database.
 

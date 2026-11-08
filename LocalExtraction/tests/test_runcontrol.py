@@ -257,3 +257,26 @@ def test_ctrl_c_in_the_terminal_stops_the_step_as_stop_does():
             os.kill(os.getpid(), signal.SIGINT)
             time.sleep(0.5)
     assert runcontrol.current() is None
+
+
+
+def test_stay_awake_holds_once_for_nested_steps_and_releases_at_the_end(monkeypatch):
+    from unittest import mock
+    helper = mock.Mock()
+    start = mock.Mock(return_value=helper)
+    monkeypatch.setattr(runcontrol, "_start_awake_helper", start)
+    monkeypatch.setattr(runcontrol.os, "name", "posix")
+    with runcontrol.stay_awake():
+        with runcontrol.stay_awake():  # a step inside a step: still one hold
+            assert start.call_count == 1
+        helper.terminate.assert_not_called()
+    helper.terminate.assert_called_once()
+    assert runcontrol._awake_helper is None
+
+
+def test_stay_awake_changes_nothing_where_no_tool_exists(monkeypatch):
+    monkeypatch.setattr(runcontrol, "_start_awake_helper", lambda why: None)
+    monkeypatch.setattr(runcontrol.os, "name", "posix")
+    with runcontrol.stay_awake():
+        pass
+    assert runcontrol._awake_helper is None

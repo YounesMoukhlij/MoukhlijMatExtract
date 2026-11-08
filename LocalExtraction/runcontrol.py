@@ -337,3 +337,69 @@ def install() -> None:
     send.__wrapped__ = original  # type: ignore[attr-defined]
     requests.Session.send = send
     _installed = True
+
+
+# ---------------------------------------------------------------------------
+# Keeping the computer awake while a long step runs
+# ---------------------------------------------------------------------------
+_awake_lock = threading.Lock()
+_awake_count = 0
+_awake_helper = None  # the process that holds the computer awake (macOS, Linux)
+
+
+@contextmanager
+def stay_awake(why: str = "a step of MoukhlijMatExtract is running") -> Iterator[None]:
+    """Keeps the computer from going to sleep while idle for as long as the block runs: a download of
+    thousands of papers or a long extraction would otherwise stop each time it sleeps. The screen may
+    still turn off. macOS: caffeinate; Windows: SetThreadExecutionState; Linux: systemd-inhibit. Where
+    none is available, nothing changes. Nested blocks share one hold."""
+    global _awake_count, _awake_helper
+    windows = os.name == "nt"
+    with _awake_lock:
+        _awake_count += 1
+        if _awake_count == 1 and not windows:
+            _awake_helper = _start_awake_helper(why)
+    if windows:
+        _windows_awake(True)
+    try:
+        yield
+    finally:
+        if windows:
+            _windows_awake(False)
+        with _awake_lock:
+            _awake_count -= 1
+            if _awake_count == 0 and _awake_helper is not None:
+                try:
+                    _awake_helper.terminate()
+                    _awake_helper.wait(timeout=5)
+                except Exception:  # it ends with this program anyway
+                    pass
+                _awake_helper = None
+
+
+def _start_awake_helper(why: str):
+    import shutil
+    import subprocess
+    import sys
+    if sys.platform == "darwin" and shutil.which("caffeinate"):
+        command = ["caffeinate", "-i", "-w", str(os.getpid())]  # ends by itself if this program ends
+    elif shutil.which("systemd-inhibit"):
+        command = ["systemd-inhibit", "--what=idle:sleep", "--who=MoukhlijMatExtract", f"--why={why}",
+                   "--mode=block", "sleep", "infinity"]
+    else:
+        return None
+    try:
+        return subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+    except OSError:
+        logging.debug("Could not keep the computer awake", exc_info=True)
+        return None
+
+
+def _windows_awake(on: bool) -> None:
+    try:
+        import ctypes
+        continuous, system_required = 0x80000000, 0x00000001
+        ctypes.windll.kernel32.SetThreadExecutionState(continuous | (system_required if on else 0))
+    except Exception:
+        logging.debug("Could not keep the computer awake", exc_info=True)

@@ -16,6 +16,12 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **The computer stays awake while a long step runs.** A download of thousands of papers, or an
+  extraction, stopped each time the computer went to sleep while idle (a run of one day took several).
+  Downloading, extracting and the web search now keep it from sleeping (macOS: caffeinate; Windows:
+  SetThreadExecutionState; Linux: systemd-inhibit), and let it sleep again when they end; the screen may
+  still turn off.
+
 - **A worked example** (`examples/`, `make demo`): two open-access CC BY papers, taken through extraction,
   ranking and classification with no network; `examples/expected_values.csv` lists the values this version
   extracts, and a test checks them.

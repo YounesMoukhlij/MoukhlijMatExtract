@@ -379,6 +379,11 @@ classification's tables of materials have `articles`, the titles of the papers t
 A database written before gets the column added the next time
 it is opened — nothing is extracted again.
 
+### Long runs keep the computer awake
+
+While MME downloads or extracts, it keeps the computer from going to sleep (the screen may still turn
+off), and lets it sleep again when the step ends. A laptop should stay plugged in for a long download.
+
 ### Running a part again never redoes finished work
 
 Each part says what it skips and moves on to the next item:

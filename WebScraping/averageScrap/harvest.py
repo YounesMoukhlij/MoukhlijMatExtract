@@ -553,6 +553,12 @@ class Harvest:
 
     def run(self, start: str = "discover", approve: bool = False, limit: Optional[int] = None, workers: int = 4,
             job_path: str = "", stop_event: Optional[threading.Event] = None, refresh: bool = False) -> int:
+        """See _run. The computer is kept from going to sleep while it runs (runcontrol.stay_awake)."""
+        with runcontrol.stay_awake("MoukhlijMatExtract is searching, downloading and extracting papers"):
+            return self._run(start, approve, limit, workers, job_path, stop_event, refresh)
+
+    def _run(self, start: str = "discover", approve: bool = False, limit: Optional[int] = None, workers: int = 4,
+             job_path: str = "", stop_event: Optional[threading.Event] = None, refresh: bool = False) -> int:
         """`start` is the first stage to run: "discover" (everything, up to the review if the job asks
         for one), "fetch" (after the review: fetch the approved papers, then extract) or "extract"."""
         if start not in STAGES:
