@@ -209,6 +209,11 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Changed
 
+- **License: GNU AGPL-3.0-or-later** (was MIT). MoukhlijMatExtract reads PDFs with PyMuPDF, which is
+  licensed under the AGPL-3.0; a program built on it must be shared under the same terms, so the MIT label
+  did not hold. `LICENSE`, `pyproject.toml`, `CITATION.cff`, `.zenodo.json`, the README and the windows say so.
+  what came with it); it is written from the cleaned environment.
+
 - `mme-eval sheet` draws only the papers `mme-release` would publish (a recorded legal copy, or the authors'
   own PDFs), so precision and recall describe the deposited dataset; `--all-papers` draws from every paper.
 - The ChemDataExtractor baseline reads each PDF in its own process, two at a time (about 3 GB each), stops a

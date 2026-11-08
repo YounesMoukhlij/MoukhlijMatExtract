@@ -23,7 +23,7 @@ DESCRIPTION = (
 # The "About" of the windows: the project and its author, and where to find them.
 REPOSITORY = "https://github.com/YounesMoukhlij/MoukhlijMatExtract"
 CONTACT_EMAIL = "younes.moukhlij@usms.ac.ma"
-LICENSE_NAME = "MIT License"
+LICENSE_NAME = "GNU AGPL-3.0-or-later"
 ABOUT_PROJECT = (
     f"{FULL_NAME} is an open-source research tool for mining the scientific literature on solid-state "
     "electrolytes. It reads papers — your own PDFs, or articles found and retrieved online from open "

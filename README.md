@@ -2,7 +2,7 @@
 
 > Extract · Rank · Classify — solid-state electrolyte data from the scientific literature.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/moukhlijmatextract/)
 [![PyPI](https://img.shields.io/pypi/v/moukhlijmatextract)](https://pypi.org/project/moukhlijmatextract/)
 
@@ -506,4 +506,17 @@ If you use MME in your research, please cite it — see [`CITATION.cff`](CITATIO
 
 ## License
 
-[MIT](LICENSE) © 2026 Younes Moukhlij
+Copyright © 2026 Younes Moukhlij.
+
+MoukhlijMatExtract is free software: you can redistribute it and/or modify it under the terms of the
+[GNU Affero General Public License](LICENSE) as published by the Free Software Foundation, either version 3
+of the License, or (at your option) any later version. It is distributed in the hope that it will be
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+Why the AGPL: MoukhlijMatExtract reads PDFs with [PyMuPDF](https://pymupdf.readthedocs.io), which is
+licensed under the AGPL-3.0 (or a commercial license from Artifex); a program built on it and shared must
+be shared under the same terms. Every other dependency is under a permissive license (MIT, BSD, Apache-2.0).
+
+The license covers the software. The data it extracts from papers are not covered by it: what a released
+dataset may hold, and under which terms, is set out in its own README (see `mme-release`).

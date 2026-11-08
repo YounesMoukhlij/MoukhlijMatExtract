@@ -8,7 +8,7 @@ version = "1.0.3"
 description = "Extract, rank and classify solid-state-electrolyte data from scientific papers (activation energies, conductivities, diffusion coefficients)."
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [{ name = "Younes Moukhlij", email = "younes.moukhlij@usms.ac.ma" }]
 keywords = ["solid-state electrolytes", "materials science", "data extraction",

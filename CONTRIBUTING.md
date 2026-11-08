@@ -36,6 +36,11 @@ All tests must pass before you open a pull request. They run offline (network ca
   README and `CHANGELOG.md` under an **Unreleased** heading.
 - Work on a branch and open a pull request against `main` with a short description of what and why.
 
+## License of contributions
+
+MoukhlijMatExtract is licensed under the GNU AGPL-3.0-or-later (see `LICENSE`). By contributing, you agree
+that your contribution is licensed under the same terms.
+
 ## Reporting issues
 
 Open a GitHub issue with: what you ran, what you expected, what happened, and (if extraction-related)

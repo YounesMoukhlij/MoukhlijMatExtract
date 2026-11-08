@@ -8,7 +8,7 @@ abstract: >-
 type: software
 version: "1.0.3"
 date-released: "2026-10-25"
-license: MIT
+license: AGPL-3.0-or-later
 repository-code: "https://github.com/YounesMoukhlij/MoukhlijMatExtract"
 url: "https://github.com/YounesMoukhlij/MoukhlijMatExtract"
 keywords:
