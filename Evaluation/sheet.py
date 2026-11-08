@@ -285,15 +285,37 @@ def _as_number(text: str) -> Optional[float]:
     return int(number) if number.is_integer() and "." not in stripped and "e" not in stripped.lower() else number
 
 
-def make(sources: Sequence[Path], out: Path, count: int, seed: int, version: str) -> Dict[str, int]:
+def _legal_only(databases: Sequence[Database], log: Optional[Path] = None) -> int:
+    """Keeps in each database only the papers mme-release would publish (a legal copy recorded, or the
+    authors' own PDFs); returns how many were left out."""
+    from Release.release import origins_of
+    origins = origins_of([db.folder for db in databases], log)
+    left_out = 0
+    for db in databases:
+        if db.papers.empty:
+            continue
+        keep = db.papers["paper_id"].map(lambda paper_id: origins.get(paper_id, (False, ""))[0])
+        left_out += int((~keep).sum())
+        db.papers = db.papers[keep].reset_index(drop=True)
+        if len(db.values):
+            db.values = db.values[db.values["paper_id"].isin(set(db.papers["paper_id"]))].reset_index(drop=True)
+    return left_out
+
+
+def make(sources: Sequence[Path], out: Path, count: int, seed: int, version: str,
+         legal_only: bool = False, log: Optional[Path] = None) -> Dict[str, int]:
     databases = [read_database(Path(s)) for s in sources if Path(s).is_dir()]
+    papers_in_all = sum(len(db.papers) for db in databases)
+    left_out = _legal_only(databases, log) if legal_only else 0
     sheets = build(databases, count, seed)
     about = {
         "made": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "software": f"MoukhlijMatExtract {version}".strip(),
         "databases": " ; ".join(str(db.folder) for db in databases),
         "databases fingerprint": fingerprint(databases),
-        "papers in the databases": str(sum(len(db.papers) for db in databases)),
+        "papers in the databases": str(papers_in_all),
+        "papers drawn from": ("only those with a legal copy recorded (or the authors' own): "
+                              f"{papers_in_all - left_out} of {papers_in_all}") if legal_only else "every paper",
         "papers drawn": str(len(sheets["papers"])),
         "seed": str(seed),
         "values to check": str(len(sheets["values"])),
@@ -301,4 +323,5 @@ def make(sources: Sequence[Path], out: Path, count: int, seed: int, version: str
     }
     write(out, sheets, about)
     return {"papers": len(sheets["papers"]), "values": len(sheets["values"]),
-            "without_values": int((sheets["papers"]["values_extracted"] == 0).sum()) if len(sheets["papers"]) else 0}
+            "without_values": int((sheets["papers"]["values_extracted"] == 0).sum()) if len(sheets["papers"]) else 0,
+            "left_out": left_out}

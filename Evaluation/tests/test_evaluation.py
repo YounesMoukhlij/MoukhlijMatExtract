@@ -82,7 +82,8 @@ class MatchingTests(unittest.TestCase):
 def _write_database(folder: Path) -> None:
     folder.mkdir(parents=True)
     pd.DataFrame([{"paper_id": f"p{n}.pdf", "filename": f"p{n}.pdf", "title": f"Paper {n}", "doi": f"10.1/p{n}",
-                   "publication_year": "2024", "source_url": f"file:///papers/p{n}.pdf", "file_sha256": f"s{n}"}
+                   "publication_year": "2024", "source_url": f"file:///papers/p{n}.pdf", "file_sha256": f"s{n}",
+                   "source_service": "unpaywall"}
                   for n in range(1, 5)]).to_csv(folder / "papers.csv", index=False)
     rows = [  # paper, material, value, component
         ("p1.pdf", "Li6PS5Cl", "0.31", "bulk"),     # correct
@@ -153,6 +154,21 @@ class WorkbookAndScoreTests(unittest.TestCase):
         workbook = openpyxl.load_workbook(book)
         self.assertEqual(workbook["Papers"].max_row - 1, 2)
         self.assertEqual(workbook["Values"].max_row, 1)  # the header only: the missed values go in "Missed"
+
+    def test_only_papers_with_a_legal_copy_are_drawn(self):
+        papers = pd.read_csv(self.db / "papers.csv", dtype=str, keep_default_na=False)
+        papers["source_service"] = ["unpaywall", "a file of this computer", "pmc", "already in the folder"][:len(papers)]
+        papers.to_csv(self.db / "papers.csv", index=False)
+        log = self.base / "scrape_log.csv"  # the earlier downloader: p3 came from a shadow library, then legally again
+        pd.DataFrame([{"doi": papers.loc[2, "doi"] or "10.1/p3", "title": "", "result": "saved", "source": "Sci-Hub",
+                       "file": "p3.pdf", "tried_at": "2026"}]).to_csv(log, index=False)
+        book = self.base / "legal.xlsx"
+        counts = sheet.make([self.db], book, count=10, seed=7, version="test", legal_only=True, log=log)
+        rows = list(openpyxl.load_workbook(book)["Papers"].values)
+        drawn = sorted(row[rows[0].index("paper_id")] for row in rows[1:])
+        self.assertEqual(counts["left_out"], 2)
+        self.assertEqual(len(drawn), 2)
+        self.assertTrue(all(paper_id.startswith(("p1", "p3")) for paper_id in drawn), drawn)
 
     def test_the_draw_is_the_same_for_the_same_seed(self):
         databases = [sheet.read_database(self.db)]

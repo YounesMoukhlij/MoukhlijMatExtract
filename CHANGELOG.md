@@ -208,6 +208,11 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
   folder by itself when it starts; opening a part still does.
 
 ### Changed
+
+- `mme-eval sheet` draws only the papers `mme-release` would publish (a recorded legal copy, or the authors'
+  own PDFs), so precision and recall describe the deposited dataset; `--all-papers` draws from every paper.
+- The ChemDataExtractor baseline reads each PDF in its own process, two at a time (about 3 GB each), stops a
+  paper after an hour (`--timeout`) and goes on where a stopped run left off.
 - **The ranking ranks each transport component on its own** — bulk, grain boundary and total — each
   with its own ranks and classes, written to `results/bulk/`, `results/grain_boundary/` and
   `results/total/` with `results/summary.csv` beside them. Before, a material's Ea was the median of its
@@ -234,6 +239,9 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
   (`mme-eval reference`) always re-extracts what an earlier version read.
 
 ### Fixed
+
+- `mme-release` released no paper that an earlier downloader had taken from a shadow library, even after a
+  legal copy of it was downloaded again: the legal source recorded with the copy extracted now comes first.
 - **Conductivities in S/m** (and mS/m, µS/m) were not read: "0.12 S m−1" is 0.0012 S/cm now.
 - **Composition series.** A value given for one member of a series is that compound's: with the paper's own
   label of the series and x ("LLBZT with x = 0.1" → Ba0.1Li6.6La2.9Zr1.5Ta0.5O12), with x in a sentence

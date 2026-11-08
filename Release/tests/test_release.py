@@ -149,6 +149,19 @@ class ReleaseTests(unittest.TestCase):
         report = release.make([self.db], [], self.base / "out3", "1.2.3", log=log, keep_unrecorded=True)
         self.assertEqual(report.papers, 3)
 
+    def test_a_legal_copy_downloaded_again_replaces_the_shadow_one(self):
+        # The earlier tool's log says Sci-Hub, but the copy extracted now was downloaded from Unpaywall.
+        log = self.base / "scrape_log.csv"
+        pd.DataFrame([{"doi": "10.1/nd", "title": "ND", "result": "saved", "source": "Sci-Hub", "file": "nd.pdf",
+                       "tried_at": "2026"}]).to_csv(log, index=False)
+        origins = release.origins_of([self.db], log)
+        self.assertEqual(origins["nd.pdf"], (True, "downloaded from unpaywall"))
+        # a service that is itself a shadow library is never taken for a legal one
+        papers = pd.read_csv(self.db / "papers.csv", dtype=str)
+        papers.loc[papers.paper_id == "open.pdf", "source_service"] = "libgen"
+        papers.to_csv(self.db / "papers.csv", index=False)
+        self.assertFalse(release.origins_of([self.db], log)["open.pdf"][0])
+
     def test_keep_text_keeps_everything(self):
         report = release.make([self.db], [], self.base / "out", "1.2.3", keep_text=True)
         table = pd.read_csv(report.folder / "web_output" / "activation_energy.csv", dtype=str)

@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Sequence
 
-from LocalExtraction.about import command_name, enter_project_home, version, version_text
+from LocalExtraction.about import PROJECT_HOME, command_name, enter_project_home, version, version_text
 from LocalExtraction.provenance import Run
 
 from .about import DEFAULT_SCORES, DEFAULT_SHEET, DEFAULT_SOURCES, NAME
@@ -58,6 +58,10 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Workbook to write (default: Evaluation/annotation.xlsx)")
     sheet.add_argument("--force", action="store_true",
                        help="Replace an existing workbook; the old one is kept as <name>.<date>.xlsx")
+    sheet.add_argument("--all-papers", action="store_true",
+                       help="Draw from every paper. By default only the papers mme-release would publish are drawn "
+                            "(a legal copy recorded, or the authors' own PDFs), so the scores describe the dataset "
+                            "you deposit")
 
     score = commands.add_parser("score", help="Score the extraction against the annotated workbook",
                                 description="Precision, recall and F1 per property and overall, at the value "
@@ -129,12 +133,15 @@ def run_sheet(args) -> int:
                   file=sys.stderr)
             return 1
         print(f"The old workbook is kept as {_keep_old(out)}")
-    counts = make(present, out, args.papers, args.seed, version())
+    log = None if args.all_papers else PROJECT_HOME / "WebScraping" / "papers" / "scrape_log.csv"
+    counts = make(present, out, args.papers, args.seed, version(), legal_only=not args.all_papers, log=log)
     print(f"Wrote {out}\n  {counts['papers']} papers drawn (seed {args.seed}), {counts['without_values']} of them "
           f"without any extracted value; {counts['values']} extracted values to check.\n"
           f"  Next: open it, read its Guide sheet, annotate, then: {command_name('mme-eval', NAME)} score")
+    if counts.get("left_out"):
+        print(f"  {counts['left_out']} paper(s) with no record of a legal copy were not drawn (--all-papers draws them).")
     if counts["papers"] < args.papers:
-        print(f"  (only {counts['papers']} papers in the databases)")
+        print(f"  (only {counts['papers']} papers to draw from)")
     return 0
 
 

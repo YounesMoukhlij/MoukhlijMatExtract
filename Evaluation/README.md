@@ -21,6 +21,9 @@ recall is measured honestly. The same databases and seed always give the same pa
 records the date, the software version, the seed and a fingerprint of the databases (About sheet). An
 existing workbook is never replaced (`--force` replaces it and keeps the old one as `<name>.<date>.xlsx`).
 
+Only the papers `mme-release` would publish are drawn: those with a recorded legal copy, and the authors' own
+PDFs (part 1). The scores then describe the dataset you deposit. `--all-papers` draws from every paper.
+
 ## 2 · Annotate
 
 Open the workbook; its **Guide** sheet says how. In short, paper by paper:

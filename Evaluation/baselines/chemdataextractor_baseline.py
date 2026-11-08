@@ -14,7 +14,8 @@ ChemDataExtractor 2 runs in its own Python environment (it needs older packages 
 It is slow: its BERT model reads each paragraph in about 5 s on a laptop CPU, so a paper takes 10–30 minutes,
 and each process needs about 3 GB of memory. Each PDF is read in its own process, `--jobs` at a time (2 by
 default: more only with more than 8 GB of memory); one that takes longer than `--timeout` seconds is stopped
-and reported, not waited for.
+and reported, not waited for. A run stopped half-way goes on where it stopped when started again
+(`<out>.done` lists the PDFs read; delete it to start over).
 
 It reads each PDF as ChemDataExtractor does (its own PDF reader) and writes one row per value it found, in
 the CSV form `mme-eval score --predictions` reads: paper_id (the PDF's file name), property, material,
@@ -142,11 +143,25 @@ def main(argv=None) -> int:
     if args.out is None:
         parser.error("--out is required")
     files = sorted({p for given in args.pdfs for p in ([given] if given.is_file() else given.glob("*.pdf"))})
-    rows, failed = 0, 0
-    with args.out.open("w", newline="", encoding="utf-8") as f, ThreadPoolExecutor(max(1, args.jobs)) as pool:
+    # A run stopped half-way goes on where it stopped: the PDFs listed in <out>.done are not read again.
+    done_list = args.out.with_name(args.out.name + ".done")
+    done = set(done_list.read_text(encoding="utf-8").split("\n")) - {""} if done_list.exists() and args.out.exists() else set()
+    kept = []
+    if done:
+        with args.out.open(newline="", encoding="utf-8") as f:
+            kept = [row for row in csv.reader(f)][1:]
+        print(f"{len(done)} PDF(s) read before — kept", flush=True)
+    else:
+        done_list.write_text("", encoding="utf-8")
+    todo = [pdf for pdf in files if pdf.name not in done]
+    rows, failed = len(kept), 0
+    with args.out.open("w", newline="", encoding="utf-8") as f, done_list.open("a", encoding="utf-8") as marks, \
+            ThreadPoolExecutor(max(1, args.jobs)) as pool:
         writer = csv.writer(f)
         writer.writerow(COLUMNS)
-        for number, (pdf, (found, why)) in enumerate(zip(files, pool.map(lambda p: _one(p, args.timeout), files)), 1):
+        writer.writerows(kept)
+        for number, (pdf, (found, why)) in enumerate(zip(todo, pool.map(lambda p: _one(p, args.timeout), todo)),
+                                                     len(done) + 1):
             if found is None:
                 failed += 1
                 print(f"[{number}/{len(files)}] {pdf.name}: {why}", flush=True)
@@ -154,6 +169,8 @@ def main(argv=None) -> int:
             for prop, material, value, unit in found:
                 writer.writerow([pdf.name, prop, material, value, unit])
             f.flush()
+            marks.write(pdf.name + "\n")
+            marks.flush()
             rows += len(found)
             print(f"[{number}/{len(files)}] {pdf.name}: {len(found)} value(s)", flush=True)
     print(f"Wrote {args.out}: {rows} values from {len(files) - failed} of {len(files)} PDFs"

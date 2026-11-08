@@ -97,10 +97,14 @@ def origins_of(databases: Sequence[Path], log: Optional[Path] = None) -> Dict[st
         for row in papers.itertuples(index=False):
             service = str(getattr(row, "source_service", "") or "").strip()
             log_source = earlier.get(str(getattr(row, "doi", "") or "").strip().lower(), "")
-            if log_source and _SHADOW.search(log_source):
+            # The source recorded with the copy extracted comes first: a paper an earlier tool took from a
+            # shadow library, then downloaded again from a legal source, is the legal copy.
+            if service not in _UNRECORDED and not _SHADOW.search(service):
+                origin = (True, f"downloaded from {service}")
+            elif log_source and _SHADOW.search(log_source):
                 origin = (False, f"a copy from a shadow library ({log_source})")
             elif service not in _UNRECORDED:
-                origin = (True, f"downloaded from {service}")
+                origin = (False, f"a copy from a shadow library ({service})")
             elif log_source:
                 origin = (True, f"downloaded from {log_source} (by an earlier version)")
             elif own:
