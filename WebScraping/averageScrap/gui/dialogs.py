@@ -35,9 +35,19 @@ class _Scrollable(ttk.Frame):
         self.canvas.configure(yscrollcommand=bar.set)
         self.canvas.pack(side="left", fill="both", expand=True)
         bar.pack(side="right", fill="y")
-        # The wheel scrolls this frame only while the pointer is over it.
+        # The wheel scrolls this frame only while the pointer is over it. Moving onto one of its cards is
+        # reported to the frame as leaving it: the wheel is let go only when the pointer is really out.
         self.bind("<Enter>", lambda event: self._wheel(True))
-        self.bind("<Leave>", lambda event: self._wheel(False))
+        self.bind("<Leave>", self._leave)
+        self.bind("<Destroy>", lambda event: self._wheel(False) if event.widget is self else None)
+
+    def _inside(self, x_root: int, y_root: int) -> bool:
+        widget = self.winfo_containing(x_root, y_root)
+        return widget is not None and str(widget).startswith(str(self))
+
+    def _leave(self, event: "tk.Event") -> None:
+        if not self._inside(event.x_root, event.y_root):
+            self._wheel(False)
 
     def _wheel(self, on: bool) -> None:
         for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
@@ -47,6 +57,8 @@ class _Scrollable(ttk.Frame):
                 self.canvas.unbind_all(sequence)
 
     def _scroll(self, event: "tk.Event") -> None:
+        if not self._inside(event.x_root, event.y_root):
+            return
         if getattr(event, "num", 0) in (4, 5):  # Linux
             steps = -1 if event.num == 4 else 1
         else:  # Windows (steps of 120) and macOS (small steps)
@@ -69,8 +81,8 @@ class SettingsDialog(Dialog):
         self.status: Dict[str, tk.StringVar] = {}  # organization -> "✓ set" / "not set"
         ttk.Label(self.body, text="API keys, one card per organization", font=("TkDefaultFont", 14, "bold")).pack(anchor="w")
         ttk.Label(self.body, wraplength=820, justify="left", foreground="#8c8c8c",
-                  text="Every key is free and optional: the web search works without any of them, and each one "
-                       "opens more papers (a source whose key is missing is skipped, with a line saying so). They are "
+                  text="Every key is optional, and nearly all are free (The Lens comes with your institution's "
+                       "subscription): the web search works without any of them, and each one opens more papers (a source whose key is missing is skipped, with a line saying so). They are "
                        "saved in WebScraping/averageScrap/.env, which git ignores, and never written to a log."
                   ).pack(fill="x", pady=(2, 8))
         cards = _Scrollable(self.body)
@@ -83,6 +95,31 @@ class SettingsDialog(Dialog):
         ttk.Checkbutton(bottom, text="Show the keys", variable=self._show, command=self._toggle).pack(side="left")
         ttk.Button(bottom, text="Save", command=self._save).pack(side="right")
         ttk.Button(bottom, text="Cancel", command=self.destroy).pack(side="right", padx=6)
+        # Opened from a window that holds the mouse (the "Before you start" question), this one takes
+        # it while it is open — else its buttons, boxes and scrolling would not answer the mouse — and
+        # gives it back when it closes.
+        self._held_by = self.grab_current()
+        if self._held_by is not None:
+            self.after_idle(self._take_mouse)
+            self.bind("<Destroy>", self._give_mouse_back, add="+")
+
+    def _take_mouse(self) -> None:
+        try:
+            if self.winfo_exists():
+                self.grab_set()
+        except tk.TclError:  # not on screen yet: a grab needs the window drawn
+            if self.winfo_exists():
+                self.after(100, self._take_mouse)
+
+    def _give_mouse_back(self, event: "tk.Event") -> None:
+        if event.widget is not self:
+            return
+        held = self._held_by
+        try:
+            if held is not None and held.winfo_exists():
+                held.grab_set()
+        except tk.TclError:
+            pass
 
     def _card(self, parent: tk.Misc, group: KeyGroup, stored: Dict[str, str]) -> None:
         card = ttk.LabelFrame(parent, text=f" {group.organization} ", padding=10)
@@ -93,8 +130,7 @@ class SettingsDialog(Dialog):
         status = tk.StringVar()
         badge = ttk.Label(head, textvariable=status, font=("TkDefaultFont", 11, "bold"))
         badge.pack(side="right", padx=(10, 0))
-        ttk.Label(card, text=f"Used by: {group.used_by}", foreground="#8c8c8c",
-                  font=("TkDefaultFont", 10)).pack(anchor="w", pady=(2, 6))
+        ttk.Frame(card, height=6).pack(fill="x")
         boxes = ttk.Frame(card)
         boxes.pack(fill="x")
         for row, (name, label) in enumerate(group.fields):
@@ -148,8 +184,8 @@ class SettingsDialog(Dialog):
 
 class StartDialog(Dialog):
     """Shown each time the Web scraping window opens: the contact e-mail, which it asks for and saves
-    as MME_EMAIL; the API keys, optional; and Google Chrome, which method 2 needs. Continue calls
-    on_continue once a valid e-mail is given; closing it any other way calls on_cancel."""
+    as MME_EMAIL, and the API keys, optional. Continue calls on_continue once a valid e-mail is given;
+    closing it any other way calls on_cancel."""
 
     def __init__(self, parent: tk.Misc, on_continue: Callable[[], None], on_cancel: Callable[[], None],
                  path: str = ENV_PATH):
@@ -163,8 +199,8 @@ class StartDialog(Dialog):
         ttk.Label(self.body, text="Before you start", font=("TkDefaultFont", 14, "bold")).pack(anchor="w")
         mail = self._section("Your academic e-mail — required",
                              "OpenAlex and Crossref answer faster with it, and Unpaywall, which finds the free copies "
-                             "of articles, needs it. Without it fewer DOIs and articles are found, by keywords or by "
-                             "DOI. Use your university address; it is sent to these three services only.")
+                             "of articles, needs it. Without it fewer articles are found, by keywords or by DOI."
+                             " Use your university address; it is sent to these three services only.")
         row = ttk.Frame(mail)
         row.pack(fill="x", pady=(6, 0))
         ttk.Label(row, text="E-mail:").pack(side="left")
@@ -173,15 +209,9 @@ class StartDialog(Dialog):
         self.entry.bind("<Return>", lambda event: self._continue())
 
         keys = self._section("API keys — optional",
-                             "Every key is free and opens more papers; the search works without them. Check which "
-                             "ones you have and add them.")
+                             "Every key opens more papers, and nearly all are free; the search works without them. "
+                             "Check which ones you have and add them.")
         ttk.Button(keys, text="API keys…", command=self._keys).pack(anchor="w", pady=(6, 0))
-
-        chrome = self._section("Google Chrome — needed to fetch the articles",
-                               "moukhlij4scraping (method 2) uses Google Chrome to download the article of each DOI. "
-                               "Install it before you use that method.")
-        ttk.Button(chrome, text="Get Google Chrome ↗",
-                   command=lambda: webbrowser.open("https://www.google.com/chrome/")).pack(anchor="w", pady=(6, 0))
 
         buttons = ttk.Frame(self.body)
         buttons.pack(fill="x", pady=(14, 0))

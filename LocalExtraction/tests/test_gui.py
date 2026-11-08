@@ -121,6 +121,12 @@ class WindowTest(unittest.TestCase):
                 self.asked.append((_n, k.get("message") or (a[1] if len(a) > 1 else ""))), self.answer)[1])
             patcher.start()
             self.addCleanup(patcher.stop)
+        self.choice = "add"  # the answer to "There is already data here": add / new / None (Cancel)
+        self.choices = []
+        patcher = mock.patch("LocalExtraction.gui.dialogs.ask_choice", side_effect=lambda parent, title, message, options: (
+            self.choices.append((message, [key for key, _, _ in options])), self.choice)[1])
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.prepare()
         self.root = tk.Tk()
         self.root.attributes("-alpha", 0.0)  # drawn, as in real use, but not seen
@@ -135,6 +141,14 @@ class WindowTest(unittest.TestCase):
         raise NotImplementedError
 
     def _close(self):
+        # A step still under way is stopped and waited for: its thread must not outlive the window.
+        panel = getattr(self.app, "panel", None)
+        if panel is not None and panel.running():
+            panel.stop()
+            self.pump(until=lambda: not panel.running(), limit=30)
+        thread = getattr(panel, "_thread", None)
+        if thread is not None:
+            thread.join(30)
         self.app.close()
         self.pump(0.3)
 
@@ -162,6 +176,18 @@ class WindowTests(WindowTest):
         return App(root, input_dir=self.pdfs, output_dir=self.output, workers=2)
 
     # ------------------------------------------------------------------
+    def test_clear_the_log_empties_the_activity_and_the_log_strip(self):
+        panel = self.app.panel
+        panel.activity.write("a line of the step")
+        self.app.log.write("a line of the engine")
+        self.pump(0.2)
+        panel.activity.clear_button.invoke()
+        self.pump(0.2)
+        self.assertEqual((panel.activity.contents().strip(), self.app.log.contents().strip()), ("", ""))
+        panel.activity.write("after")  # what comes next is shown as before
+        self.pump(0.2)
+        self.assertIn("after", panel.activity.contents())
+
     def test_the_window_shows_its_folder_of_results(self):
         energies = self.app.panel.energies
         self.assertEqual(len(energies.table), 2)
@@ -170,22 +196,59 @@ class WindowTests(WindowTest):
         row = dict(zip(energies.table.columns, energies.table.tree.item("0", "values")))
         self.assertEqual((row["extracted_from"], str(row["page"])), ("Text", "1"))
 
-    def test_an_older_database_is_moved_aside_only_on_a_yes(self):
+    def test_an_older_database_too_different_can_only_be_moved_aside(self):
         output = self.output
         papers = os.path.join(output, "papers.csv")
         pd.read_csv(papers).drop(columns="metadata_basis").to_csv(papers, index=False)  # what an earlier version wrote
         self.app.database_changed()
         self.assertIn("earlier version", self.app.panel.energies.count.get())
-        self.answer = False
+        self.choice = None  # Cancel
         self.assertFalse(self.app.ready_to_extract(output))
+        self.assertEqual(self.choices[-1][1], ["new"])  # adding to it is not offered
         self.assertTrue(os.path.exists(os.path.join(output, "papers.csv")))
-        self.answer = True
+        self.choice = "new"
         self.assertTrue(self.app.ready_to_extract(output))
         self.assertFalse(os.path.exists(os.path.join(output, "papers.csv")))
         kept = [name for name in os.listdir(output) if name.startswith("previous_")]
         self.assertEqual(len(kept), 1)
         self.assertIn("papers.csv", os.listdir(os.path.join(output, kept[0])))  # moved, not deleted
         self.assertIn("Nothing extracted into", self.app.panel.energies.count.get())
+
+    def test_an_older_database_can_take_the_new_articles(self):
+        output = self.output
+        for name, columns in (("papers", ["extracted_with"]), ("activation_energy", ["mobile_ion", "plausibility"])):
+            path = os.path.join(output, f"{name}.csv")
+            pd.read_csv(path).drop(columns=columns).to_csv(path, index=False)  # what the previous version wrote
+        self.assertTrue(StrictExporter.is_outdated(output))
+        self.choice = "add"
+        self.assertTrue(self.app.ready_to_extract(output, new_pdfs=2))
+        self.assertEqual(self.choices[-1][1], ["add", "new"])
+        self.assertIn("2 new PDFs are about to be extracted", self.choices[-1][0])
+        self.assertFalse(StrictExporter.is_outdated(output))  # brought up to date, in place
+        energies = pd.read_csv(os.path.join(output, "activation_energy.csv"), dtype=str)
+        self.assertEqual(len(energies), 2)  # every value kept
+        self.assertTrue(energies["mobile_ion"].str.endswith("+").all())
+        self.assertTrue(energies["basis"].str.contains("ion: ").all())
+        kept = [name for name in os.listdir(output) if name.startswith("previous_")]
+        self.assertEqual(len(kept), 1)  # a copy of the files as they were
+        self.assertNotIn("mobile_ion", pd.read_csv(os.path.join(output, kept[0], "activation_energy.csv")).columns)
+
+    def test_existing_data_asks_whether_to_add_or_start_anew(self):
+        output = self.output
+        self.assertTrue(self.app.ready_to_extract(output, new_pdfs=0))  # nothing new to read: nothing asked
+        self.assertTrue(self.app.ready_to_extract(output))  # the web part: asked only for an earlier version's data
+        self.assertEqual(self.choices, [])
+        self.choice = "add"
+        self.assertTrue(self.app.ready_to_extract(output, new_pdfs=1))
+        self.assertIn("already holds the data of 1 article", self.choices[-1][0])
+        self.assertEqual(self.choices[-1][1], ["add", "new"])
+        self.assertTrue(os.path.exists(os.path.join(output, "papers.csv")))  # kept as it was
+        self.choice = None
+        self.assertFalse(self.app.ready_to_extract(output, new_pdfs=1))  # Cancel: nothing starts
+        self.choice = "new"
+        self.assertTrue(self.app.ready_to_extract(output, new_pdfs=1))
+        self.assertFalse(os.path.exists(os.path.join(output, "papers.csv")))
+        self.assertEqual(len([n for n in os.listdir(output) if n.startswith("previous_")]), 1)
 
     def test_it_runs_the_extraction_of_the_terminal_gate(self):
         open(os.path.join(self.pdfs, "new.pdf"), "wb").close()
@@ -202,10 +265,115 @@ class WindowTests(WindowTest):
             self.assertTrue(self.pump(until=lambda: not panel.running() and panel.status.get() == "Idle."))
         self.assertEqual(calls, [(self.pdfs, self.output, 2)])
         self.assertEqual((panel._done, panel._total), (1, 1))
-        said = panel.activity.text.get("1.0", "end")
+        said = panel.activity.contents()
         self.assertIn("[DONE] new.pdf", said)
         self.assertIn("Papers with Activation Energy: 1 (2 values)", said)
 
 
+@unittest.skipUnless(has_screen(), "the window needs a screen")
+class PauseTests(WindowTest):
+    """Pause holds the extraction between two PDFs; the status says so, and that the internet is gone."""
+
+    def make_app(self, root):
+        from LocalExtraction.gui.app import App
+        folder = os.path.join(self.root_folder, "papers")
+        os.makedirs(folder)
+        Path(folder, "a.pdf").write_bytes(b"%PDF-1.4")
+        return App(root, folder, os.path.join(self.root_folder, "out"))
+
+    def test_pause_holds_then_resume_goes_on(self):
+        import threading
+        from LocalExtraction import runcontrol
+        panel, done = self.app.panel, []
+        paused = threading.Event()  # the first PDF lasts until Pause is pressed (under load, the three
+        # could otherwise be read before the pause lands)
+
+        def extraction(folder, output, max_workers, stop_event, progress_callback, **more):
+            for name in ("a.pdf", "b.pdf", "c.pdf"):
+                runcontrol.checkpoint(stop_event)
+                done.append(name)
+                if name == "a.pdf":
+                    paused.wait(10)
+                time.sleep(0.1)
+            return 0
+        with mock.patch("LocalExtraction.gui.panel.run_extraction", side_effect=extraction):
+            panel.start()
+            self.pump(until=lambda: done)
+            from LocalExtraction.gui.theme import CURRENT
+            self.assertEqual(panel.start_button.cget("style"), CURRENT)  # the step that runs: its button stays blue
+            panel.toggle_pause()
+            paused.set()
+            self.assertEqual(panel._pause.cget("text"), "Resume")
+            self.assertEqual(panel._pause.cget("style"), CURRENT)  # blue while paused
+            self.assertTrue(panel.status.get().startswith("Paused"))
+            self.pump(0.5)
+            held = len(done)
+            self.pump(0.5)
+            self.assertEqual(len(done), held)  # nothing more while paused
+            runcontrol._tell(False)
+            self.pump(0.2)
+            self.assertTrue(panel.status.get().startswith("Paused"))  # the pause notice stays first
+            panel.toggle_pause()
+            # waited for, not timed: under load the status may take longer than a fixed 0.2 s to change
+            self.assertTrue(self.pump(until=lambda: panel.status.get().startswith("No internet")), panel.status.get())
+            runcontrol._tell(True)
+            self.assertTrue(self.pump(until=lambda: not panel.running()))
+        self.assertEqual(done, ["a.pdf", "b.pdf", "c.pdf"])
+        self.assertTrue(self.pump(until=lambda: str(panel._pause.cget("state")) == "disabled"))
+        self.assertEqual((str(panel.start_button.cget("style")), str(panel._pause.cget("style"))), ("TButton", "TButton"))
+
+
+@unittest.skipUnless(has_screen(), "the window needs a screen")
+class ThemeTests(unittest.TestCase):
+    """Every button lights up under the mouse, darkens when pressed, and the running step's stays blue."""
+
+    def test_the_buttons_answer_the_mouse(self):
+        from tkinter import ttk
+        from LocalExtraction.gui import theme
+        root = tk.Tk()
+        root.attributes("-alpha", 0.0)
+        self.addCleanup(root.destroy)
+        theme.apply(root)
+        theme.apply(root)  # a second window of the same program: nothing done twice
+        style = ttk.Style(root)
+        colours = {state: style.lookup("TButton", "background", [state]) for state in ("active", "pressed", "disabled")}
+        rest = style.lookup("TButton", "background")
+        self.assertEqual(len({rest, *colours.values()}), 4)  # at rest, hover, pressed, disabled: four colours
+        button = ttk.Button(root, text="2 · Download")
+        theme.mark(button)
+        self.assertEqual(button.cget("style"), theme.CURRENT)
+        self.assertNotIn(style.lookup(theme.CURRENT, "background"), (rest, *colours.values()))
+        theme.unmark(button)
+        self.assertEqual(button.cget("style"), "TButton")
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class WorkerThreadTests(unittest.TestCase):
+    """A Tk variable freed on a worker thread is released by the main thread, without an error."""
+
+    def test_a_variable_freed_on_a_worker_thread(self):
+        import gc
+        import threading
+
+        from LocalExtraction.gui import theme, tkthreads
+        root = tk.Tk()
+        root.withdraw()
+        self.addCleanup(root.destroy)
+        theme.apply(root)
+        variable = tk.StringVar(root, value="x")
+        name = variable._name
+        box = [variable]
+        del variable
+        problems = []
+        hook, threading.excepthook = threading.excepthook, lambda args: problems.append(args.exc_value)
+        self.addCleanup(setattr, threading, "excepthook", hook)
+        worker = threading.Thread(target=lambda: (box.clear(), gc.collect()))
+        worker.start()
+        worker.join()
+        self.assertEqual(problems, [])
+        self.assertTrue(root.getboolean(root.tk.call("info", "exists", name)))  # not yet: waiting
+        self.assertEqual(tkthreads.release_waiting(), 1)
+        self.assertFalse(root.getboolean(root.tk.call("info", "exists", name)))

@@ -1,13 +1,14 @@
 # WebScraping/__init__.py
-"""Project 2 of MoukhlijMatExtract — the web side. Two methods that feed one output folder:
+"""Project 2 of MoukhlijMatExtract — the web side (averageScrap/): search the open sources (OpenAlex,
+arXiv, Crossref and twenty-two more), keep the papers worth reading, fetch their legal open-access copies,
+extract them. The PDFs go into WebScraping/papers/, the database into WebScraping/web_output/.
 
-  - averageScrap/        method 1: search open sources (OpenAlex, arXiv, Crossref and eleven more),
-                         keep the papers worth reading, fetch the legal copies, extract them.
-  - Fetch_DOIs/ +        method 2 (moukhlij4scraping): collect the DOIs of a topic, fetch a PDF for
-    moukhlij4scraping/   each, extract them.
-
-Both write their PDFs into WebScraping/papers/ and their database into WebScraping/web_output/.
-
-    python -m WebScraping            method 1 from the terminal
-    python -m WebScraping gui        the two-method chooser (or use the one project GUI: python -m mme_gui)
+    python -m WebScraping            from the terminal
+    python -m WebScraping gui        in a window (or use the one project GUI: python -m mme_gui)
 """
+
+# Every web request of the web side pauses with its step and, when the internet is gone, waits for it
+# to come back instead of failing (LocalExtraction/runcontrol.py).
+from LocalExtraction import runcontrol as _runcontrol  # noqa: E402
+
+_runcontrol.install()

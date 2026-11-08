@@ -1,13 +1,15 @@
-"""Collect DOIs for keywords and store them in a CSV file (and the bare DOIs in a text file).
+"""Collect DOIs for keywords from the open scholarly sources, and store them in a CSV file (and the
+bare DOIs in a text file). In the Web scraping window this is "1 · Fetch DOIs"; "2 · Search" then
+searches with the DOIs saved (each checked like the keyword results: OpenAlex record, abstract, score),
+and "3 · Download" looks for the legal open-access copy of each (Unpaywall, PubMed Central, arXiv, …).
 
 The keywords are the search queries of the project's job file,
 configs/sse.yaml (the one WebScraping searches with), unless others are given
 on the command line. The job's years, max_per_query, sources and
 contact_email are used too.
 
-Sources: OpenAlex, Crossref, Semantic Scholar, arXiv and Google Scholar.
-Google Scholar results carry no DOI, so it is read from the result's link or
-found on Crossref by the paper's title. Every run adds its new DOIs to the
+Sources: OpenAlex, Crossref, Semantic Scholar and arXiv — open indexes, asked through the
+interfaces they offer to programs. Every run adds its new DOIs to the
 list already saved (one row per DOI), and the list is saved after each keyword.
 
 How many: --count N adds N new DOIs (1 or more) and stops. Without it there is no
@@ -24,7 +26,7 @@ keeps to the keywords given.
     python get_dois.py                                  # no limit, until you stop it
     python get_dois.py --count 500                      # 500 new DOIs, then stop
     python get_dois.py "solid electrolyte" "LLZO garnet" --count 50
-    python get_dois.py --job configs/my_job.yaml --max 50 --no-scholar
+    python get_dois.py --job configs/my_job.yaml --max 50
 
 Keys are read from WebScraping/averageScrap/.env when it exists (MME_EMAIL,
 OPENALEX_API_KEY, SEMANTIC_SCHOLAR_API_KEY); none is required.
@@ -32,16 +34,13 @@ OPENALEX_API_KEY, SEMANTIC_SCHOLAR_API_KEY); none is required.
 
 import argparse
 import csv
-import difflib
 import json
-import logging
 import math
 import os
 import re
 import signal
 import sys
 import threading
-import time
 from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -49,13 +48,12 @@ from urllib.parse import quote, unquote
 
 import requests
 import yaml
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 if not __package__:  # run as a script (python WebScraping/Fetch_DOIs/get_dois.py): make the project root importable
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from LocalExtraction.about import PROJECT_HOME, enter_project_home  # noqa: E402
+from LocalExtraction import runcontrol  # noqa: E402
+from LocalExtraction.about import PROJECT_HOME, command_name, enter_project_home, version_text  # noqa: E402
 
 HERE = Path(__file__).resolve().parent            # WebScraping/Fetch_DOIs (where the code lives)
 # The DOI list and the job file live in ~/MoukhlijMatExtract — not where the package is installed —
@@ -66,8 +64,6 @@ JOB_FILE = PROJECT_HOME / "configs" / "sse.yaml"
 ENV_FILE = HERE.parent / "averageScrap" / ".env"
 
 PER_SOURCE = 100       # results asked from each source per keyword, if the job does not say
-SCHOLAR_MAX = 20       # Google Scholar is slow and blocks scripts quickly
-SCHOLAR_TIMEOUT = 180  # seconds before giving up on Google Scholar
 EXTRA_PER_SOURCE = 50  # results asked per source for a keyword made of topic + property words
 EXTRA_MIN_SHARE = 5    # new DOIs one such keyword may add at least (fewer keywords, faster runs)
 LOOKUP_EVERY = 50      # extra keywords between two look-ups of the details the sources left out
@@ -142,10 +138,9 @@ load_env(ENV_FILE)
 EMAIL = ""
 
 SESSION = requests.Session()
-# Wait and retry on rate limits (429) and server errors, following Retry-After.
-SESSION.mount("https://", HTTPAdapter(max_retries=Retry(
-    total=5, backoff_factor=2, status_forcelist=(429, 500, 502, 503, 504),
-    allowed_methods=["GET"])))
+RETRY_STATUS = (429, 500, 502, 503, 504)  # a rate limit or a busy server: wait, then ask again
+RETRIES = 5
+MAX_WAIT = 60.0  # seconds; a longer Retry-After is cut to this
 
 
 def set_contact(email):
@@ -155,10 +150,35 @@ def set_contact(email):
     SESSION.headers["User-Agent"] = f"get_dois.py (mailto:{email})" if email else "get_dois.py"
 
 
+def _retry_wait(attempt, response=None):
+    """Seconds to wait before asking again: the site's Retry-After when it gives one, else 2, 4, 8, ... s."""
+    try:
+        given = float(response.headers.get("Retry-After", "")) if response is not None else 0.0
+    except (TypeError, ValueError):  # absent, or written as a date
+        given = 0.0
+    if not given and response is not None and response.status_code == 429:
+        given = 15.0 * 2 ** attempt  # "too many requests": a real pause (15, 30, 60 s), not a moment
+    return min(MAX_WAIT, given or 2.0 * 2 ** attempt)
+
+
 def get(url, params=None, headers=None):
-    response = SESSION.get(url, params=params, headers=headers, timeout=30)
-    response.raise_for_status()
-    return response
+    """GET, asked again up to RETRIES times on a rate limit, a busy server or a dropped connection.
+    The waits are made here, not inside requests, so that Pause holds them and Stop (or Ctrl-C) ends them."""
+    for attempt in range(RETRIES + 1):
+        try:
+            response = SESSION.get(url, params=params, headers=headers, timeout=30)
+        except (requests.ConnectionError, requests.Timeout):
+            if attempt == RETRIES:
+                raise
+            runcontrol.sleep(_retry_wait(attempt))
+            continue
+        if response.status_code in RETRY_STATUS and attempt < RETRIES:
+            wait = _retry_wait(attempt, response)
+            response.close()
+            runcontrol.sleep(wait)
+            continue
+        response.raise_for_status()
+        return response
 
 
 def mailto():
@@ -283,7 +303,7 @@ def from_semantic_scholar(keyword, limit, years):
         offset += len(papers)
         if not papers or "next" not in data:
             break
-        time.sleep(1)  # one request a second
+        runcontrol.sleep(1)  # one request a second
     return found
 
 
@@ -294,7 +314,7 @@ def from_arxiv(keyword, limit, years):
     found = []
     for start in range(0, limit, 100):
         if start:
-            time.sleep(3)  # arXiv asks for 3 s between requests
+            runcontrol.sleep(3)  # arXiv asks for 3 s between requests (a wait Pause holds and Stop ends)
         feed = ET.fromstring(get("https://export.arxiv.org/api/query", {
             "search_query": query, "start": start, "max_results": min(100, limit - start),
             "sortBy": "relevance"}).content)
@@ -315,104 +335,12 @@ def from_arxiv(keyword, limit, years):
     return found
 
 
-class CaptchaWatch(logging.Handler):
-    """Notes when scholarly logs that Google answered with a captcha."""
-
-    def __init__(self):
-        super().__init__()
-        self.seen = threading.Event()
-
-    def emit(self, record):
-        if "captcha" in record.getMessage().lower():
-            self.seen.set()
-
-
-class ScholarBlocked(Exception):
-    """Google Scholar stopped answering; .records holds what it gave before."""
-
-    def __init__(self, reason, records):
-        super().__init__(reason)
-        self.records = records
-
-
-def crossref_by_title(title):
-    """The Crossref item whose title matches this one (score >= 0.9) and the score, or None."""
-    items = get("https://api.crossref.org/works", {
-        "query.bibliographic": title, "rows": 3, "select": CROSSREF_FIELDS,
-        **mailto()}).json()["message"]["items"]
-    for item in items:
-        score = difflib.SequenceMatcher(None, simple(title), simple(first(item.get("title")))).ratio()
-        if score >= 0.9:
-            return item, score
-    return None
-
-
-def from_google_scholar(keyword, limit, years):
-    try:
-        from scholarly import scholarly
-    except ImportError as exc:
-        raise ScholarBlocked(f"scholarly cannot be imported ({exc})", [])
-
-    results, errors = [], []
-    year_range = {"year_low": years[0], "year_high": years[1]} if years else {}
-
-    def run():
-        try:
-            for result in scholarly.search_pubs(keyword, **year_range):
-                results.append(result)
-                if len(results) >= limit:
-                    break
-        except Exception as exc:  # scholarly raises many kinds of errors when blocked
-            errors.append(exc)
-
-    # When Google answers with a captcha, scholarly only logs it and keeps
-    # retrying for minutes; watch its log so we can stop at once instead.
-    captcha = CaptchaWatch()
-    log = logging.getLogger("scholarly")
-    log.addHandler(captcha)
-    log.setLevel(logging.INFO)
-
-    worker = threading.Thread(target=run, daemon=True)
-    worker.start()
-    end = time.time() + SCHOLAR_TIMEOUT
-    while worker.is_alive() and time.time() < end and not captcha.seen.is_set():
-        worker.join(0.5)
-    log.removeHandler(captcha)
-
-    found = []
-    for result in list(results):
-        bib = result.get("bib", {})
-        title, year = bib.get("title", ""), bib.get("pub_year", "")
-        # Scholar shortens authors and venues, so only title and year are kept;
-        # fill_details() then looks the rest up by DOI.
-        doi = clean_doi(" ".join(filter(None, (result.get("pub_url"), result.get("eprint_url")))))
-        if doi:
-            found.append(record(doi, title, year, basis="in the Google Scholar result's link"))
-            continue
-        try:
-            match = crossref_by_title(title)
-        except requests.RequestException:
-            match = None
-        if match:
-            item, score = match
-            found.append(crossref_record(item, f"Crossref title match {score:.2f} (Google Scholar result)"))
-
-    if captcha.seen.is_set():
-        raise ScholarBlocked("Google asked for a captcha (it blocks scripts for a while)", found)
-    if worker.is_alive():
-        raise ScholarBlocked(f"no answer after {SCHOLAR_TIMEOUT} s", found)
-    if errors:
-        raise ScholarBlocked(f"blocked ({errors[0].__class__.__name__})", found)
-    return found
-
-
 # (name shown, name in the job's search.sources, function)
 SOURCES = [
     ("OpenAlex", "openalex", from_openalex),
     ("Crossref", "crossref", from_crossref),
     ("Semantic Scholar", "semanticscholar", from_semantic_scholar),
     ("arXiv", "arxiv", from_arxiv),
-    ("Google Scholar", None, from_google_scholar),  # not a WebScraping source: always asked
 ]
 
 
@@ -712,7 +640,7 @@ def collect(rows, keywords, sources, limit, years, count=None, extra=(), after_k
             print(f"\n=== [{'' if phase == 'base' else 'extra '}{number}/{len(words)}] {keyword}"
                   f"   (new DOIs so far: {so_far})")
             for name, search in list(sources):
-                asked = min(depth, SCHOLAR_MAX) if name == "Google Scholar" else depth
+                asked = depth
                 key = search_key(name, keyword, years)
                 when = None if refresh else already_searched(searched, key, asked)
                 if when:
@@ -720,15 +648,19 @@ def collect(rows, keywords, sources, limit, years, count=None, extra=(), after_k
                     used["skipped"] = used.get("skipped", 0) + 1
                     continue
                 complete = True
+                used["asked"] = used.get("asked", 0) + 1
+                used.setdefault("keywords", set()).add(keyword)
                 try:
                     found = search(keyword, asked, years)
-                except ScholarBlocked as exc:
-                    found, complete = exc.records, False
-                    sources.remove((name, search))
-                    print(f"  {name}: {exc}; not asked again in this run")
                 except Exception as exc:  # one failing source must not stop the others
-                    print(f"  {name}: failed ({exc.__class__.__name__}: {exc})")
+                    if refused_now(exc):
+                        used.setdefault("refused", []).append((name, search, keyword, asked))
+                        print(f"  {name}: refused ({exc.__class__.__name__}: {exc}) — the watcher asks again later")
+                    else:
+                        print(f"  {name}: failed ({exc.__class__.__name__}: {exc})")
                     continue
+                used["answered"] = used.get("answered", 0) + 1
+                used["given"] = used.get("given", 0) + len(found)
                 given = {rec["doi"] for rec in found if rec["doi"]}
                 fresh = {doi for doi in given if doi not in rows}
                 new = add_all(rows, found, name, keyword, room)
@@ -748,6 +680,65 @@ def collect(rows, keywords, sources, limit, years, count=None, extra=(), after_k
     return added
 
 
+def refused_now(exc):
+    """Whether a source's failure is a "not now" worth asking again later: too many requests, a busy
+    server, a connection that broke or timed out."""
+    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+        code = exc.response.status_code
+        return code in (408, 425, 429) or code >= 500
+    return isinstance(exc, (requests.ConnectionError, requests.Timeout))
+
+
+def recheck(rows, used, searched, years, count=None, added=0, after_round=None):
+    """The watcher's rounds: the keyword searches a source refused are asked again after a pause of
+    2, 5, 10 then 15 minutes (Ctrl-C or Stop ends the wait; what is still refused is asked by the next
+    run, since it is not remembered as done). Returns how many new DOIs they added."""
+    from WebScraping.averageScrap.watcher import ROUNDS_MINUTES
+    new_total = 0
+    for number, minutes in enumerate(ROUNDS_MINUTES, 1):
+        waiting = used.get("refused") or []
+        if not waiting or (count is not None and added + new_total >= count):
+            break
+        print(f"\nWatcher: {len(waiting)} keyword search(es) refused by a source that limits or did not answer "
+              f"requests — asked again in {minutes} min (round {number} of {len(ROUNDS_MINUTES)}). "
+              "Ctrl-C / Stop leaves them for the next run.")
+        runcontrol.sleep(minutes * 60)
+        used["refused"] = []
+        for name, search, keyword, asked in waiting:
+            used["asked"] = used.get("asked", 0) + 1
+            try:
+                found = search(keyword, asked, years)
+            except Exception as exc:
+                if refused_now(exc):
+                    used["refused"].append((name, search, keyword, asked))
+                print(f"  {name} · {keyword}: refused again ({exc.__class__.__name__})")
+                continue
+            used["answered"] = used.get("answered", 0) + 1
+            used["later"] = used.get("later", 0) + 1
+            used["given"] = used.get("given", 0) + len(found)
+            room = None if count is None else max(0, count - added - new_total)
+            fresh = {rec["doi"] for rec in found if rec["doi"] and rec["doi"] not in rows}
+            new = add_all(rows, found, name, keyword, room)
+            new_total += new
+            print(f"  {name} · {keyword}: {len(found)} DOIs ({new} new) — answered on a later try")
+            if searched is not None and new == len(fresh):
+                searched[search_key(name, keyword, years)] = {
+                    "depth": asked, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+        if after_round is not None:
+            after_round()
+    return new_total
+
+
+def watch_report(used, before, total):
+    """The watcher's report of a run of Fetch DOIs: keywords and searches checked, DOIs."""
+    still = len(used.get("refused") or [])
+    return (f"\nWatcher report — keywords checked: {len(used.get('keywords') or ()):,}; searches (keyword × source): "
+            f"{used.get('asked', 0):,} asked, {used.get('answered', 0):,} answered, "
+            f"{used.get('later', 0):,} of them on a later try, {still:,} still refused (asked again next run), "
+            f"{used.get('skipped', 0):,} already done; DOIs: {used.get('given', 0):,} given by the sources, "
+            f"{total - before:,} new, {total:,} in the list.")
+
+
 def positive_count(text):
     """--count: a whole number from 1 up."""
     try:
@@ -761,9 +752,13 @@ def positive_count(text):
 
 # ---------------- main ----------------
 
-def main():
-    parser = argparse.ArgumentParser(description="Collect DOIs for keywords into a CSV file (and the bare "
+def main(argv=None):
+    """The command (mme-dois). `argv`: its arguments (default: the command line) — the Web scraping
+    window calls it with its own."""
+    parser = argparse.ArgumentParser(prog=command_name("mme-dois", "WebScraping.Fetch_DOIs.get_dois"),
+                                     description="Collect DOIs for keywords into a CSV file (and the bare "
                                                  "DOIs into a text file next to it). Each run adds to the list.")
+    parser.add_argument("--version", action="version", version=version_text("mme-dois"))
     parser.add_argument("keywords", nargs="*",
                         help='e.g. "solid electrolyte" "LLZO garnet" (default: the queries of the job file)')
     parser.add_argument("--count", "-n", type=positive_count, metavar="N",
@@ -776,14 +771,13 @@ def main():
                         help=f"results asked from each source per keyword "
                              f"(default: the job's max_per_query, else {PER_SOURCE})")
     parser.add_argument("--out", type=Path, default=OUTPUT, help=f"CSV file (default: WebScraping/Fetch_DOIs/{OUTPUT.name})")
-    parser.add_argument("--no-scholar", action="store_true", help="skip Google Scholar")
     parser.add_argument("--refresh", action="store_true",
                         help=f"ask the sources again the keywords they already answered (by default a keyword a "
                              f"source answered in the last {SEARCH_KEPT_DAYS} days is skipped)")
     parser.add_argument("--no-expand", action="store_true",
                         help="use only the keywords given: do not go on with keywords made of topic and "
                              "property words when they run dry")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     enter_project_home("dois")
 
     if not args.job.exists() and args.job != JOB_FILE:
@@ -815,8 +809,9 @@ def main():
         extra = extra_keywords(keywords, topics, properties, anchor=topics[0])
 
     wanted = job.get("sources")
-    sources = [(name, search) for name, key, search in SOURCES
-               if (key is None and not args.no_scholar) or (key and (not wanted or key in wanted))]
+    sources = [(name, search) for name, key, search in SOURCES if not wanted or key in wanted]
+    if not sources:  # the job searches none of these four: ask them all
+        sources = [(name, search) for name, _, search in SOURCES]
 
     origin = "the command line" if args.keywords else args.job
     more = (f" (+ {len(extra)} more made of topic and property words, "
@@ -856,15 +851,29 @@ def main():
     searched = load_searched(searched_file)
     used = {}
     stopped = False
-    _on_signals(_on_stop)
+    # Run on its own (mme-dois), Ctrl-C is caught here; run as a step of a window or of mme-web, the
+    # step's own Stop (or Ctrl-C) is used, and its handler is left as it was.
+    own_signals = not isinstance(runcontrol.current(), runcontrol.RunControl)
+    before_signals = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)} if own_signals else {}
+    _STOP.clear()
+    if own_signals:
+        _on_signals(_on_stop)
     try:
-        collect(rows, keywords, sources, limit, years, args.count, extra, checkpoint, used, searched, args.refresh)
+        added = collect(rows, keywords, sources, limit, years, args.count, extra, checkpoint, used, searched, args.refresh)
+        recheck(rows, used, searched, years, args.count, added, after_round=checkpoint)
         checkpoint(lookup=True)  # the details of the last DOIs, and the final save
-    except StopRequested:
+    except (StopRequested, runcontrol.StepStopped):  # Ctrl-C, or Stop in the window
         stopped = True
-        _on_signals(signal.SIG_IGN)  # a second press must not cut the save short
+        if own_signals:
+            _on_signals(signal.SIG_IGN)  # a second press must not cut the save short
         print("\nStopped — saving what was found ...")
         checkpoint()
+    finally:
+        for sig, handler in before_signals.items():
+            try:
+                signal.signal(sig, handler)
+            except (ValueError, OSError, TypeError):
+                pass
 
     added, total = len(rows) - before, len(rows)
     extras = used.get("extra", 0)
@@ -881,8 +890,9 @@ def main():
               + f", from {keywords_used}; {total} in the list.")
     if used.get("skipped"):
         print(f"{used['skipped']} keyword searches were already fetched and skipped (--refresh asks them again).")
-    print(f"Saved: {args.out} (full records) and {args.out.with_suffix('.txt')} (bare DOIs, one per "
-          f"line — the input for moukhlij4scraping).")
+    print(watch_report(used, before, total))
+    print(f"Saved: {args.out} (full records) and {args.out.with_suffix('.txt')} (bare DOIs, one per line). "
+          "In the Web scraping window they become candidates; “3 · Download” fetches their legal open-access copies.")
     return 0
 
 

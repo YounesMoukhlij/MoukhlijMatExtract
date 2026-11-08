@@ -71,6 +71,9 @@ class FakeSession:
         self.routes = list(routes or [])
         self.calls = []
 
+    def post(self, url, json=None, data=None, headers=None, timeout=None):
+        return self.get(url, params=json if json is not None else data, headers=headers)
+
     def get(self, url, params=None, headers=None, stream=False, timeout=None):
         self.calls.append((url, params, headers))
         for fragment, answer in self.routes:
@@ -201,11 +204,12 @@ class JobTests(unittest.TestCase):
         self.assertEqual(job.fetch.folder, os.path.join("WebScraping", "papers"))
         self.assertEqual(job.extract.properties, ["Activation_Energy"])
         # Every source is tried unless the job names its own; closed papers are not proposed unless it says so.
-        self.assertEqual(job.fetch.sources, ["elsevier", "wiley", "aps", "openalex", "unpaywall", "arxiv", "pmc", "osti",
-                                             "hal", "semanticscholar", "ads", "openaire", "core", "crossref"])
+        self.assertEqual(job.fetch.sources, ["elsevier", "wiley", "aps", "openalex", "unpaywall", "publisher", "arxiv", "pmc",
+                                             "osti", "hal", "zenodo", "datacite", "semanticscholar", "ads", "openaire", "core",
+                                             "crossref"])
         # Every search source too (one whose key is missing is skipped), and every service asked for a missing abstract.
         self.assertEqual(job.search.sources[:2], ["openalex", "arxiv"])
-        self.assertEqual(len(job.search.sources), 14)
+        self.assertEqual(len(job.search.sources), 25)
         self.assertEqual(job.search.abstract_sources[0], "openaire")
         self.assertFalse(job.screen.propose_closed)
 
@@ -302,6 +306,26 @@ class HttpTests(unittest.TestCase):
         for _ in range(3):
             client.get("https://api.openalex.org/works")
         self.assertEqual(slept, [0.2, 0.2])  # nothing before the first request, then the host's interval
+
+    def test_a_site_that_says_too_many_requests_gets_a_real_pause_then_a_slower_pace(self):
+        """arXiv answers 429 when this network asked too much: the client waits 15 s, then 30 s (not 2, 4, 8),
+        and keeps a slower pace with that host for the rest of the run instead of running into the limit again."""
+        class Clock:
+            now = 100.0
+        slept = []
+
+        def sleep(seconds):
+            slept.append(round(seconds, 3))
+            Clock.now += seconds
+        answers = [FakeResponse(429), FakeResponse(429), FakeResponse(200, "{}"), FakeResponse(200, "{}")]
+        client = PoliteClient(session=FakeSession([("export.arxiv.org", answers)]), sleep=sleep, clock=lambda: Clock.now)
+        with self.assertLogs(level="INFO") as said:
+            self.assertEqual(client.get("https://export.arxiv.org/api/query").status_code, 200)
+            client.get("https://export.arxiv.org/api/query")
+        waits = [s for s in slept if s >= 1]
+        self.assertEqual(waits[:2], [15.0, 30.0])        # the pauses after each 429 (spacing slots aside)
+        self.assertEqual(slept[-1], 12.0)                 # the next request: one every 12 s now (3 s, doubled twice)
+        self.assertEqual(sum("asked to slow down" in line for line in said.output), 2)
 
     def test_who_is_asking(self):
         plain, polite = FakeSession(), FakeSession()
@@ -628,6 +652,9 @@ class StubResolver:
     def options(self, c):
         return iter(self._options)
 
+    def refused(self):
+        return []
+
 
 class DownloaderTests(unittest.TestCase):
     def setUp(self):
@@ -679,14 +706,30 @@ class DownloaderTests(unittest.TestCase):
     def test_nothing_to_try_means_closed(self):
         self.assertEqual(self.downloader([], []).fetch(candidate()).status, CLOSED)
 
-    def test_a_pdf_already_in_the_folder_is_not_downloaded_again(self):
-        Path(self.folder, "10.1000_test.pdf").write_bytes(self.pdf)  # e.g. saved by moukhlij4scraping
+    def test_a_pdf_fetched_legally_is_not_downloaded_again(self):
+        Path(self.folder, "10.1000_test.pdf").write_bytes(self.pdf)  # named after its DOI, as earlier versions did
+        Path(self.folder, "10.1000_test.json").write_text('{"source_service": "unpaywall"}', encoding="utf-8")
         d = self.downloader([], [FetchOption("openalex", "https://repo.example.org/p.pdf")])
         with self.assertLogs(level="INFO") as said:
             outcome = d.fetch(candidate())
         self.assertEqual((outcome.status, outcome.file), (DOWNLOADED, "10.1000_test.pdf"))
         self.assertEqual(self.session.calls, [])  # nothing was asked of the network
         self.assertIn("Already fetched", "\n".join(said.output))
+
+    def test_a_pdf_with_no_record_of_its_source_is_replaced_by_a_legal_copy(self):
+        Path(self.folder, "10.1000_test.pdf").write_bytes(b"%PDF- a copy from somewhere")  # by hand, or an earlier tool
+        d = self.downloader([("repo.example.org/p.pdf", FakeResponse(200, self.pdf, {"Content-Type": "application/pdf"}))],
+                            [FetchOption("openalex", "https://repo.example.org/p.pdf", license="cc-by")])
+        outcome = d.fetch(candidate())
+        self.assertEqual((outcome.status, outcome.service), (DOWNLOADED, "openalex"))
+        self.assertEqual(Path(self.folder, "10.1000_test.pdf").read_bytes(), self.pdf)  # the legal copy now
+        self.assertIn('"openalex"', Path(self.folder, "10.1000_test.json").read_text(encoding="utf-8"))
+
+    def test_with_no_legal_copy_the_pdf_there_stays(self):
+        Path(self.folder, "10.1000_test.pdf").write_bytes(self.pdf)
+        outcome = self.downloader([], []).fetch(candidate())
+        self.assertNotEqual(outcome.status, DOWNLOADED)  # not recorded as fetched from a legal source
+        self.assertEqual(Path(self.folder, "10.1000_test.pdf").read_bytes(), self.pdf)  # never deleted
 
     def test_robots_txt_stops_a_file_download(self):
         d = self.downloader([("robots.txt", FakeResponse(200, "User-agent: *\nDisallow: /")),
@@ -721,6 +764,27 @@ class DownloaderTests(unittest.TestCase):
         d = self.downloader([("api.elsevier.com", FakeResponse(200, "<full-text-retrieval-response/>", {"Content-Type": "text/xml"}))],
                             [FetchOption("elsevier", Elsevier.url("10.1016/j.a.1"), {"X-ELS-APIKey": "k"}, api=True)])
         self.assertIn("text/xml", d.fetch(candidate()).error)
+
+    def test_elsevier_s_first_page_alone_is_not_the_paper(self):
+        # Not entitled: the API sends the article's first page — dense enough to pass for an article.
+        document = pymupdf.open()
+        document.new_page().insert_textbox(pymupdf.Rect(30, 30, 580, 810), "Ionic conductivity of the argyrodite "
+                                           "Li6PS5Cl solid electrolyte\n\n" + "Impedance spectra were measured. " * 70,
+                                           fontsize=7)
+        first_page = document.tobytes()
+        d = self.downloader([("api.elsevier.com", FakeResponse(200, first_page, {"Content-Type": "application/pdf"}))],
+                            [FetchOption("elsevier", Elsevier.url("10.1016/j.a.1"), {"X-ELS-APIKey": "k"}, api=True)])
+        outcome = d.fetch(candidate())
+        self.assertNotEqual(outcome.status, DOWNLOADED)
+        self.assertIn("only the first page", outcome.error)
+        self.assertEqual(list(Path(self.folder).glob("*.pdf")), [])
+
+    def test_a_403_from_elsevier_says_where_the_subscription_works(self):
+        d = self.downloader([("api.elsevier.com", FakeResponse(403))],
+                            [FetchOption("elsevier", Elsevier.url("10.1016/j.a.1"), {"X-ELS-APIKey": "k"}, api=True)])
+        error = d.fetch(candidate()).error
+        self.assertIn("not entitled", error)
+        self.assertIn("university's network", error)
 
     def test_a_file_over_the_size_limit_is_refused(self):
         d = self.downloader([("big.example.org/p.pdf", FakeResponse(200, b"%PDF-" + b"0" * (6 * 1024 * 1024)))],
@@ -960,9 +1024,22 @@ class HarvestTests(unittest.TestCase):
 
     def run_stage(self, **kwargs):
         out = io.StringIO()
-        with redirect_stdout(out), mock.patch("WebScraping.averageScrap.harvest.NaLiXPipeline") as pipeline:
+        with redirect_stdout(out), mock.patch("LocalExtraction.pipeline.NaLiXPipeline") as pipeline:
             code = self.harvest.run(job_path="job.yaml", **kwargs)
         return code, out.getvalue(), pipeline
+
+    def test_a_paper_refused_for_where_it_is_asked_from_keeps_its_tries(self):
+        from WebScraping.averageScrap.fetch import Outcome
+        self.harvest.ledger.add(Candidate(key="10.1016/j.a.1", doi="10.1016/j.a.1", status=APPROVED, decision="yes"))
+        refused = Outcome("10.1016/j.a.1", FAILED, error="elsevier: HTTP 403 (not entitled: closed Elsevier papers …)")
+        for _ in range(5):  # five downloads from home
+            self.assertEqual(self.harvest._record(self.harvest.ledger.get("10.1016/j.a.1"), refused), FAILED)
+        paper = self.harvest.ledger.get("10.1016/j.a.1")
+        self.assertEqual((paper.status, paper.attempts), (FAILED, 0))  # still tried by the next download
+        other = Outcome("10.1016/j.a.1", FAILED, error="openalex: HTTP 404")
+        for _ in range(3):
+            self.harvest._record(self.harvest.ledger.get("10.1016/j.a.1"), other)
+        self.assertEqual(self.harvest.ledger.get("10.1016/j.a.1").status, CLOSED)  # a real failure still counts
 
     def test_the_review_comes_before_any_download(self):
         code, printed, pipeline = self.run_stage(start="discover")
@@ -1026,11 +1103,28 @@ class HarvestTests(unittest.TestCase):
         self.assertEqual(self.harvest.ledger.get("10.1000/good").status, APPROVED)
 
     def test_a_failing_paper_is_retried_then_given_up_on(self):
-        self.session.routes[1] = ("repo.example.org/good.pdf", FakeResponse(500))
+        self.session.routes[1] = ("repo.example.org/good.pdf", FakeResponse(404))  # an answer: the file is not there
         self.run_stage(start="discover")
         for expected in (FAILED, FAILED, CLOSED):
             self.run_stage(start="fetch")
             self.assertEqual(self.harvest.ledger.get("10.1000/good").status, expected)
+
+    def test_a_paper_a_busy_site_refuses_waits_on_the_watch_list_and_is_fetched_on_a_later_round(self):
+        """HTTP 503 (busy) or 429 is not an answer: the paper is not counted as a failed try, nor closed;
+        the watcher fetches it again after a pause, in the same run."""
+        good = self.session.routes[1]
+        self.session.routes[1] = ("repo.example.org/good.pdf", [FakeResponse(503)] * 4 + [good[1]])
+        self.run_stage(start="discover")
+        waits = []
+        self.harvest.watcher.sleep, self.harvest.watcher.say = waits.append, lambda text: None
+        with self.assertLogs(level="INFO") as said:
+            results = self.harvest.fetch()
+        paper = self.harvest.ledger.get("10.1000/good")
+        self.assertEqual((paper.status, paper.attempts), (DOWNLOADED, 1))  # only the try that answered counts
+        self.assertEqual((results[DOWNLOADED], results["waiting"]), (1, 0))
+        self.assertEqual(sum(waits) / 60, 2)  # one round, after two minutes
+        self.assertEqual(self.harvest.ledger.watch_list("download"), [])
+        self.assertIn("1 downloaded (1 on a later try)", "\n".join(said.output))
 
     def test_a_closed_paper_is_fetched_from_a_repository_or_listed_as_closed(self):
         def work(doi, title):
@@ -1193,8 +1287,203 @@ class SharedPipelineTests(unittest.TestCase):
         exporter.export_excel()
         csv_rows = len(pd.read_csv(os.path.join(folder, "properties.csv")))
         with pd.ExcelFile(os.path.join(folder, "database.xlsx")) as book:
-            self.assertEqual(len(book.parse("properties")), csv_rows)
+            self.assertEqual(len(pd.read_excel(book, "properties")), csv_rows)
         self.assertEqual(json.loads(Path(folder, "database.json").read_text(encoding="utf-8"))["papers"][0]["origin"], "web")
+
+
+
+class UnpaywallEmailTests(unittest.TestCase):
+    """Unpaywall answers the same for every real address, and refuses a made-up one (HTTP 422)."""
+
+    def resolver(self, error=None):
+        from WebScraping.averageScrap.http import HttpError
+        from WebScraping.averageScrap.resolve import Resolver
+        client = mock.Mock()
+        client.get_json.side_effect = HttpError("https://api.unpaywall.org/v2/x", 422, "use your own email") \
+            if error else lambda url, params=None, headers=None: {"best_oa_location": {"url_for_pdf": "https://r.org/p.pdf"}}
+        return Resolver(client, ["unpaywall"], contact="test@example.com"), client
+
+    def test_a_refused_email_is_noted_and_not_sent_again(self):
+        from WebScraping.averageScrap.ledger import Candidate
+        from WebScraping.averageScrap.resolve import REFUSED_EMAIL, email_advice
+        resolver, client = self.resolver(error=True)
+        with self.assertLogs(level="WARNING") as said:
+            for key in ("10.1/a", "10.1/b", "10.1/c"):
+                self.assertEqual(list(resolver.options(Candidate(key=key, doi=key))), [])
+        self.assertEqual(resolver.email_problem, REFUSED_EMAIL)
+        self.assertEqual(client.get_json.call_count, 1)  # asked once, not for every paper
+        self.assertEqual(len(said.records), 1)
+        self.assertIn("refused the contact e-mail “test@example.com”", email_advice("test@example.com", REFUSED_EMAIL))
+        self.assertIn("contact_email in the job file", email_advice("x@y.org", REFUSED_EMAIL, in_job_file=True))
+
+    def test_an_accepted_email_is_no_problem(self):
+        from WebScraping.averageScrap.ledger import Candidate
+        resolver, _ = self.resolver()
+        self.assertEqual([o.url for o in resolver.options(Candidate(key="10.1/a", doi="10.1/a"))], ["https://r.org/p.pdf"])
+        self.assertEqual(resolver.email_problem, "")
+
+
+class DoiListTests(unittest.TestCase):
+    """A DOI list (Fetch DOIs) becomes candidates marked yes, for "3 · Download" to fetch their open copies."""
+
+    def test_the_list_becomes_candidates_once(self):
+        from WebScraping.averageScrap.harvest import Harvest
+        from WebScraping.averageScrap.job import FetchConfig, Job, SearchConfig
+        from WebScraping.averageScrap.ledger import NEW
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        listed = os.path.join(folder, "dois.csv")
+        with open(listed, "w", encoding="utf-8") as f:
+            f.write("doi,title,year,authors,venue\n"
+                    "10.1000/A,Garnet conductors,2022,A. B; C. D,Solid State Ionics\n"
+                    "https://doi.org/10.1000/b,not listed by OpenAlex or Crossref,not listed,,\n"
+                    "not a doi,,,,\n")
+        harvest = Harvest(Job(search=SearchConfig(queries=["x"], sources=["openalex"]), fetch=FetchConfig(folder=folder)),
+                          os.path.join(folder, "out"))
+        self.addCleanup(harvest.ledger.close)
+        self.assertEqual(harvest.add_dois(listed), (2, 2))
+        a, b = harvest.ledger.get("10.1000/a"), harvest.ledger.get("10.1000/b")
+        # New candidates, not marked yes: they are checked like the papers the keywords found.
+        self.assertEqual((a.title, a.year, a.journal, a.authors, a.decision, a.status, a.found_by),
+                         ("Garnet conductors", 2022, "Solid State Ionics", ["A. B", "C. D"], "", NEW, ["doi list"]))
+        self.assertEqual((b.title, b.year), ("", 0))  # "not listed": unknown, not a title
+        self.assertEqual(harvest.add_dois(listed), (2, 0))  # a second time: nothing twice
+
+    def test_the_search_takes_the_doi_list_in_and_checks_it_like_the_keyword_results(self):
+        """The job's doi_list is taken in by the search; each DOI gets its OpenAlex record (abstract, open
+        copy), then the same topic score: only the paper on topic is proposed for download."""
+        from WebScraping.averageScrap.harvest import Harvest
+        from WebScraping.averageScrap.job import FetchConfig, Job, ScreenConfig, SearchConfig
+        from WebScraping.averageScrap.ledger import NEW, NO, YES
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        listed = os.path.join(folder, "dois.csv")
+        with open(listed, "w", encoding="utf-8") as f:
+            f.write("doi,title,year,authors,venue\n10.1000/on,Garnet conductors,2022,,\n10.1000/off,Water splitting,2023,,\n"
+                    "10.1000/later,Unknown to OpenAlex yet,2024,,\n")
+
+        def record(doi, title, abstract):
+            return {**WORK, "doi": f"https://doi.org/{doi}", "id": f"https://openalex.org/W{doi[-2:]}", "title": title,
+                    "abstract_inverted_index": {w: [i] for i, w in enumerate(abstract.split())}}
+        records = [record("10.1000/on", "Garnet conductors", "the activation energy of a solid electrolyte"),
+                   record("10.1000/off", "Water splitting", "hydrogen from water with a catalyst")]
+        session = FakeSession([("api.openalex.org/works", FakeResponse(200, json_data={"results": records, "meta": {}}))])
+        job = Job(search=SearchConfig(queries=["solid electrolyte"], sources=[], abstract_sources=[], doi_list=listed),
+                  screen=ScreenConfig(topic_words=["solid electrolyte"], property_words=["activation energy"], review=True),
+                  fetch=FetchConfig(folder=folder))
+        harvest = Harvest(job, os.path.join(folder, "out"), client=client_for(session))
+        self.addCleanup(harvest.ledger.close)
+        self.assertEqual(harvest.discover(), 3)
+        harvest.screen()
+        on, off, later = (harvest.ledger.get(k) for k in ("10.1000/on", "10.1000/off", "10.1000/later"))
+        self.assertEqual((on.decision, on.abstract_from), (YES, "openalex"))
+        self.assertEqual(off.decision, NO)
+        # OpenAlex was asked and did not know it: screened on what the list gave, and not asked again.
+        self.assertIn("openalex", later.abstract_asked)
+        self.assertNotEqual(later.status, NEW)
+        asked = session.hits("api.openalex.org/works")
+        harvest.discover()
+        self.assertEqual(session.hits("api.openalex.org/works"), asked)
+
+    def test_the_search_runs_fetch_dois_first_and_says_its_steps(self):
+        """collect_dois: the search first runs Fetch DOIs (its DOIs go to the list), then asks the keywords,
+        then checks the new papers — the DOIs it just collected among them."""
+        from WebScraping.Fetch_DOIs import get_dois
+        from WebScraping.averageScrap.harvest import Harvest
+        from WebScraping.averageScrap.job import FetchConfig, Job, SearchConfig
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        listed = os.path.join(folder, "dois.csv")
+
+        def collect(argv):
+            self.assertEqual(argv[:2], ["--out", listed])
+            with open(listed, "w", encoding="utf-8") as f:
+                f.write("doi,title,year,authors,venue\n10.1000/c1,Collected one,2024,,\n")
+            with open(os.path.splitext(listed)[0] + ".txt", "w", encoding="utf-8") as f:
+                f.write("10.1000/c1\n")
+            print("=== [1/1] solid electrolyte   (new DOIs so far: 1)")
+            return 0
+        session = FakeSession([("api.openalex.org/works", FakeResponse(200, json_data={"results": [], "meta": {}}))])
+        job = Job(search=SearchConfig(queries=["solid electrolyte"], sources=[], abstract_sources=[], doi_list=listed,
+                                      collect_dois=True), fetch=FetchConfig(folder=folder))
+        harvest = Harvest(job, os.path.join(folder, "out"), client=client_for(session))
+        self.addCleanup(harvest.ledger.close)
+        steps, lines = [], []
+        harvest.on_step, harvest.on_line = steps.append, lines.append
+        with mock.patch.object(get_dois, "main", side_effect=collect):
+            self.assertEqual(harvest.discover(job_path=""), 1)
+        self.assertEqual(steps, ["dois", "keywords", "check"])
+        self.assertEqual(lines, ["=== [1/1] solid electrolyte   (new DOIs so far: 1)"])  # what it printed, handed on
+        self.assertEqual(harvest.ledger.get("10.1000/c1").found_by, ["doi list"])
+
+    def test_stop_during_fetch_dois_ends_the_search_there(self):
+        from LocalExtraction import runcontrol
+        from WebScraping.Fetch_DOIs import get_dois
+        from WebScraping.averageScrap.harvest import Harvest
+        from WebScraping.averageScrap.job import FetchConfig, Job, SearchConfig
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        control = runcontrol.RunControl()
+        job = Job(search=SearchConfig(queries=["x"], sources=["doaj"], abstract_sources=[],
+                                      doi_list=os.path.join(folder, "dois.csv"), collect_dois=True),
+                  fetch=FetchConfig(folder=folder))
+        session = FakeSession()
+        harvest = Harvest(job, os.path.join(folder, "out"), client=client_for(session))
+        self.addCleanup(harvest.ledger.close)
+        steps = []
+        harvest.on_step = steps.append
+        with mock.patch.object(get_dois, "main", side_effect=lambda argv: control.set()), runcontrol.bound(control):
+            harvest.discover()
+        self.assertEqual(steps, ["dois"])  # Stop pressed during Fetch DOIs: no keyword search
+        self.assertEqual(session.hits("doaj.org"), 0)
+
+    def test_a_doi_list_paper_not_looked_up_yet_is_not_scored_on_its_title_alone(self):
+        """Stopped (or refused) before its OpenAlex record was looked up, a paper of the DOI list stays new:
+        scored on a bare title, it would be declined for good."""
+        from WebScraping.averageScrap import screening
+        from WebScraping.averageScrap.job import ScreenConfig
+        from WebScraping.averageScrap.ledger import NEW, Candidate, Ledger
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        ledger = Ledger(os.path.join(folder, "ledger.sqlite"))
+        self.addCleanup(ledger.close)
+        ledger.add(Candidate(key="10.1/x", doi="10.1/x", title="Garnet", found_by=["doi list"]))
+        screening.screen(ledger, ScreenConfig(topic_words=["solid electrolyte"], property_words=["activation energy"]))
+        self.assertEqual(ledger.get("10.1/x").status, NEW)
+
+
+    def test_a_stopped_run_ends_with_the_stage_it_was_in_and_the_next_one_goes_on(self):
+        """Ctrl-C in the terminal (mme-web) stops as Stop does in the window: the papers under way are left
+        for next time, the finished ones are recorded, the extraction does not start, and the same command
+        goes on with the papers left."""
+        from LocalExtraction import runcontrol
+        from WebScraping.averageScrap.fetch import Outcome
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        harvest = Harvest(Job(search=SearchConfig(queries=["x"], sources=["openalex"]),
+                              fetch=FetchConfig(folder=folder, workers=2)), os.path.join(folder, "out"))
+        self.addCleanup(harvest.ledger.close)
+        harvest.ledger.add_new([Candidate(key=f"10.1/{i}", doi=f"10.1/{i}", decision="yes", status=SCREENED)
+                                for i in range(12)])
+        harvest.ledger.write_review(harvest.review_path)
+        control = runcontrol.RunControl()
+
+        def fetch(downloader, candidate):
+            if harvest.ledger.counts().get(DOWNLOADED, 0) >= 3:
+                control.set()  # Stop (Ctrl-C) once three are in
+            runcontrol.sleep(0.05)
+            return Outcome(candidate.key, DOWNLOADED, file=f"{candidate.key[-1]}.pdf", sha256="x", service="pmc", url="u")
+        extracted = []
+        with mock.patch.object(Downloader, "fetch", fetch), \
+                mock.patch.object(Harvest, "extract", lambda self, **k: extracted.append(True)):
+            harvest.run(start="fetch", stop_event=control)
+            stopped_at = harvest.ledger.counts()
+            self.assertEqual(extracted, [])  # stopped: no extraction
+            self.assertGreater(stopped_at.get(APPROVED, 0), 0)  # left for next time, not failed
+            self.assertNotIn(FAILED, stopped_at)
+            harvest.run(start="fetch", stop_event=runcontrol.RunControl())
+        self.assertEqual(harvest.ledger.counts(), {DOWNLOADED: 12})
+        self.assertEqual(extracted, [True])
 
 
 if __name__ == "__main__":

@@ -11,6 +11,8 @@ files are only read: nothing in the window changes them.
 
 from __future__ import annotations
 
+import threading
+import time
 import tkinter as tk
 import webbrowser
 from pathlib import Path
@@ -23,7 +25,7 @@ from ..about import PROJECT_HOME
 from ..exporter import UnreadableTable, read_table
 from .widgets import Table, WrapLabel, open_path
 
-_SHOWN_AT_MOST = 20000  # rows put in a table at once; the search finds the others
+_SHOWN_AT_MOST = 5000  # rows put in a table at once (more would freeze the window); the search finds the others
 _WIDE = ("title", "sentence", "caption", "basis", "context", "highlights", "materials", "source", "text",
          "keywords", "authors", "articles", "rows", "headers", "evidence", "variables", "folder", "url")
 
@@ -45,8 +47,7 @@ def part_tables(part: str, home: Path = PROJECT_HOME) -> Tuple[str, Path, List[T
         folder = home / ("LocalExtraction/local_output" if part == "local" else "WebScraping/web_output")
         tables = [(label, folder / f"{name}.csv") for name, label in EXTRACTION_TABLES]
         if part == "web":
-            tables += [("Candidates (search open sources)", home / "WebScraping/papers/candidates.csv"),
-                       ("Downloads (moukhlij4scraping)", home / "WebScraping/papers/scrape_log.csv"),
+            tables += [("Candidates of the search", home / "WebScraping/papers/candidates.csv"),
                        ("DOI list (Fetch DOIs)", home / "WebScraping/Fetch_DOIs/dois.csv")]
         title = "1 · Local extraction — the database of your PDFs" if part == "local" else \
             "2 · Web scraping — the database of the papers from the web"
@@ -177,27 +178,62 @@ class ResultsBrowser(tk.Toplevel):
 
     # ------------------------------------------------------------------
     def load(self) -> None:
-        """Reads every table again (each tab is filled when it is shown)."""
+        """Reads every table again (each tab is filled when it is shown). The files are read on another
+        thread — a large database takes seconds — and the window stays usable meanwhile."""
         for tab in self.tabs:
             tab["frame"].destroy()
         self.menu.delete(*self.menu.get_children())
-        self.tabs, self._shown_tab = [], None
+        self.tabs, self._shown_tab, self._dois = [], None, {}
+        self.headline.set(f"Reading the tables of {self.folder} …")
+        self.shown.set("")
+        self._reading = token = object()  # a Refresh pressed meanwhile: only the last reading is shown
+        self._loaded = threading.Event()
+        tables = list(self.tables)
+        done: List = []
+
+        def read_all() -> None:
+            for label, path in tables:
+                if not path.is_file():
+                    continue
+                try:
+                    frame, problem = read_table(str(path)), ""
+                except (UnreadableTable, OSError, ValueError, pd.errors.ParserError) as error:
+                    frame, problem = pd.DataFrame(), f"cannot be read: {error}"
+                done.append((label, path, frame.fillna(""), problem))
+            done.append(None)  # the end
+
+        def show_when_read() -> None:
+            if token is not self._reading or not self.winfo_exists():
+                return
+            if not done or done[-1] is not None:
+                self.after(50, show_when_read)
+                return
+            self._show_tables(done[:-1])
+            self._loaded.set()
+
+        threading.Thread(target=read_all, name="results-reader", daemon=True).start()
+        self.after(50, show_when_read)
+
+    def wait_loaded(self, timeout: float = 30.0) -> bool:
+        """Turns the window's loop until the tables are read (for the tests)."""
+        end = time.monotonic() + timeout
+        while not self._loaded.is_set() and time.monotonic() < end:
+            self.update()
+            time.sleep(0.01)
+        return self._loaded.is_set()
+
+    def _show_tables(self, read: List[Tuple[str, Path, pd.DataFrame, str]]) -> None:
         rows = 0
-        for label, path in self.tables:
-            if not path.is_file():
-                continue
-            try:
-                frame = read_table(str(path))
-            except (UnreadableTable, OSError, ValueError, pd.errors.ParserError) as error:
-                frame, problem = pd.DataFrame(), f"cannot be read: {error}"
-            else:
-                problem = ""
+        for label, path, frame, problem in read:
             box = ttk.Frame(self.content, padding=(8, 0, 0, 0))
             self.menu.insert("", "end", iid=str(len(self.tabs)), text=label, values=(f"{len(frame):,}",),
                              tags=() if len(frame) else ("empty",))
-            self.tabs.append({"frame": box, "label": label, "path": path, "data": frame.fillna(""),
+            self.tabs.append({"frame": box, "label": label, "path": path, "data": frame,
                               "table": None, "problem": problem, "filled": None})
             rows += len(frame)
+            if path.name == "papers.csv" and {"paper_id", "doi"} <= set(frame.columns):
+                # every row of a paper — a value, a material — can open the paper it comes from
+                self._dois = {str(p): str(d).strip() for p, d in zip(frame["paper_id"], frame["doi"])}
         if not self.tabs:
             self.headline.set(f"No results yet in {self.folder}: run this part first.")
             self.shown.set("")
@@ -288,11 +324,13 @@ class ResultsBrowser(tk.Toplevel):
         self.details.configure(state="disabled")
         self.doi_button.configure(state="normal" if self._doi(row) else "disabled")
 
-    @staticmethod
-    def _doi(row: Optional[pd.Series]) -> str:
+    def _doi(self, row: Optional[pd.Series]) -> str:
+        """The row's DOI, or that of the paper it comes from (papers.csv, by paper_id)."""
         if row is None:
             return ""
         doi = str(row.get("doi", "") or "").strip()
+        if not doi.startswith("10."):
+            doi = getattr(self, "_dois", {}).get(str(row.get("paper_id", "") or ""), "")
         return doi if doi.startswith("10.") else ""
 
     def _open_doi(self) -> None:

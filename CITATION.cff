@@ -6,7 +6,7 @@ abstract: >-
   conductivities, diffusion coefficients and more) from scientific papers, ranks the materials and
   classifies them by crystal and structure family.
 type: software
-version: "1.0.0"
+version: "1.0.3"
 date-released: "2026-10-25"
 license: MIT
 repository-code: "https://github.com/YounesMoukhlij/MoukhlijMatExtract"

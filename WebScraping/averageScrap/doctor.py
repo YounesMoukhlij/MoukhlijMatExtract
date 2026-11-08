@@ -81,7 +81,10 @@ def report(job: Job, client: PoliteClient, probe_doi: str = "", papers_csv: str 
         if not doi:
             lines.append((False, "Elsevier: key found, but there is no Elsevier DOI to test it with: pass --probe-doi 10.1016/..."))
         else:
-            lines.append((True, f"Elsevier: key found (+ institutional token)" if elsevier.insttoken else "Elsevier: key found"))
+            lines.append((True, "Elsevier: key found (+ institutional token: closed papers from any network)"
+                          if elsevier.insttoken else
+                          "Elsevier: key found, no institutional token — closed Elsevier papers download only on your "
+                          "university's network (campus or VPN); the test below says whether this network is one"))
             lines.extend((ok, f"Elsevier, {text}") for ok, text in elsevier.check(client, doi))
 
     if "wiley" in job.fetch.sources:
@@ -123,6 +126,11 @@ def report(job: Job, client: PoliteClient, probe_doi: str = "", papers_csv: str 
     return lines
 
 
+# Access that is not simply a free key: The Lens comes with an institutional subscription (or a trial);
+# BASE answers registered networks. Their message says so instead of "a key is free".
+_NOT_FREE = {"LENS_API_TOKEN", "BASE_ACCESS"}
+
+
 def _search_services(job: Job, client: PoliteClient, probed: List[str]) -> List[Tuple[bool, str]]:
     """One search of one result per search or abstract service of the job (OpenAlex and arXiv are
     checked above): reachable, the key works — or the key is missing, and where it is had."""
@@ -134,9 +142,11 @@ def _search_services(job: Job, client: PoliteClient, probed: List[str]) -> List[
         source = sources.make(name, client, job.email())
         if not source.available():
             signup = KEY_SIGNUP.get(source.key_name, "")
+            how = (f"A key is free: {signup}; then " if source.key_name not in _NOT_FREE else f"Access: {signup}; then ") \
+                if signup else "Then "
+            value = "yes" if source.key_name == "BASE_ACCESS" else "..."
             lines.append((False, f"{source.label}: {source.key_name} is not set, so it is skipped. "
-                                 + (f"A key is free: {signup}; then " if signup else "Then ")
-                                 + f"put {source.key_name}=... in WebScraping/averageScrap/.env"))
+                                 + how + f"put {source.key_name}={value} in WebScraping/averageScrap/.env"))
             continue
         works = "the key works" if source.key else "reachable"
         lines.append(_try(source.label, works, lambda: next(iter(source.search("solid electrolyte", None, 1)), None)))

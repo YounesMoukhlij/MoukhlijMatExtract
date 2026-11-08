@@ -54,6 +54,12 @@ def _table(folder: Path, name: str) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig")
 
 
+def partly_rebuilt(folder: Path) -> bool:
+    """A rebuild of the database was stopped part-way (the extraction removes this file at its end):
+    it lacks papers until that part is run again."""
+    return (Path(folder) / "rebuild_pending.json").exists()
+
+
 def read(folder: Path) -> Source | None:
     """The tables of a database; None when the folder holds none (no materials.csv)."""
     if not (folder / f"{MATERIALS}.csv").is_file():
@@ -298,7 +304,6 @@ def write(classified: Classified, out_dir: Path) -> dict[str, pd.DataFrame]:
     returned dict also holds, under "<axis>/activation_energy_by_component", each class's sub-classes."""
     out_dir.mkdir(parents=True, exist_ok=True)
     values = {name: _rows(classified, name) for name in VALUE_TABLES}
-    properties = values[PROPERTIES]
     papers = pd.concat([s.tables[PAPERS].assign(database=s.name) for s in classified.sources if not s.tables[PAPERS].empty],
                        ignore_index=True, sort=False) if any(not s.tables[PAPERS].empty for s in classified.sources) \
         else pd.DataFrame(columns=["paper_id", "database"])

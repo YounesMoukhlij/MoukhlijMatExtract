@@ -58,6 +58,8 @@ class Measurement:
     source: str
     section: str
     sentence: str
+    mobile_ion: str = "Li+"       # the species that moves (databases of earlier versions: not recorded)
+    plausibility: str = "in range"  # "check: …" when outside the known range or carried by another species
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,16 +70,20 @@ class Filters:
     attribution: str = ""         # "this work" or "cited"
     component: str = ""           # "bulk", "total", ...
     elements: tuple[str, ...] = ()
+    # Values the extraction flagged ("check: outside 0.05–1.5 eV", "check: the transport of Co"): left out
+    # unless asked for — a 0.01 eV misreading would otherwise rank first.
+    include_flagged: bool = False
 
     def keeps(self, value: Measurement) -> bool:
-        return (value.confidence >= self.min_confidence
+        return ((self.include_flagged or not value.plausibility.startswith("check"))
+                and value.confidence >= self.min_confidence
                 and (not self.origin or value.data_origin.casefold() == self.origin.casefold())
                 and (not self.attribution or value.attribution.casefold() == self.attribution.casefold())
                 and (not self.component or component_key(value.transport_component) == component_key(self.component))
                 and all(element in value.elements for element in self.elements))
 
     def describe(self) -> str:
-        """The filters in words: "experimental values · confidence ≥ 0.5"; "all values" when none is set."""
+        """The filters in words: "experimental values · confidence ≥ 0.5"; "all values in range" when none is set."""
         parts = []
         if self.origin:
             parts.append(f"{self.origin} values")
@@ -89,7 +95,9 @@ class Filters:
             parts.append(f"materials with {' + '.join(self.elements)}")
         if self.min_confidence > 0:
             parts.append(f"confidence ≥ {self.min_confidence:g}")
-        return " · ".join(parts) or "all values"
+        if self.include_flagged:
+            parts.append("flagged values included")
+        return " · ".join(parts) or "all values in range"
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +145,7 @@ class DatabaseReport:
     unreadable: int = 0                      # rows without a material or a usable number
     unassigned: int = 0                      # activation energies the extraction tied to no material
     problem: str = ""                        # why nothing could be read, when nothing could
+    partial: bool = False                    # a rebuild of it was stopped part-way: it lacks papers
 
 
 @dataclass(frozen=True, slots=True)

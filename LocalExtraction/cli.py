@@ -22,7 +22,8 @@ import threading
 from typing import Callable, Dict, Iterable, List, Optional
 
 from .about import (CREDIT_TEXT, command_name, DEFAULT_INPUT, DEFAULT_OUTPUT, DESCRIPTION, FULL_NAME, PROJECT_HOME,
-					enter_project_home, print_banner)
+					enter_project_home, print_banner, version_text)
+from . import runcontrol
 from .exporter import StrictExporter, UnreadableTable
 from .models import PaperData
 from .pipeline import NaLiXPipeline
@@ -51,6 +52,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 					"folder. extract (the default): from this terminal. gui: from a window.",
 		epilog=CREDIT_TEXT,
 	)
+	parser.add_argument("--version", action="version", version=version_text("mme-local"))
 	commands = parser.add_subparsers(dest="command", metavar="{extract,gui}")
 
 	extract = commands.add_parser("extract", help=f"Extract from the PDFs in a folder into {DEFAULT_OUTPUT}/ (the default)")
@@ -73,8 +75,8 @@ def run_extraction(input_dir: str, output_dir: str, max_workers: int = 4,
 	"""Shared pipeline entry point used by both gates — the terminal (`main()`) and the window
 	(`LocalExtraction/gui/panel.py`) — so the two never drift into two different ways of running the same extraction.
 
-	`stop_event`/`progress_callback` are optional and unused by the plain CLI path — they exist
-	so the window can request an early stop and get live per-paper feedback. `provenance`,
+	`stop_event` is the step's Stop (the window's button; Ctrl-C in the terminal), and
+	`progress_callback` gives the window its live per-paper feedback. `provenance`,
 	`properties`, `require_material`, `origin` and `lookup` are described in NaLiXPipeline.
 	"""
 	if not os.path.isdir(input_dir):
@@ -97,15 +99,16 @@ def is_outdated(output_dir: str) -> bool:
 	logging.error(
 		f"The database in {output_dir} was written by an earlier version of MoukhlijMatExtract and has other columns "
 		"(for one, activation energies and migration barriers were two properties). New papers cannot be added "
-		"to it. Extract your PDFs again with --rebuild — nothing is downloaded again, and the present files are "
-		f"kept in {os.path.join(output_dir, 'previous_<date>')} — or choose another --output folder.")
+		"to it as it is. Run the command in a terminal to choose: add the new articles to it (its tables are "
+		"brought up to date) or start a new database (--rebuild: every PDF is extracted again) — in both cases "
+		f"the present files are kept in {os.path.join(output_dir, 'previous_<date>')}.")
 	return True
 
 
 def main(argv: Optional[List[str]] = None) -> int:
 	argv = list(sys.argv[1:] if argv is None else argv)
 	# `python -m LocalExtraction --input <folder>` — without a command — means `extract`.
-	if not argv or argv[0] not in (*_COMMANDS, "-h", "--help"):
+	if not argv or argv[0] not in (*_COMMANDS, "-h", "--help", "--version"):
 		argv = ["extract", *argv]
 	args = parse_args(argv)
 	enter_project_home("local")
@@ -120,31 +123,70 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 	if args.command == "gui":
 		from .gui import main as gui_main
-		gui_main(input_dir=args.input, output_dir=args.output, workers=args.workers)
+		gui_main(input_dir=args.input, output_dir=args.output, workers=args.workers, lookup=not args.offline)
 		return 0
 
-	rebuild_if_asked(args.output, args.rebuild)
+	if not rebuild_if_asked(args.output, args.rebuild):
+		return 1
 	print(f"--> Processing papers from {os.path.abspath(args.input)} to {os.path.abspath(args.output)}")
 	print(f"Using {args.workers} parallel workers")
 
 	try:
-		return run_extraction(args.input, args.output, max_workers=args.workers, lookup=not args.offline)
+		with runcontrol.ctrl_c_stops() as control:
+			code = run_extraction(args.input, args.output, max_workers=args.workers, stop_event=control,
+								  lookup=not args.offline)
+		if control.is_set():
+			print(f"\n{runcontrol.STOPPED_BY_CTRL_C}")
+			return 130
+		return code
 	except UnreadableTable as error:  # nothing was written over: say which file, and how to go on
 		logging.error(str(error))
 		return 1
 
 
-def rebuild_if_asked(output_dir: str, rebuild: bool) -> None:
-	"""Moves the database aside to be extracted again: when asked, and when it was written by an
-	earlier version (its tables have other columns, so nothing can be added to it). Nothing is
-	deleted: the files go to <output>/previous_<date>/."""
-	outdated = StrictExporter.is_outdated(output_dir)
-	if not (rebuild or outdated):
-		return
-	kept = StrictExporter.archive(output_dir)
-	if kept:
-		why = "it was written by an earlier version of MoukhlijMatExtract" if outdated and not rebuild else "as asked"
-		print(f"--> Rebuilding the database of {output_dir} ({why}); the previous files were moved to {kept}")
+def rebuild_if_asked(output_dir: str, rebuild: bool) -> bool:
+	"""What becomes of the database already in the folder. With --rebuild: a new one — the present files
+	are moved to <output>/previous_<date>/, nothing is deleted, every PDF is extracted again. Without, and
+	written by an earlier version: asked in a terminal — add the new articles to it (its tables brought up to
+	date in place, a copy kept in previous_<date>/) or start a new one; not in a terminal (a script), it
+	is kept and added to. Returns False when the run should not go on (asked, and stopped)."""
+	if rebuild:
+		kept = StrictExporter.archive(output_dir)
+		if kept:
+			print(f"--> A new database in {output_dir} (as asked); the previous files were moved to {kept}")
+		return True
+	if not StrictExporter.is_outdated(output_dir):
+		return True
+	can_add = StrictExporter.can_upgrade(output_dir)
+	choice = "add" if can_add else "new"
+	if sys.stdin.isatty():
+		print(f"The database in {output_dir} was written by an earlier version of MoukhlijMatExtract.")
+		if can_add:
+			print("  [a] add the new articles to it — its tables are brought up to date (nothing is extracted "
+				  "again), a copy of them as they were is kept in previous_<date>/")
+		else:
+			print("  (its tables are too different from this version's for new articles to be added to them)")
+		print("  [n] start a new database — the present files are moved to previous_<date>/ (nothing is "
+			  "deleted) and every PDF is extracted again")
+		print("  [q] stop")
+		options = "a/n/q" if can_add else "n/q"
+		while True:
+			answer = input(f"Your choice ({options}): ").strip().lower()[:1]
+			if answer in ("a", "n", "q") and (answer != "a" or can_add):
+				break
+		if answer == "q":
+			print("Stopped: nothing was changed.")
+			return False
+		choice = "add" if answer == "a" else "new"
+	if choice == "add":
+		kept = StrictExporter.upgrade(output_dir)
+		print(f"--> The database of {output_dir} was brought up to date and the new articles are added to it; "
+			  f"its files as they were are in {kept}")
+	else:
+		kept = StrictExporter.archive(output_dir)
+		print(f"--> A new database in {output_dir} (the previous one was written by an earlier version of "
+			  f"MoukhlijMatExtract and cannot take new articles); the previous files were moved to {kept}")
+	return True
 
 
 if __name__ == "__main__":

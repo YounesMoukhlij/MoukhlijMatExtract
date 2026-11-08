@@ -48,7 +48,12 @@ class GateTests(unittest.TestCase):
         with mock.patch("LocalExtraction.gui.main", side_effect=lambda **k: opened.append(k)), \
                 mock.patch.object(cli, "print_banner"):
             self.assertEqual(cli.main(["gui", "--input", "pdfs", "-w", "3"]), 0)
-        self.assertEqual(opened, [{"input_dir": "pdfs", "output_dir": DEFAULT_OUTPUT, "workers": 3}])
+        self.assertEqual(opened, [{"input_dir": "pdfs", "output_dir": DEFAULT_OUTPUT, "workers": 3, "lookup": True}])
+        opened.clear()
+        with mock.patch("LocalExtraction.gui.main", side_effect=lambda **k: opened.append(k)), \
+                mock.patch.object(cli, "print_banner"):
+            self.assertEqual(cli.main(["gui", "--offline"]), 0)
+        self.assertFalse(opened[0]["lookup"])  # --offline reaches the window
 
     def test_a_database_of_an_earlier_version_is_rebuilt_not_added_to(self):
         folder = tempfile.mkdtemp()
@@ -100,6 +105,55 @@ class GateTests(unittest.TestCase):
         for folders in PART_FOLDERS.values():
             for folder in folders:
                 self.assertTrue((home / folder).is_dir(), folder)
+
+
+
+class EarlierDatabaseTests(unittest.TestCase):
+    """A database of an earlier version, in the terminal: added to, or a new one — asked when a person is there."""
+
+    def setUp(self):
+        from LocalExtraction.exporter import COLUMNS, TABLE_NAMES
+        self.folder = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.folder, True)
+        for name in TABLE_NAMES:  # every table, each without the columns the last version added
+            columns = [c for c in COLUMNS[name] if c not in ("extracted_with", "mobile_ion", "plausibility")]
+            row = {c: "x" for c in columns}
+            row.update(paper_id="a.pdf", material_formula="Li3PS4", sentence="The Ea of Li3PS4 is 0.3 eV.")
+            pd.DataFrame([row] if name in ("papers", "activation_energy") else [], columns=columns).to_csv(
+                self.folder / f"{name}.csv", index=False)
+
+    def run_it(self, rebuild=False, typed=None):
+        out = io.StringIO()
+        with redirect_stdout(out), mock.patch.object(sys.stdin, "isatty", return_value=typed is not None), \
+                mock.patch("builtins.input", side_effect=list(typed or [])):
+            go_on = cli.rebuild_if_asked(str(self.folder), rebuild)
+        return go_on, out.getvalue()
+
+    def kept(self):
+        return [p.name for p in self.folder.iterdir() if p.name.startswith("previous_")]
+
+    def test_a_script_keeps_the_data_and_adds_to_it(self):
+        go_on, said = self.run_it()
+        self.assertTrue(go_on)
+        self.assertIn("brought up to date", said)
+        self.assertTrue((self.folder / "papers.csv").exists())
+        self.assertIn("mobile_ion", pd.read_csv(self.folder / "activation_energy.csv").columns)
+        self.assertEqual(len(self.kept()), 1)
+
+    def test_a_person_chooses(self):
+        go_on, said = self.run_it(typed=["?", "q"])  # a wrong key is asked again
+        self.assertFalse(go_on)
+        self.assertEqual(self.kept(), [])  # stopped: nothing changed
+        go_on, said = self.run_it(typed=["n"])
+        self.assertTrue(go_on)
+        self.assertFalse((self.folder / "papers.csv").exists())  # moved aside for a new database
+        self.assertIn("papers.csv", os.listdir(self.folder / self.kept()[0]))
+
+    def test_rebuild_starts_a_new_database_without_asking(self):
+        go_on, said = self.run_it(rebuild=True, typed=[])
+        self.assertTrue(go_on)
+        self.assertIn("A new database", said)
+        self.assertFalse((self.folder / "papers.csv").exists())
 
 
 if __name__ == "__main__":

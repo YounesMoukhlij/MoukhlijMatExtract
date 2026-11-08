@@ -1,6 +1,6 @@
 # mme_gui/hub.py
 """The hub: one root window with a button per part, and a Requirements button at the top right that
-shows how to use the program and what it needs (Chrome, Tesseract, …). Each part already exposes an
+shows how to use the program and what it needs (Tesseract, the language model, …). Each part already exposes an
 App(root, ...) class that uses only root-safe calls, so every part opens on a fresh Toplevel of the
 hub — no second Tk(), nothing rebuilt. tkinter is imported lazily, as in every other part."""
 
@@ -30,10 +30,7 @@ them by structure. It has four parts; run them left to right.
     - Windows:  installer at github.com/UB-Mannheim/tesseract/wiki
 • The language model, once:
 $ python -m spacy download en_core_web_sm
-• Google Chrome — only for web method 2 (moukhlij4scraping), which fetches a PDF for each DOI.
-• The extra packages for that method, once:
-$ pip install "moukhlijmatextract[scrape]"
-• API keys — all free and all optional. Set them with the “API keys…” button inside the web windows.
+• API keys — all free and all optional. Set them with the “API keys…” button of the Web scraping window.
   Without any key the open sources still work; each key just opens more papers.
 
 § How to use it — the four steps
@@ -42,12 +39,14 @@ MoukhlijMatExtract of your home folder (~/MoukhlijMatExtract), whatever folder y
 
 • 1 · Local extraction — put your own PDFs in  ~/MoukhlijMatExtract/LocalExtraction/papers/ , then
   open this part. It reads them into a database at  LocalExtraction/local_output/ .
-• 2 · Web scraping — find papers online. Two methods, one database:
-    - Search open sources — search by keywords, download the legal copies, extract them.
-    - moukhlij4scraping — collect DOIs (you choose how many), fetch a PDF for each, then extract.
-      “Fetched DOIs (N)…” shows the list and where each DOI stands. “Scrape articles” asks how many
-      DOIs to try and whether to start with the legal open-access copies.
-    - “Search settings…” changes what both methods look for (searches, years, sources, words).
+• 2 · Web scraping — find papers in the open sources (OpenAlex, arXiv, Crossref and twenty-two more):
+    - 1 · Fetch DOIs — collects the DOIs of the topic (OpenAlex, Crossref, Semantic Scholar, arXiv) and saves them.
+    - 2 · Search — searches with the saved keywords and the saved DOIs, and proposes the papers worth
+      reading; review them in the table.
+    - 3 · Download — fetches the legal open-access copy of each paper kept (Unpaywall, arXiv, PubMed
+      Central, …) into  WebScraping/papers/ .
+    - 4 · Extract — reads them into a database at  WebScraping/web_output/ .
+    - “Search settings…” changes what it looks for (searches, years, sources, words).
 • 3 · Ranking — ranks the materials by activation energy: Superionic, Performant, Acceptable or
   Rejected — one ranking for each transport component (bulk, grain boundary, total), never mixed.
   Each is written to its own folder in  SelectingTopMaterial/results/ .
@@ -68,6 +67,9 @@ opening a part makes it too. Every table names its articles (a title column).
 § When a step ends
 • A results card appears above the tables: done, with problems, or nothing new; the numbers; the main
   findings with their articles; and buttons for the next step.
+• Pause holds a running step (what is under way finishes first); Resume goes on. Stop ends it;
+  the next run goes on where it stopped.
+• No internet? The step says so and waits for the connection to come back, then goes on by itself.
 • Work already done is skipped and said so (“Already extracted”, “Already ranked”, …): running a part
   again only does what is new.
 • “Delete outputs…”, next to each part here and in each window, starts a part over. The files go to
@@ -75,8 +77,9 @@ opening a part makes it too. Every table names its articles (a title column).
 
 § Good to know
 • This button is red until you have opened this guide, then it turns green. You can reopen it any time.
-• The web method 2 (moukhlij4scraping) does not only fetch open-access copies — check your
-  institution's rules; it is meant for academic literature research.
+• The blue “Manual” button beside it lists every command, with all its options, to run each part
+  from a terminal (mme-local, mme-web, mme-rank, …) — and the make shortcuts.
+• Web scraping fetches legal open-access copies only, and follows each site's robots.txt.
 """
 
 
@@ -125,7 +128,8 @@ def open_requirements(parent) -> "object":
     text.tag_configure("h", font=("TkDefaultFont", 14, "bold"), foreground="#143a5c", spacing1=14, spacing3=5)
     text.tag_configure("bullet", lmargin1=18, lmargin2=34, spacing3=2)
     text.tag_configure("sub", lmargin1=42, lmargin2=58, foreground="#444444", spacing3=2)
-    text.tag_configure("cmd", font=("TkFixedFont", 11), foreground="#8a3b00", lmargin1=34, lmargin2=34, spacing1=2, spacing3=4)
+    from .manual import mono
+    text.tag_configure("cmd", font=mono(11), foreground="#8a3b00", lmargin1=34, lmargin2=34, spacing1=2, spacing3=4)
     for line in MANUAL.strip("\n").splitlines():
         if line.startswith("§ "):
             text.insert("end", line[2:] + "\n", "h")
@@ -166,6 +170,8 @@ def add_requirements_button(parent, root):
 
     button.bind("<Button-1>", open_guide)
     button.open = open_guide  # a hook for the tests
+    from LocalExtraction.gui.theme import label_hover
+    label_hover(button, lambda: _GREEN if requirements_seen() else _RED)
     refresh()
     return button
 
@@ -176,9 +182,8 @@ def open_local(root) -> None:
 
 
 def open_web(root) -> None:
-    # The web side is itself two methods, so it opens its own chooser (a child of the hub).
-    from WebScraping.webgui import open_chooser
-    open_chooser(root)
+    from WebScraping.webgui import open_web as open_window
+    open_window(root)
 
 
 def open_rank(root) -> None:
@@ -195,7 +200,7 @@ def open_classify(root) -> None:
 PARTS = (
     ("1 · Local extraction", "Your own PDFs (~/MoukhlijMatExtract/LocalExtraction/papers/) into a database.",
      open_local, "local"),
-    ("2 · Web scraping", "Find papers online and extract them — two methods, one database.", open_web, "web"),
+    ("2 · Web scraping", "Search the open sources, download the legal copies and extract them.", open_web, "web"),
     ("3 · Ranking", "Rank the materials by activation energy.", open_rank, "rank"),
     ("4 · Classification", "Sort the materials by crystal family and structure family.", open_classify, "classify"),
 )
@@ -251,7 +256,7 @@ def folder_button(parent, root):
                 return
             messagebox.showinfo("MoukhlijMatExtract", f"Made {PROJECT_HOME}, with a folder for each part:\n\n"
                                 "LocalExtraction/papers — put your own PDFs here\nLocalExtraction/local_output\n"
-                                "WebScraping/papers, web_output, Fetch_DOIs\nSelectingTopMaterial/results\n"
+                                "WebScraping/papers, web_output\nSelectingTopMaterial/results\n"
                                 "Classification/crystal_structure, structure_families", parent=root)
         refresh()
 
@@ -285,9 +290,10 @@ def _open(root, opener: Callable, make_home: bool = True) -> None:
 
 def build(root):
     """Builds the hub on `root`. Returns the Requirements button (the tests look at it)."""
-    import tkinter as tk
     from tkinter import ttk
 
+    from LocalExtraction.gui import theme
+    theme.apply(root)  # buttons that light up under the mouse
     root.title("MoukhlijMatExtract (MME)")
     root.minsize(780, 500)
 
@@ -299,6 +305,9 @@ def build(root):
     ttk.Label(top, text="MoukhlijMatExtract", font=("TkDefaultFont", 18, "bold")).pack(side="left")
     requirements = add_requirements_button(top, root)
     requirements.pack(side="right")
+    from .manual import add_manual_button  # every command and its options
+    root._mme_manual = add_manual_button(top, root)
+    root._mme_manual.pack(side="right", padx=(0, 8))
 
     ttk.Label(frame, foreground="#8c8c8c",
               text="Pick a step. Each opens in its own window; the pipeline runs left to right — "
@@ -363,14 +372,36 @@ def about_footer(parent):
     return footer
 
 
+# What the windows of the parts need, loaded behind the hub while it is read: pandas and each part's
+# code take about a second, which would otherwise freeze the first window opened. Not the PDF reader
+# nor the language model: an extraction loads them on its own thread.
+WARM_UP = ("pandas", "LocalExtraction.gui.app", "LocalExtraction.gui.browser", "WebScraping.webgui",
+           "WebScraping.averageScrap.gui.app", "SelectingTopMaterial.gui", "Classification.gui")
+
+
+def warm_up() -> "threading.Thread":
+    import importlib
+    import threading
+
+    def load() -> None:
+        for name in WARM_UP:
+            try:
+                importlib.import_module(name)
+            except Exception:  # the window says what is wrong when it is opened
+                logging.getLogger(__name__).debug("Could not load %s ahead", name, exc_info=True)
+    worker = threading.Thread(target=load, name="mme-warm-up", daemon=True)
+    worker.start()
+    return worker
+
+
 def main(argv=None) -> None:
     import argparse
     import tkinter as tk
 
-    from LocalExtraction.about import PROJECT_HOME, version
+    from LocalExtraction.about import PROJECT_HOME, version_text
     parser = argparse.ArgumentParser(
         prog="mme-gui", description="Open the MoukhlijMatExtract window: one button per part.")
-    parser.add_argument("--version", action="version", version=f"MoukhlijMatExtract {version()}")
+    parser.add_argument("--version", action="version", version=version_text("mme-gui"))
     parser.parse_args(argv)
     # The main results folder is not made here: "Create the main results folder" makes it, or the
     # first part opened. When it is there, the hub works from it.
@@ -378,6 +409,7 @@ def main(argv=None) -> None:
         os.chdir(PROJECT_HOME)
     root = tk.Tk()
     build(root)
+    warm_up()
     root.mainloop()
 
 

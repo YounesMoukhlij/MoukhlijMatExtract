@@ -12,7 +12,7 @@ You need **Python 3.11+** and, for scanned pages, **Tesseract** (`brew install t
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate                 # Windows: .venv\Scripts\activate
-pip install -e ".[dev,scrape]"            # the package, test tools, and web-method-2 extras
+pip install -e ".[dev]"                   # the package and the test tools
 python -m spacy download en_core_web_sm
 ```
 
@@ -24,9 +24,7 @@ python -m spacy download en_core_web_sm
 make test        # or: python -m pytest
 ```
 
-All tests must pass before you open a pull request. They run offline (network calls are faked). The
-live-site scraper check under `WebScraping/moukhlij4scraping/tests/` is **not** part of `make test`;
-run it by hand only when needed.
+All tests must pass before you open a pull request. They run offline (network calls are faked).
 
 ## Making changes
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "moukhlijmatextract"
-version = "1.0.2"
+version = "1.0.3"
 description = "Extract, rank and classify solid-state-electrolyte data from scientific papers (activation energies, conductivities, diffusion coefficients)."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
 ]
 
@@ -44,17 +45,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Web method 2 (Fetch_DOIs' Google Scholar source + the moukhlij4scraping PDF fetcher). Needs Chrome.
-scrape = [
-    "scholarly",
-    "bibtexparser>=1.4,<2",
-    "title2bib",
-    "arxivcheck",
-    "lxml",
-    "selenium>=4.6",
-    "six",
-    "future",
-]
 dev = ["pytest"]
 
 [project.urls]
@@ -69,9 +59,11 @@ mme-web = "WebScraping.averageScrap.cli:main"
 mme-rank = "SelectingTopMaterial.cli:main"
 mme-classify = "Classification.cli:main"
 mme-dois = "WebScraping.Fetch_DOIs.get_dois:main"
+mme-eval = "Evaluation.cli:main"
+mme-release = "Release.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["LocalExtraction*", "WebScraping*", "SelectingTopMaterial*", "Classification*", "mme_gui*"]
+include = ["LocalExtraction*", "WebScraping*", "SelectingTopMaterial*", "Classification*", "Evaluation*", "Release*", "mme_gui*"]
 exclude = ["*.tests", "*.tests.*", "tests", "tests.*"]
 
 [tool.setuptools.package-data]

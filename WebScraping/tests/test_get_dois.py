@@ -3,10 +3,12 @@
 what is kept when a run is stopped. The sources are stand-ins; nothing goes on the network."""
 
 import argparse
+import io
 import csv
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -133,14 +135,14 @@ class CountTests(unittest.TestCase):
         added = run(rows, ["k1"], {"k1": ["old"], "e1": ["x", "y", "z"], "e2": ["w"]},
                     count=3, extra=["e1", "e2"], used=used)
         self.assertEqual(added, 3)
-        self.assertEqual(used, {"base": 1, "extra": 1})
+        self.assertEqual({k: used[k] for k in ("base", "extra") if k in used}, {"base": 1, "extra": 1})
 
     def test_without_a_count_every_keyword_is_used(self):
         rows, used = {}, {}
         added = run(rows, ["k1", "k2"], {"k1": ["a"], "k2": ["b"], "e1": ["c"], "e2": ["d"]},
                     extra=["e1", "e2"], used=used)
         self.assertEqual(added, 4)
-        self.assertEqual(used, {"base": 2, "extra": 2})
+        self.assertEqual({k: used[k] for k in ("base", "extra") if k in used}, {"base": 2, "extra": 2})
 
     def test_when_every_keyword_is_used_it_says_how_many_it_found(self):
         rows = {}
@@ -217,13 +219,9 @@ class FileTests(unittest.TestCase):
             self.assertEqual(next(csv.DictReader(f))["title"], gd.NOT_LISTED)
 
 
-class WindowTests(unittest.TestCase):
-    def test_the_window_takes_a_whole_number_from_one_up(self):
-        from WebScraping.moukhlij4scraping.gui import parse_count
-        self.assertEqual((parse_count("1"), parse_count("2500")), (1, 2500))
-        for wrong in ("0", "-5", "ten", "1.5"):
-            with self.assertRaises(ValueError):
-                parse_count(wrong)
+class OpenSourcesTests(unittest.TestCase):
+    def test_only_open_indexes_are_asked(self):
+        self.assertEqual([name for name, _, _ in gd.SOURCES], ["OpenAlex", "Crossref", "Semantic Scholar", "arXiv"])
 
 
 class KeywordTests(unittest.TestCase):
@@ -257,6 +255,46 @@ class OpenAlexTests(unittest.TestCase):
                     mock.patch.object(gd, "get", side_effect=lambda url, params: mock.Mock(json=lambda: next(answers))) as get:
                 self.assertEqual(len(gd.from_openalex("garnet", 200, None)), wanted, key)
             self.assertEqual(get.call_count, wanted)
+
+
+
+class WatcherTests(unittest.TestCase):
+    def test_a_keyword_search_a_source_refused_is_asked_again_after_a_pause_and_counted(self):
+        import requests
+        answers = {"garnet": [429, None], "argyrodite": [None]}  # garnet: "too many requests", then an answer
+
+        def search(keyword, limit, years):
+            code = answers[keyword].pop(0)
+            if code:
+                response = requests.Response()
+                response.status_code = code
+                raise requests.HTTPError(f"{code} Too Many Requests", response=response)
+            return [paper(f"{keyword}-1"), paper(f"{keyword}-2")]
+        rows, used, searched, pauses = {}, {}, {}, []
+        with mock.patch.object(gd.runcontrol, "sleep", pauses.append), redirect_stdout(io.StringIO()):
+            added = gd.collect(rows, ["garnet", "argyrodite"], [("Stand-in", search)], limit=100, years=None,
+                               used=used, searched=searched)
+            self.assertEqual((added, len(used["refused"])), (2, 1))  # argyrodite answered; garnet kept
+            later = gd.recheck(rows, used, searched, None, added=added)
+        self.assertEqual((later, pauses), (2, [120]))  # one round, after two minutes, brought garnet's two DOIs
+        self.assertEqual(sorted(rows), ["10.1234/argyrodite-1", "10.1234/argyrodite-2", "10.1234/garnet-1", "10.1234/garnet-2"])
+        self.assertIn(gd.search_key("Stand-in", "garnet", None), searched)  # answered: not asked again next run
+        report = gd.watch_report(used, 0, len(rows))
+        self.assertIn("keywords checked: 2", report)
+        self.assertIn("3 asked, 2 answered, 1 of them on a later try, 0 still refused", report)
+        self.assertIn("4 new, 4 in the list", report)
+
+    def test_a_failure_that_is_an_answer_is_not_asked_again(self):
+        import requests
+
+        def search(keyword, limit, years):
+            response = requests.Response()
+            response.status_code = 400
+            raise requests.HTTPError("400 Bad Request", response=response)
+        used = {}
+        with redirect_stdout(io.StringIO()):
+            gd.collect({}, ["garnet"], [("Stand-in", search)], limit=100, years=None, used=used)
+        self.assertEqual(used.get("refused") or [], [])
 
 
 if __name__ == "__main__":

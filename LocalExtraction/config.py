@@ -38,7 +38,8 @@ def _per(numerator: str, denominator: str) -> str:
             rf'|[·⋅.]?{gap}{denominator}(?:{gap}\^?{gap}[-−–]{gap}1|1)(?!\d))')
 
 
-_SIEMENS_PER_CM = _per(r'(?:m|μ|µ|u)?S', 'cm')
+# per centimetre, or per metre ("0.12 S m−1", SI units: 1 S/m = 0.01 S/cm)
+_SIEMENS_PER_CM = _per(r'(?:m|μ|µ|u)?S', r'c?m')
 _AREA_PER_SECOND = _per(r'c?m\^?2', r's(?:ec)?')
 # An energy of one hop: per particle (eV, meV) or per mole ("kJ/mol", "kJ mol−1", "kJ per mol").
 # Not an energy per atom or per length ("25 meV/atom" is a stability, "0.01 eV/Å" a force).

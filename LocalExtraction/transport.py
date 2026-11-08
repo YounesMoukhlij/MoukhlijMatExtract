@@ -38,12 +38,15 @@ _RAW: List[Tuple[str, str]] = [
     (TOTAL, rf'(?i)\btotal\s+{_EA}'),
     (TOTAL, rf'(?i)\b(?:total|overall)\s+(?:ionic\s+)?conductivit(?:y|ies)\b'),
     (TOTAL, r'(?i)\bE\s*_?\s*a\s*[,_(\[]?\s*(?:tot|total)\b'),
+    # A conductivity's subscript, as table headers write it: "σ tot", "σ_total" (not "σT": that is σ × T).
+    (TOTAL, r'(?i)σ\s*_?\s*[,(\[]?\s*(?:tot|total)\b'),
     (TOTAL, r'(?i)\b(?:through-plane|conductivity\s+of\s+the\s+(?:entire|whole)\s+(?:pellet|sample))'),
     (TOTAL, r'(?i)\b(?:D_?eff|effective\s+diffusion\s+coefficient)\b'),
     # ---- grain boundary ----
     (GB, rf'(?i){_GB_WORD}\s*{_GAP_W}(?:{_Q}|{_EA})'),
     (GB, rf'(?i)(?:{_Q}|{_EA})\s+(?:of|at|across|in|for|through|along)\s+(?:the\s+)?{_GB_WORD}'),
     (GB, r'(?i)\bE\s*_?\s*(?:a|ac)\s*[,_(\[]?\s*(?:gb|g\.b\.)\b'),
+    (GB, r'(?i)σ\s*_?\s*[,(\[]?\s*(?:gb|g\.b\.)\b'),
     (GB, r'\bR\s*_?\s*(?:gb|g\.b\.)\b'),
     (GB, rf'(?i)\b(?:across|between)\s+(?:the\s+)?(?:grains|{_GB_WORD})'),
     (GB, rf'(?i){_GB_WORD}\s+(?:space[\s-]charge|potential|blocking)\s+(?:layer|barrier)'),
@@ -63,6 +66,8 @@ _RAW: List[Tuple[str, str]] = [
     (BULK, r'(?i)\b(?:through|within|in|inside)\s+the\s+(?:bulk\b(?!\s+(?:modulus|density|ceramic|powder))|(?:crystal\s+)?lattice\b|grain\s+interiors?\b|grains\b)'),
     (BULK, r'(?i)\bfor\s+(?:the\s+)?(?:bulk\b(?!\s+(?:modulus|density|ceramic|powder|material))|grain\s+interiors?\b)'),
     (BULK, r'(?i)\bE\s*_?\s*(?:a|ac)\s*[,_(\[]?\s*(?:b|bulk|gi|int)\b'),
+    # "σ g": the grain (interior) of an impedance fit, as against "σ gb", its boundaries.
+    (BULK, r'(?i)σ\s*_?\s*[,(\[]?\s*(?:b|bulk|g|gi|grain|int)\b'),
     (BULK, r'\bR\s*_\s*(?:b|bulk|gi)\b|\bR(?:bulk|gi)\b'),
     (BULK, r'(?i)\bhigh[\s-]frequency\s+(?:semicircle|arc)[^.;]{0,60}?\b(?:grain[\s-]interior|bulk)\b'),
     (BULK, r'(?i)\bsingle[\s-]crystal\s+(?:ionic\s+)?(?:conductivity|diffusion|ion\s+transport)\b'),

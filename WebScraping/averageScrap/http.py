@@ -13,6 +13,8 @@ from urllib.parse import unquote, urlsplit
 
 import requests
 
+from LocalExtraction import runcontrol  # waits that Pause holds and Stop ends
+
 PRODUCT = "MoukhlijMatExtract"
 VERSION = "1.0.0"
 
@@ -29,11 +31,21 @@ _MIN_INTERVAL = {
     # The search services added to OpenAlex and arXiv: their own stated limits, or a polite pace.
     "doaj.org": 0.5, "api.jstage.jst.go.jp": 1.0, "api.core.ac.uk": 1.0, "api.springernature.com": 1.0,
     "api.adsabs.harvard.edu": 0.5, "ieeexploreapi.ieee.org": 1.0, "api.clarivate.com": 1.0,
+    # Added later: Zenodo allows 60 requests a minute without a key, PLOS 10 a minute, Dimensions 30, BASE 60.
+    "zenodo.org": 1.1, "api.datacite.org": 0.5, "api.plos.org": 6.5, "ntrs.nasa.gov": 1.0, "api.figshare.com": 0.5,
+    "share.osf.io": 1.0, "buscador.lareferencia.info": 1.0, "theses.fr": 0.5, "api.lens.org": 1.5,
+    "api.base-search.net": 1.0, "app.dimensions.ai": 2.0, "doi.org": 0.2,
 }
 _DEFAULT_INTERVAL = 1.0
 _RETRY_STATUS = {429, 500, 502, 503, 504}
 _MAX_ATTEMPTS = 4
 _MAX_WAIT = 60.0
+# A site that answers 429 ("too many requests") has a limit per network address and wants a real pause:
+# it is asked again after 15, 30 then 60 s (unless it says how long), and from then on that host gets
+# one request every _SLOWED seconds at least — doubled at each new 429, up to _MAX_SLOWED — for the rest
+# of the run, instead of the same pace that ran into the limit.
+_SLOWED = 6.0
+_MAX_SLOWED = 30.0
 
 
 class HttpError(RuntimeError):
@@ -97,6 +109,11 @@ def _backoff(attempt: int) -> float:
     return min(_MAX_WAIT, 2.0 ** attempt)
 
 
+def _rate_backoff(attempt: int) -> float:
+    """The wait after a 429 that did not say how long: 15, 30, 60 s."""
+    return min(_MAX_WAIT, 15.0 * 2 ** (attempt - 1))
+
+
 def _retry_after(response) -> float:
     try:
         return min(_MAX_WAIT, float(response.headers.get("Retry-After", "")))
@@ -108,7 +125,7 @@ class PoliteClient:
     """GET requests for every service of the web project, shared by all worker threads."""
 
     def __init__(self, contact: str = "", session: Optional[requests.Session] = None, timeout: float = 30.0,
-                 sleep: Callable[[float], None] = time.sleep, clock: Callable[[], float] = time.monotonic):
+                 sleep: Callable[[float], None] = runcontrol.sleep, clock: Callable[[], float] = time.monotonic):
         self.session = session or requests.Session()
         self.session.headers["User-Agent"] = f"{PRODUCT}/{VERSION}" + (f" (mailto:{contact})" if contact else "")
         self.timeout = timeout
@@ -117,12 +134,14 @@ class PoliteClient:
         self._next: Dict[str, float] = {}
         self._robots: Dict[str, Optional[robotparser.RobotFileParser]] = {}
         self._crawl_delay: Dict[str, float] = {}
+        self._slowed: Dict[str, float] = {}  # host -> the interval a 429 asked for (this run)
 
     # ------------------------------------------------------------------
     # Spacing
     # ------------------------------------------------------------------
     def _wait(self, host: str) -> None:
-        interval = max(_MIN_INTERVAL.get(host, _DEFAULT_INTERVAL), self._crawl_delay.get(host, 0.0))
+        interval = max(_MIN_INTERVAL.get(host, _DEFAULT_INTERVAL), self._crawl_delay.get(host, 0.0),
+                       self._slowed.get(host, 0.0))
         with self._lock:  # reserve a slot under the lock, sleep outside it so other hosts aren't held up
             now = self._clock()
             slot = max(now, self._next.get(host, 0.0))
@@ -172,25 +191,58 @@ class PoliteClient:
         if not api:
             if not self.allowed(url):
                 raise Disallowed(f"robots.txt of {host} does not allow {url}")
+        return self._send(host, no_retry, lambda: self.session.get(url, params=params, headers=headers, stream=stream,
+                                                                   timeout=self.timeout))
+
+    def post_json(self, url: str, body: Any = None, headers: Optional[Dict[str, str]] = None, data: Optional[str] = None) -> Any:
+        """POST to an API (a JSON `body`, or a text `data`), with the same spacing and retries as get;
+        its JSON answer. An error status raises HttpError."""
+        host = urlsplit(url).netloc.lower()
+        response = self._send(host, (), lambda: self.session.post(
+            url, json=body if data is None else None, data=data.encode("utf-8") if data is not None else None,
+            headers=headers, timeout=self.timeout))
+        if response.status_code != 200:
+            raise HttpError(url, response.status_code, response.text[:200].replace("\n", " "))
+        return response.json()
+
+    def _send(self, host: str, no_retry: Container[int], send: Callable[[], requests.Response]) -> requests.Response:
+        """One request (`send`), spaced from the last one to its host, sent again on a busy answer."""
         for attempt in range(1, _MAX_ATTEMPTS + 1):
             self._wait(host)
             try:
-                response = self.session.get(url, params=params, headers=headers, stream=stream,
-                                            timeout=self.timeout)
+                response = send()
             except requests.RequestException:
                 if attempt == _MAX_ATTEMPTS:
                     raise
                 self._sleep(_backoff(attempt))
                 continue
+            if response.status_code == 429:
+                self._slow_down(host)
             if response.status_code in _RETRY_STATUS and response.status_code not in no_retry \
                     and attempt < _MAX_ATTEMPTS:
-                delay = _retry_after(response) or _backoff(attempt)
+                delay = _retry_after(response) or (_rate_backoff(attempt) if response.status_code == 429
+                                                   else _backoff(attempt))
                 logging.debug(f"{host} answered {response.status_code}; retrying in {delay:.0f}s")
                 response.close()
                 self._sleep(delay)
                 continue
             return response
         raise RuntimeError("unreachable")  # the loop always returns or raises
+
+    def pause(self, seconds: float) -> None:
+        """A wait of the run (the watcher's): Pause holds it and Stop ends it, like the client's own."""
+        self._sleep(seconds)
+
+    def _slow_down(self, host: str) -> None:
+        """A 429 from `host`: fewer requests to it for the rest of the run."""
+        with self._lock:
+            before = max(_MIN_INTERVAL.get(host, _DEFAULT_INTERVAL), self._slowed.get(host, 0.0))
+            after = min(_MAX_SLOWED, max(_SLOWED, 2 * before))
+            if after <= self._slowed.get(host, 0.0):
+                return
+            self._slowed[host] = after
+        logging.info(f"{host} asked to slow down (HTTP 429, too many requests from this network): one request "
+                     f"every {after:g} s to it for the rest of this run.")
 
     def get_json(self, url: str, params: Optional[Dict[str, Any]] = None,
                  headers: Optional[Dict[str, str]] = None) -> Any:

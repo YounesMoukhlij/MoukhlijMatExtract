@@ -69,6 +69,7 @@ class CommonTests(unittest.TestCase):
     def test_one_spelling_of_a_licence(self):
         for text, spelled in (("http://creativecommons.org/licenses/by-nc/4.0/", "cc-by-nc"), ("CC BY", "cc-by"),
                               ("CCBYNCND", "cc-by-nc-nd"), ("https://creativecommons.org/publicdomain/zero/1.0/", "cc0"),
+                              ("cc-by-4.0", "cc-by"), ("cc-by-nc-sa-4.0", "cc-by-nc-sa"), ("cc0-1.0", "cc0"),
                               ("Elsevier user licence", "Elsevier user licence")):
             self.assertEqual(spell_license(text), spelled)
 
@@ -405,6 +406,66 @@ class DiscoveryTests(unittest.TestCase):
         environment.start()
         self.addCleanup(environment.stop)
 
+    def test_arxiv_goes_on_through_openalex_when_its_search_says_too_many_requests(self):
+        from WebScraping.averageScrap.sources.arxiv import ArXiv
+        work = {"id": "https://openalex.org/W1", "title": "Li6PS5Cl argyrodite conductivity", "publication_year": 2024,
+                "type": "preprint", "doi": "https://doi.org/10.48550/arxiv.2407.15258",
+                "locations": [{"source": {"id": "https://openalex.org/S4306400194"}, "landing_page_url": "http://arxiv.org/abs/2407.15258"}],
+                "open_access": {"is_oa": True, "oa_status": "green"}}
+        session = FakeSession([("export.arxiv.org", FakeResponse(429)),
+                               ("api.openalex.org/works", FakeResponse(200, json_data={"results": [work], "meta": {}}))])
+        source = ArXiv(client_for(session), ["cond-mat.mtrl-sci"])
+        with self.assertLogs(level="WARNING") as said:
+            (c,) = list(source.search("argyrodite", (2014, 2026), 50))
+        self.assertEqual((c.arxiv_id, c.found_by), ("2407.15258", ["arxiv: argyrodite (through OpenAlex)"]))
+        self.assertIn("https://arxiv.org/pdf/2407.15258", c.oa_urls)
+        self.assertIn("locations.source.id:S4306400194", session.calls[-1][1]["filter"])
+        self.assertTrue(any("OpenAlex's copy of the arXiv catalogue" in line for line in said.output))
+        self.assertEqual(session.hits("export.arxiv.org"), 1)  # asked once, not four times: no pauses
+        list(source.search("garnet", None, 50))
+        self.assertEqual(session.hits("export.arxiv.org"), 1)  # the rest of the run goes to OpenAlex
+
+    def _watched_harvest(self, session, queries):
+        harvest = Harvest(Job(search=SearchConfig(queries=queries, sources=["doaj"], abstract_sources=[]),
+                              fetch=FetchConfig(folder=os.path.join(self.root, "papers"))),
+                          os.path.join(self.root, "out"), client=client_for(session))
+        self.addCleanup(harvest.ledger.close)
+        self.waits = []
+        harvest.watcher.sleep = self.waits.append
+        harvest.watcher.say = lambda text: None
+        return harvest
+
+    def test_the_watcher_keeps_the_searches_a_site_refuses_and_asks_again_in_rounds(self):
+        queries = [f"query {n}" for n in range(10)]
+        session = FakeSession([("doaj.org", FakeResponse(429))])  # a site that never lets up
+        harvest = self._watched_harvest(session, queries)
+        with self.assertLogs(level="INFO") as said:
+            harvest.discover()
+        # First pass: three searches refused (each asked four times by the client), the other seven not asked;
+        # then four rounds — after 2, 5, 10 and 15 minutes — of two tries each.
+        self.assertEqual(session.hits("doaj.org"), 3 * 4 + 4 * 2 * 4)
+        self.assertEqual(sum(self.waits) / 60, 2 + 5 + 10 + 15)
+        waiting = harvest.ledger.watch_list("search")
+        self.assertEqual(sorted(row["item"] for row in waiting), sorted(queries))  # all kept for the next run
+        self.assertIsNone(harvest.ledger.searched("doaj|query 0|None|True", 200))
+        report = "\n".join(said.output)
+        self.assertIn("searches (keyword × source): 11 asked, 0 answered, 11 refused", report)
+        self.assertIn("waiting on the watch list: 10 searches (10 keywords)", report)
+
+    def test_a_search_refused_then_answered_on_a_later_round_comes_off_the_watch_list(self):
+        record = {"bibjson": {"title": "Argyrodite electrolytes", "abstract": ABSTRACT, "year": "2024",
+                              "identifier": [{"type": "doi", "id": "10.1/watch"}]}}
+        answers = [FakeResponse(429)] * 4 + [FakeResponse(200, json_data={"results": [record]})]
+        session = FakeSession([("doaj.org", answers)])
+        harvest = self._watched_harvest(session, ["argyrodite"])
+        with self.assertLogs(level="INFO") as said:
+            added = harvest.discover()
+        self.assertEqual(added, 1)
+        self.assertEqual(self.waits and sum(self.waits) / 60, 2)  # one round was enough
+        self.assertEqual(harvest.ledger.watch_list("search"), [])
+        self.assertIsNotNone(harvest.ledger.searched("doaj|argyrodite|None|True", 200))
+        self.assertIn("1 answered on a later try", "\n".join(said.output))
+
     def test_a_paper_another_source_found_is_completed_then_screened(self):
         item = {"DOI": "10.1016/j.ssi.2020.1", "title": ["Garnet solid electrolyte"], "type": "journal-article",
                 "issued": {"date-parts": [[2020]]}}
@@ -447,3 +508,225 @@ class DiscoveryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ----------------------------------------------------------------------
+# The repositories, preprint servers, national platforms and large indexes added later. Each record
+# below is the shape the service gave (trimmed), from a real answer.
+# ----------------------------------------------------------------------
+class AddedSourceTests(KeyedTestCase):
+    def setUp(self):
+        super().setUp()
+        os.environ.update({"LENS_API_TOKEN": "lens-token", "DIMENSIONS_API_KEY": "dim-key", "BASE_ACCESS": "yes"})
+
+    def test_zenodo_keeps_papers_with_their_pdf_and_leaves_out_the_rest(self):
+        from WebScraping.averageScrap.sources.zenodo import Zenodo
+        paper = {"doi": "10.1039/D4YA00618F", "links": {"self_html": "https://zenodo.org/records/15862968"},
+                 "metadata": {"title": "Halide and sulfide electrolytes", "publication_date": "2025-02-12", "description": ABSTRACT,
+                              "access_right": "open", "license": {"id": "cc-by-4.0"}, "creators": [{"name": "Doe, J."}],
+                              "resource_type": {"type": "publication", "subtype": "article"}},
+                 "files": [{"key": "d4ya00618f.pdf", "links": {"self": "https://zenodo.org/api/records/15862968/files/d4ya00618f.pdf/content"}},
+                           {"key": "data.csv", "links": {"self": "https://zenodo.org/x/data.csv"}}]}
+        review = {**paper, "doi": "10.5281/zenodo.1", "metadata": {**paper["metadata"], "resource_type": {"subtype": "peerreview"}}}
+        session = FakeSession([("zenodo.org/api/records", FakeResponse(200, json_data={"hits": {"hits": [paper, review]}}))])
+        (c,) = first(Zenodo(client_for(session)), years=(2020, 2026))
+        self.assertEqual((c.doi, c.oa_status, c.license, c.abstract_from), ("10.1039/d4ya00618f", "green", "cc-by", "zenodo"))
+        self.assertEqual(c.oa_urls, ["https://zenodo.org/api/records/15862968/files/d4ya00618f.pdf/content"])
+        self.assertIn("publication_date:[2020-01-01 TO 2026-12-31]", session.calls[0][1]["q"])
+
+    def test_datacite_files_the_repository_copy_and_leaves_arxiv_to_arxiv(self):
+        from WebScraping.averageScrap.sources.datacite import DataCite
+        record = {"id": "10.34734/fzj-2026-04397", "attributes": {
+            "doi": "10.34734/fzj-2026-04397", "titles": [{"title": "Extrinsic anion vacancies in $Li_6PS_5Cl$"}],
+            "publicationYear": 2026, "publisher": "Forschungszentrum Jülich", "url": "https://juser.fz-juelich.de/record/1060971",
+            "types": {"resourceTypeGeneral": "Text", "resourceType": "Journal article"},
+            "descriptions": [{"descriptionType": "Abstract", "description": ABSTRACT}],
+            "rightsList": [{"rightsUri": "info:eu-repo/semantics/openAccess"}],
+            "relatedIdentifiers": [{"relationType": "IsVariantFormOf", "relatedIdentifier": "10.1021/acsaem.6c02127",
+                                    "relatedIdentifierType": "DOI"}]}}
+        arxiv = {"id": "10.48550/arxiv.2411.06804", "attributes": {"doi": "10.48550/arXiv.2411.06804",
+                                                                     "titles": [{"title": "A preprint"}], "publicationYear": 2024}}
+        session = FakeSession([("api.datacite.org", FakeResponse(200, json_data={"data": [record, arxiv]}))])
+        c, preprint = first(DataCite(client_for(session)), years=(2014, 2026))
+        self.assertEqual((c.doi, c.work_type, c.oa_status, c.copy_pages), ("10.34734/fzj-2026-04397", "article", "green",
+                                                                          ["https://juser.fz-juelich.de/record/1060971"]))
+        self.assertEqual((preprint.doi, preprint.arxiv_id, preprint.key), ("", "2411.06804", "arxiv:2411.06804"))
+        self.assertEqual(session.calls[0][1]["published"], "2014,2026")
+
+    def test_plos_asks_for_every_word_in_the_title_or_abstract_and_offers_the_printable_pdf(self):
+        from WebScraping.averageScrap.sources.plos import PLOS, build_query
+        self.assertEqual(build_query('argyrodite "ionic conductivity"'),
+                         'title:(argyrodite AND "ionic conductivity") OR abstract:(argyrodite AND "ionic conductivity")')
+        doc = {"id": "10.1371/journal.pone.0049182", "title_display": "Li K-edge spectroscopy of Li<sub>2</sub>O<sub>2</sub>",
+               "abstract": ["\n  " + ABSTRACT], "publication_date": "2012-11-07T00:00:00Z", "journal": "PLoS ONE",
+               "author_display": ["Ruimin Qiao"], "article_type": "Research Article"}
+        session = FakeSession([("api.plos.org", FakeResponse(200, json_data={"response": {"docs": [doc]}}))])
+        (c,) = first(PLOS(client_for(session)))
+        self.assertEqual((c.title, c.oa_status, c.license), ("Li K-edge spectroscopy of Li2O2", "gold", "cc-by"))
+        self.assertEqual(c.oa_urls, ["https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0049182&type=printable"])
+        self.assertIn("doc_type:full", session.calls[0][1]["fq"])
+
+    def test_ntrs_offers_the_pdf_nasa_released_for_public_use(self):
+        from WebScraping.averageScrap.sources.ntrs import NTRS
+        record = {"id": 20110013625, "title": "Self-Passivating Lithium/Solid Electrolyte/Iodine Cells", "abstract": ABSTRACT,
+                  "stiType": "OTHER", "created": "2013-08-25T07:44:00", "downloadsAvailable": True,
+                  "copyright": {"determinationType": "PUBLIC_USE_PERMITTED"},
+                  "publications": [{"publicationName": "NASA Tech Briefs", "publicationDate": "2006-12-01T00:00:00"}],
+                  "authorAffiliations": [{"meta": {"author": {"name": "Bugga, Ratnakumar"}}}],
+                  "downloads": [{"mimetype": "application/pdf", "links": {"pdf": "/api/citations/20110013625/downloads/20110013625.pdf"}}]}
+        session = FakeSession([("ntrs.nasa.gov", FakeResponse(200, json_data={"results": [record]}))])
+        (c,) = first(NTRS(client_for(session)))
+        self.assertEqual((c.year, c.journal, c.authors, c.doi), (2006, "NASA Tech Briefs", ["Bugga, Ratnakumar"], ""))
+        self.assertEqual(c.oa_urls, ["https://ntrs.nasa.gov/api/citations/20110013625/downloads/20110013625.pdf"])
+
+    def test_figshare_leaves_out_supporting_information_and_reads_the_record_of_each_paper(self):
+        from WebScraping.averageScrap.sources.figshare import Figshare
+        items = [{"id": 1, "doi": "10.1021/acs.chemmater.6c01878.s001", "defined_type": 6},  # an article's supporting information
+                 {"id": 2, "doi": "", "defined_type": 3},                                   # a dataset
+                 {"id": 3, "doi": "10.25394/PGS.34751169.v1", "defined_type": 8}]           # a thesis
+        thesis = {"id": 3, "doi": "10.25394/PGS.34751169.v1", "defined_type": 8, "title": "Instability at solid-state interfaces",
+                  "description": ABSTRACT, "published_date": "2026-09-01T00:00:00Z", "url_public_html": "https://hammer.purdue.edu/x/3",
+                  "license": {"url": "https://creativecommons.org/licenses/by/4.0/"}, "authors": [{"full_name": "A. Student"}],
+                  "files": [{"name": "thesis.pdf", "download_url": "https://ndownloader.figshare.com/files/9"}]}
+        session = FakeSession([("articles/search", FakeResponse(200, json_data=items)),
+                               ("api.figshare.com/v2/articles/3", FakeResponse(200, json_data=thesis))])
+        (c,) = first(Figshare(client_for(session)))
+        self.assertEqual((c.work_type, c.license, c.oa_urls), ("thesis", "cc-by", ["https://ndownloader.figshare.com/files/9"]))
+        self.assertEqual(session.hits("v2/articles/1"), 0)  # the supporting information is not even looked at
+
+    def test_osf_takes_the_preprints_osf_hosts_with_their_file(self):
+        from WebScraping.averageScrap.sources.osf import OSFPreprints
+        record = {"@id": "https://osf.io/fszk6", "title": [{"@value": "MgHf4P6O24 electrolyte in a Mg sensor"}],
+                  "description": [{"@value": ABSTRACT}], "dateCreated": [{"@value": "2020-02-15"}],
+                  "identifier": [{"@value": "https://doi.org/10.1149/osf.io/fszk6"}, {"@value": "https://osf.io/fszk6"}],
+                  "publisher": [{"name": [{"@value": "ECSarXiv"}]}], "creator": [{"name": [{"@value": "Mohammed Adamu"}]}],
+                  "rights": [{"@id": "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode"}]}
+        elsewhere = {**record, "@id": "https://example.org/x"}
+        session = FakeSession([("share.osf.io", FakeResponse(200, json_data={"data": [record, elsewhere], "links": {}}))])
+        (c,) = first(OSFPreprints(client_for(session)))
+        self.assertEqual((c.doi, c.journal, c.is_preprint, c.license), ("10.1149/osf.io/fszk6", "ECSarXiv", True, "cc-by-nc-nd"))
+        self.assertEqual(c.oa_urls, ["https://osf.io/fszk6/download"])
+        self.assertEqual(first(OSFPreprints(client_for(session)), include_preprints=False), [])
+
+    def test_la_referencia_keeps_the_repository_page_of_an_open_paper(self):
+        from WebScraping.averageScrap.sources.lareferencia import LAReferencia
+        record = {"title": "LATP thin film electrolytes", "urls": [{"url": "http://zaguan.unizar.es/record/119656"}],
+                  "publicationDates": ["2021"], "formats": ["article"], "summary": [ABSTRACT],
+                  "authors": {"primary": {"A. Author": {}}, "secondary": {}},
+                  "rawData": {"eu_rights_str_mv": ["openAccess"], "doi_str_mv": ["10.1016/j.x.2021.1"], "network_name_str": "España"}}
+        session = FakeSession([("lareferencia", FakeResponse(200, json_data={"records": [record]}))])
+        (c,) = first(LAReferencia(client_for(session)))
+        self.assertEqual((c.doi, c.oa_status, c.copy_pages), ("10.1016/j.x.2021.1", "green", ["http://zaguan.unizar.es/record/119656"]))
+
+    def test_theses_fr_takes_defended_theses_with_their_abstract_and_public_text(self):
+        from WebScraping.averageScrap.sources.thesesfr import ThesesFr
+        found = {"theses": [{"nnt": "2021NORMC251", "status": "soutenue", "dateSoutenance": "09/12/2021",
+                             "titreEN": "Discovery of new ionic conductor", "auteurs": [{"prenom": "A.", "nom": "Student"}],
+                             "etabSoutenanceN": "Normandie"},
+                            {"nnt": None, "status": "enCours", "titreEN": "Not defended yet"}]}
+        details = {"nnt": "2021NORMC251", "titres": {"en": "Discovery of new ionic conductor for all solid-state battery"},
+                   "resumes": {"en": ABSTRACT}, "accessible": "oui", "doi": "10.70675/abc"}
+        session = FakeSession([("recherche", FakeResponse(200, json_data=found)), ("these/2021NORMC251", FakeResponse(200, json_data=details))])
+        (c,) = first(ThesesFr(client_for(session)), years=(2015, 2026))
+        self.assertEqual((c.work_type, c.year, c.doi, c.abstract_from), ("thesis", 2021, "10.70675/abc", "theses.fr"))
+        self.assertEqual(c.copy_pages, ["https://theses.fr/api/v1/document/2021NORMC251"])
+
+    def test_lens_and_dimensions_send_their_key_and_read_their_answer(self):
+        from WebScraping.averageScrap.sources.dimensions import Dimensions, build_query
+        from WebScraping.averageScrap.sources.lens import Lens
+        record = {"lens_id": "000-111", "title": "Garnet LLZO", "abstract": ABSTRACT, "year_published": 2022,
+                  "external_ids": [{"type": "doi", "value": "10.1000/LENS"}], "source": {"title": "Solid State Ionics"},
+                  "open_access": {"colour": "gold", "license": "cc-by"}, "authors": [{"first_name": "A", "last_name": "B"}]}
+        session = FakeSession([("api.lens.org", FakeResponse(200, json_data={"data": [record]}))])
+        (c,) = first(Lens(client_for(session)), years=(2020, 2026))
+        self.assertEqual((c.doi, c.oa_status, c.journal), ("10.1000/lens", "gold", "Solid State Ionics"))
+        body = session.calls[0][1]
+        self.assertEqual(session.calls[0][2], {"Authorization": "Bearer lens-token"})
+        self.assertEqual(body["query"]["bool"]["must"][1], {"range": {"year_published": {"gte": 2020, "lte": 2026}}})
+
+        self.assertEqual(build_query('a "b"', (2015, 2026), 0, 10), 'search publications in title_abstract_only for "a \\"b\\"" '
+                         'where year in [2015:2026] return publications[doi+title+abstract+year+journal+publisher+authors+'
+                         'open_access+linkout+type] limit 10 skip 0')
+        publication = {"doi": "10.1000/DIM", "title": "Argyrodite", "abstract": ABSTRACT, "year": 2023,
+                       "journal": {"title": "J"}, "open_access": ["oa_all", "green"], "type": "article"}
+        session = FakeSession([("api/auth", FakeResponse(200, json_data={"token": "t"})),
+                               ("dsl/v2", FakeResponse(200, json_data={"publications": [publication]}))])
+        (c,) = first(Dimensions(client_for(session)))
+        self.assertEqual((c.doi, c.oa_status), ("10.1000/dim", "green"))
+        self.assertEqual(session.calls[0][1], {"key": "dim-key"})
+        self.assertEqual(session.calls[1][2], {"Authorization": "JWT t"})
+
+    def test_base_says_how_to_be_registered_when_it_refuses_the_network(self):
+        from WebScraping.averageScrap.sources.base import BASE
+        refused = FakeResponse(200, json_data={"error": "Access denied for IP address 1.2.3.4."})
+        with self.assertLogs(level="WARNING") as said, self.assertRaises(HttpError) as raised:
+            first(BASE(client_for(FakeSession([("base-search", refused)]))))
+        self.assertEqual(raised.exception.status, 403)
+        self.assertIn("base-search.net/about/en/contact.php", said.output[0])
+        doc = {"dctitle": "Argyrodite", "dcdoi": ["10.1000/BASE"], "dclink": "https://repo.example/1", "dcoa": 1,
+               "dcyear": "2021", "dccreator": ["A. B"], "dcdescription": ABSTRACT}
+        session = FakeSession([("base-search", FakeResponse(200, json_data={"response": {"docs": [doc]}}))])
+        (c,) = first(BASE(client_for(session)))
+        self.assertEqual((c.doi, c.copy_pages), ("10.1000/base", ["https://repo.example/1"]))
+        with mock.patch.dict(os.environ, {"BASE_ACCESS": ""}):
+            self.assertFalse(BASE(client_for(FakeSession())).available())  # not asked until registered
+
+    def test_a_repository_copy_found_second_is_kept_and_offered(self):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        ledger = Ledger(os.path.join(folder, "ledger.sqlite"))
+        self.addCleanup(ledger.close)
+        ledger.add(Candidate(key="10.1/x", doi="10.1/x", title="T", landing_url="https://publisher.example/x"))
+        ledger.add(Candidate(key="10.1/x", doi="10.1/x", landing_url="https://repo.example/1", copy_pages=["https://repo.example/1"]))
+        c = ledger.get("10.1/x")
+        self.assertEqual((c.landing_url, c.copy_pages), ("https://publisher.example/x", ["https://repo.example/1"]))
+        self.assertEqual(screening.access_of(c, False), "open")
+        options = [(o.service, o.url, o.landing) for o in Resolver(client_for(FakeSession()), ["openalex"]).options(c)]
+        self.assertEqual(options, [("repository", "https://repo.example/1", True)])
+
+
+class RefusedLookupTests(KeyedTestCase):
+    def test_a_doi_whose_lookups_were_refused_is_waiting_not_closed(self):
+        """Unpaywall answered "too many requests" for this DOI: nothing was offered, but that is not
+        "no legal copy" — the paper was not checked, and the watcher checks it again later."""
+        from WebScraping.averageScrap.fetch import Downloader
+        from WebScraping.averageScrap.ledger import CLOSED, FAILED
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        busy = FakeSession([("api.unpaywall.org", FakeResponse(429))])
+        client = client_for(busy, contact="me@university.edu")
+        outcome = Downloader(folder, client, Resolver(client, ["unpaywall"], "me@university.edu")).fetch(candidate())
+        self.assertEqual((outcome.status, outcome.refused), (FAILED, ["Unpaywall"]))
+        quiet = FakeSession([("api.unpaywall.org", FakeResponse(404))])  # an answer: Unpaywall does not know it
+        client = client_for(quiet, contact="me@university.edu")
+        outcome = Downloader(folder, client, Resolver(client, ["unpaywall"], "me@university.edu")).fetch(candidate())
+        self.assertEqual((outcome.status, outcome.refused), (CLOSED, []))
+
+
+class AddedResolverTests(ResolverSourceTests):
+    def test_the_publisher_page_of_an_open_access_journal_is_asked_where_the_doi_points(self):
+        handle = {"values": [{"type": "URL", "data": {"value": "https://www.frontiersin.org/article/10.3389/fchem.2020.00468/full"}}]}
+        session = FakeSession([("doi.org/api/handles", FakeResponse(200, json_data=handle))])
+        self.assertEqual(self.options(candidate(doi="10.3389/fchem.2020.00468"), ["publisher"], session),
+                         [("publisher", "https://www.frontiersin.org/article/10.3389/fchem.2020.00468/full", True)])
+        # A subscription journal's paper that no index says is open: its page is not asked.
+        self.assertEqual(self.options(candidate(doi="10.1021/x", oa_status="closed"), ["publisher"], FakeSession()), [])
+
+    def test_zenodo_offers_the_file_deposited_under_the_doi(self):
+        record = {"doi": "10.1000/TEST", "metadata": {"access_right": "open", "license": {"id": "cc-by-4.0"}},
+                  "files": [{"key": "paper.pdf", "links": {"self": "https://zenodo.org/api/records/1/files/paper.pdf/content"}}]}
+        other = {**record, "doi": "10.1000/other"}
+        session = FakeSession([("zenodo.org", FakeResponse(200, json_data={"hits": {"hits": [record, other]}}))])
+        self.assertEqual(self.options(candidate(), ["zenodo"], session),
+                         [("zenodo", "https://zenodo.org/api/records/1/files/paper.pdf/content", False)])
+
+    def test_datacite_offers_the_repository_copies_that_name_the_doi(self):
+        copy = {"attributes": {"url": "https://juser.fz-juelich.de/record/1", "types": {"resourceTypeGeneral": "Text"},
+                               "relatedIdentifiers": [{"relationType": "IsVariantFormOf", "relatedIdentifier": "10.1000/test",
+                                                       "relatedIdentifierType": "DOI"}]}}
+        data = {"attributes": {**copy["attributes"], "url": "https://data.example/1", "types": {"resourceTypeGeneral": "Dataset"}}}
+        cites = {"attributes": {**copy["attributes"], "url": "https://other.example/1",
+                                "relatedIdentifiers": [{"relationType": "References", "relatedIdentifier": "10.1000/test",
+                                                        "relatedIdentifierType": "DOI"}]}}
+        session = FakeSession([("api.datacite.org", FakeResponse(200, json_data={"data": [copy, data, cites]}))])
+        self.assertEqual(self.options(candidate(), ["datacite"], session), [("datacite", "https://juser.fz-juelich.de/record/1", True)])

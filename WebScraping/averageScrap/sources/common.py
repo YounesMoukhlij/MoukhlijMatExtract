@@ -51,14 +51,16 @@ def cc_license(url: str) -> str:
 
 
 def spell_license(text: str) -> str:
-    """A Creative Commons licence as the other sources spell it: "CCBYNCND", "CC BY", "cc by-nc-nd"
-    and a creativecommons.org link are "cc-by-nc-nd", "cc-by", ... Anything else is kept as the
-    service wrote it."""
+    """A Creative Commons licence as the other sources spell it: "CCBYNCND", "CC BY", "cc by-nc-nd",
+    "cc-by-4.0" (Zenodo) and a creativecommons.org link are "cc-by-nc-nd", "cc-by", ...; "cc0-1.0" is
+    "cc0". Anything else is kept as the service wrote it."""
     text = (text or "").strip()
     linked = cc_license(text)
     if linked:
         return linked
-    code = re.sub(r'[\s-]+', '', text.lower())
+    code = re.sub(r'[\s-]+', '', re.sub(r'[\s-]*\d+(?:\.\d+)*$', '', text.lower()))  # without its version
+    if code == "cc0":
+        return "cc0"
     return "-".join(re.findall(r'cc|by|nc|nd|sa', code)) if re.fullmatch(r'cc(?:by|nc|nd|sa)+', code) else text
 
 

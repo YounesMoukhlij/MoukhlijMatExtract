@@ -9,10 +9,13 @@ It reads the results folders and writes into its own results/ (which "Delete out
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import re
 import subprocess
 import sys
+import threading
+import time
 import tkinter as tk
 from collections.abc import Sequence
 from pathlib import Path
@@ -22,7 +25,7 @@ from LocalExtraction.gui.delete_outputs import delete_outputs_button
 from LocalExtraction.gui.result_card import NOTHING, Outcome, ResultCard, Stat, number
 
 from . import loader
-from LocalExtraction.about import command_name
+from LocalExtraction.about import command_name, enter_project_home
 
 from .about import DEFAULT_RESULTS, NAME, PROJECT_ROOT, VERSION
 from .cli import FORMATS, source_folder, write_rankings
@@ -70,6 +73,8 @@ class App:
     def __init__(self, root: tk.Tk, sources: Sequence[Path] | None = None, out_dir: Path = DEFAULT_RESULTS,
                  criteria_path: str | None = None):
         self.root = root
+        from LocalExtraction.gui import theme
+        theme.apply(root)  # buttons that light up under the mouse
         root.title(f"MoukhlijMatExtract (MME) · {NAME} · Ranking the materials")
         root.geometry("1260x820")
         root.minsize(1000, 640)
@@ -79,6 +84,7 @@ class App:
         self.written_by: dict[str, list[Path]] = {}
         self.tabs: dict[str, dict] = {}                # component → its tab: frame, table, materials shown
         self._top: int | None = None
+        self._ranking = False  # a ranking runs on its thread
         known = [PROJECT_ROOT / name for name in loader.KNOWN_DATABASES]
         self._build(list(sources) if sources else known, out_dir, ticked_missing=bool(sources))
         self.rank(write=False)  # what the folders hold, at once; the files are written on “Rank”
@@ -168,8 +174,9 @@ class App:
         ttk.Entry(actions, textvariable=self.out_var, width=30).pack(side="left", fill="x", expand=True)
         ttk.Button(actions, text="Browse…", command=self._pick_out).pack(side="left", padx=4)
         delete_outputs_button(actions, "rank", after=self._outputs_deleted).pack(side="right", padx=(4, 0))
-        self.open_folder_button = ttk.Button(actions, text="Open the folder", command=self._open_folder)
-        self.open_folder_button.pack(side="right")
+        from LocalExtraction.gui.csv_browser import results_buttons
+        self.open_folder_button, self.browse_button = results_buttons(actions, "3 · Ranking",
+                                                                      lambda: self.out_var.get())
         self.open_workbook_button = ttk.Button(actions, text="Open the workbook", command=lambda: self._open(".xlsx"))
         self.open_workbook_button.pack(side="right", padx=4)
         self.open_report_button = ttk.Button(actions, text="Open the report", command=lambda: self._open(".html"))
@@ -311,20 +318,58 @@ class App:
                                        "into a folder it reads. Choose another folder.", parent=self.root)
             return
 
+        if self._ranking:
+            return  # a ranking is under way: its result comes in a moment
+        self._ranking = True
         self.root.configure(cursor="watch")
-        self.root.update_idletasks()
-        try:
-            selections = select_from_each([folder for folder, _ in ticked], criteria, root=PROJECT_ROOT,
-                                          policy=self.policy_var.get(), by_phase=self.by_phase_var.get(),
-                                          filters=filters)
-            written_by: dict[str, list[Path]] = {}
-            if write and any(s.materials for s in selections.values()):
-                try:
-                    written_by = write_rankings(selections, out_dir, FORMATS, top)
-                except OSError as error:
-                    messagebox.showerror(NAME, f"The files could not be written:\n{error}", parent=self.root)
-        finally:
+        self.rank_button.configure(state="disabled")
+        folders, policy, by_phase = [folder for folder, _ in ticked], self.policy_var.get(), self.by_phase_var.get()
+        done: list = []
+
+        def work() -> None:
+            """On another thread: reading the databases and writing the files take seconds for a large
+            database, and the window must answer meanwhile. No Tk call here."""
+            try:
+                selections = select_from_each(folders, criteria, root=PROJECT_ROOT, policy=policy,
+                                              by_phase=by_phase, filters=filters)
+                written_by, problem = {}, ""
+                if write and any(s.materials for s in selections.values()):
+                    try:
+                        written_by = write_rankings(selections, out_dir, FORMATS, top)
+                    except OSError as error:
+                        problem = f"The files could not be written:\n{error}"
+                done.append((selections, written_by, problem))
+            except Exception as error:  # said in the window, never lost on the thread
+                logging.getLogger(__name__).exception("The ranking failed")
+                done.append((None, {}, f"The ranking failed: {type(error).__name__}: {error}"))
+
+        def finish() -> None:
+            if not done:
+                self.root.after(50, finish)
+                return
+            self._ranking = False
             self.root.configure(cursor="")
+            self.rank_button.configure(state="normal")
+            selections, written_by, problem = done[0]
+            if problem:
+                messagebox.showerror(NAME, problem, parent=self.root)
+            if selections is not None:
+                self._ranked(ticked, selections, written_by, top, out_dir)
+
+        threading.Thread(target=work, name="ranking", daemon=True).start()
+        self.root.after(50, finish)
+
+    def wait_ranked(self, timeout: float = 60.0) -> bool:
+        """Turns the window's loop until the ranking under way is shown (for the tests)."""
+        end = time.monotonic() + timeout
+        while self._ranking and time.monotonic() < end:
+            self.root.update()
+            time.sleep(0.01)
+        return not self._ranking
+
+    def _ranked(self, ticked, selections: dict[str, Selection], written_by: dict[str, list[Path]],
+                top: int | None, out_dir: Path) -> None:
+        """Shows a ranking made on the ranking thread."""
         first = next(iter(selections.values()))
         for (_, status), report in zip(ticked, first.databases):
             status.set(loader.describe(report))
@@ -379,7 +424,7 @@ class App:
         mine = self.written_by.get(self.component, [])
         for button, suffix in ((self.open_report_button, ".html"), (self.open_workbook_button, ".xlsx")):
             button.configure(state="normal" if any(p.suffix == suffix for p in mine) else "disabled")
-        self.open_folder_button.configure(state="normal" if self.written else "disabled")
+        # The results folder can be opened and browsed whenever it exists (an earlier ranking's too).
 
     def _fill_tables(self) -> None:
         for component in self.tabs:
@@ -530,6 +575,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         help="Folder to write the ranking into (default: SelectingTopMaterial/results)")
     parser.add_argument("--criteria", metavar="FILE", help="Criteria file to use instead of criteria.toml")
     args = parser.parse_args(argv)
+    enter_project_home("rank")  # after the options are read: --help makes no folder
     root = tk.Tk()
     App(root, sources=[source_folder(name) for name in args.source] if args.source else None,
         out_dir=Path(args.out).expanduser(), criteria_path=args.criteria)

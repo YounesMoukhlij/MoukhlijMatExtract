@@ -112,7 +112,7 @@ class FormTests(Folder):
         form._save(self.path)
         self.assertEqual(self.saved, [self.path])
         self.assertEqual(load_job(self.path), before)
-        self.assertEqual(len(comment_lines(self.read())), 39)  # the 38 of the shipped file + the first line
+        self.assertEqual(len(comment_lines(self.read())), 44)  # the 43 of the shipped file + the first line
         self.assertEqual([a for a in self.asked if a[0] != "askyesno"], [])
 
     def test_a_change_is_saved_with_the_heading_typed_for_it(self):

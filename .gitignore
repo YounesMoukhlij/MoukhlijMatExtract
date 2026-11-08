@@ -11,8 +11,6 @@ venv/
 LocalExtraction/papers/*
 !LocalExtraction/papers/.gitkeep
 WebScraping/papers/
-WebScraping/moukhlij4scraping/fetched articles/
-WebScraping/moukhlij4scraping/tests/output/
 
 # Everything the programs write: run them to make it again
 LocalExtraction/local_output/
@@ -24,6 +22,7 @@ Classification/all_materials.csv
 Classification/.*.writing/
 WebScraping/Fetch_DOIs/dois.csv
 WebScraping/Fetch_DOIs/dois.txt
+WebScraping/Fetch_DOIs/dois.searched.json
 
 # Build artifacts (upload these with twine, never commit them)
 dist/

@@ -62,7 +62,7 @@ class WindowTests(unittest.TestCase):
         self.root.attributes("-alpha", 0.0)  # drawn, as in real use, but not seen
         self.addCleanup(self.root.destroy)
         self.app = gui.App(self.root, sources=[self.database], out_dir=self.out)
-        self.root.update()
+        self.assertTrue(self.app.wait_ranked())  # the ranking runs on its own thread
 
     def rows(self) -> list[tuple]:
         return [self.app.table.item(i, "values") for i in self.app.table.get_children()]
@@ -79,6 +79,7 @@ class WindowTests(unittest.TestCase):
 
     def test_rank_writes_the_files_and_opens_them(self):
         self.app.rank()
+        self.app.wait_ranked()
         self.assertTrue((self.out / "total" / "top_materials.csv").is_file())  # one folder per component
         self.assertTrue((self.out / "total" / "report.html").is_file())
         self.assertTrue((self.out / "summary.csv").is_file())
@@ -92,9 +93,11 @@ class WindowTests(unittest.TestCase):
         self.app.origin_var.set("experimental")
         self.app.rejected_var.set(False)
         self.app.rank(write=False)
+        self.app.wait_ranked()
         self.assertEqual([r[1] for r in self.rows()], ["Li6PS5Cl"])
         self.app.elements_var.set("Xx")
         self.app.rank(write=False)
+        self.app.wait_ranked()
         self.assertEqual(self.asked, [("showerror", "Elements: 'Xx' is not the symbol of an element (Li, Na, ...)")])
 
     def test_a_material_shows_its_values_and_where_they_were_read(self):
@@ -103,9 +106,26 @@ class WindowTests(unittest.TestCase):
         self.assertIn("Li6PS5Cl shows an activation energy of 0.22 eV.", text)
         self.assertIn("page 3", text)
 
+    def test_the_window_answers_while_it_ranks(self):
+        import time
+        real = gui.select_from_each
+
+        def slow(*args, **kwargs):
+            time.sleep(1.0)  # a large database
+            return real(*args, **kwargs)
+        with mock.patch.object(gui, "select_from_each", side_effect=slow):
+            start = time.perf_counter()
+            self.app.rank(write=False)
+            self.assertLess(time.perf_counter() - start, 0.3)  # back to the window at once
+            self.assertEqual(str(self.app.rank_button["state"]), "disabled")
+            self.assertTrue(self.app.wait_ranked())
+        self.assertEqual(str(self.app.rank_button["state"]), "normal")
+        self.assertEqual(len(self.rows()), 3)
+
     def test_the_ranking_is_never_written_into_a_database(self):
         self.app.out_var.set(str(self.database))
         self.app.rank()
+        self.app.wait_ranked()
         self.assertEqual(self.asked[0][0], "showerror")
         self.assertEqual(sorted(p.name for p in self.database.iterdir()), ["activation_energy.csv"])
 

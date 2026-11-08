@@ -1,7 +1,27 @@
 # LocalExtraction/models.py
 
+import ast
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+
+# "('1.65', 'eV')": a (number, unit) pair of the value patterns, written as Python text by earlier versions.
+_PAIR_TEXT = re.compile(r"""^\(\s*(?:'[^']*'|"[^"]*"|None)(?:\s*,\s*(?:'[^']*'|"[^"]*"|None))*\s*,?\s*\)$""")
+
+
+def as_written(raw: Any) -> str:
+    """A value as the paper writes it: ("1.65", "eV") -> "1.65 eV", ("1", None) -> "1". The same for the
+    text "('1.65', 'eV')" that earlier versions stored; any other text is returned as it is."""
+    if isinstance(raw, (tuple, list)):
+        parts = [str(p).strip() for p in raw if p is not None and str(p).strip()]
+        return " ".join(parts) if parts else "NONE"
+    text = "NONE" if raw is None else str(raw)
+    if text.startswith("(") and _PAIR_TEXT.match(text.strip()):
+        try:
+            return as_written(ast.literal_eval(text.strip()))
+        except (ValueError, SyntaxError):
+            return text
+    return text
 
 
 @dataclass
@@ -64,6 +84,9 @@ class ExtractedField:
     reported_as: str = "NONE"
     # "this work" for a result of the paper itself, "cited" for one it quotes from another source.
     attribution: str = "NONE"
+    # The species that moves, for the transport quantities: "Li+", "Na+", "O2-", "electron", or another
+    # element said to move ("Co" of a cathode's cross-diffusion) — see species.py; basis["ion"] says why.
+    mobile_ion: str = "NONE"
 
     @classmethod
     def empty(cls) -> "ExtractedField":

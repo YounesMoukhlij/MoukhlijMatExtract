@@ -7,14 +7,13 @@ import shutil
 from pathlib import Path
 
 DESCRIPTION = (
-    "Searches the literature online (OpenAlex, arXiv, Crossref and eleven more), keeps the papers worth reading, fetches a legal "
+    "Searches the literature online (OpenAlex, arXiv, Crossref and twenty-two more), keeps the papers worth reading, fetches a legal "
     "copy of each and extracts materials and their activation energies, conductivities and diffusion "
     "coefficients from it."
 )
 
 # Relative to ~/MoukhlijMatExtract, where every command works. (The fetched PDFs go where the job
-# file says: WebScraping/papers unless it says otherwise.) The job file is in its configs/, shared
-# with Fetch_DOIs/get_dois.py, which reads the same queries.
+# file says: WebScraping/papers unless it says otherwise.) The job file is in its configs/.
 DEFAULT_JOB = os.path.join("configs", "sse.yaml")
 DEFAULT_OUTPUT = os.path.join("WebScraping", "web_output")
 # A ready-made job (the solid-state-electrolyte queries) ships with the package: when the working

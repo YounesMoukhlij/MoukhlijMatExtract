@@ -14,21 +14,5 @@ requests>=2.31
 pyyaml>=6
 Send2Trash>=1.8   # "Delete outputs…" moves files to the Trash, not deleted for good
 
-# Fetch_DOIs
-scholarly          # the Google Scholar search of get_dois.py
-
 # make test
 pytest
-
-
-# to add after  (project still in development)
-
-#bibtexparser>=1.4,<2
-#title2bib
-#arxivcheck
-#requests
-#lxml
-#Pillow
-#selenium>=4.6
-#six
-#future

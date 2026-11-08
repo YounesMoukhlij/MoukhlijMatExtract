@@ -6,7 +6,7 @@ Only what a person may change is offered, each within its bounds (job.LIMITS):
   - the words that decide which papers are kept;
   - where copies are looked for, how many downloads at once, the largest PDF;
   - which data are extracted.
-What may not be changed is shown, not offered: the folder of the PDFs (both methods, the ledger
+What may not be changed is shown, not offered: the folder of the PDFs (the search, its ledger
 and "Delete outputs" look for them there) and the job's name. The contact e-mail and the keys are
 set in the "API keys…" window. The "# headings" among the words of a list are kept when saving."""
 
@@ -38,7 +38,7 @@ TRANSPORT = ("Activation_Energy", "Ionic_Conductivity", "Diffusion_Coefficient",
 
 
 # ---------------------------------------------------------------------------
-# Who wants to know when the settings are saved (an open "Search open sources" window reloads them)
+# Who wants to know when the settings are saved (an open Web scraping window reloads them)
 # ---------------------------------------------------------------------------
 _listeners: List["weakref.WeakMethod"] = []
 
@@ -137,12 +137,10 @@ class ScrollFrame(ttk.Frame):
         walk(self.canvas)
 
 
-def _heading(parent: tk.Misc, text: str, used_by: str = "") -> None:
+def _heading(parent: tk.Misc, text: str) -> None:
     row = ttk.Frame(parent)
     row.pack(fill="x", pady=(14, 2))
     ttk.Label(row, text=text, font=("TkDefaultFont", 12, "bold")).pack(side="left")
-    if used_by:
-        ttk.Label(row, text=f"  ·  {used_by}", foreground=_GREY).pack(side="left")
 
 
 def _note(parent: tk.Misc, text: str) -> None:
@@ -215,9 +213,8 @@ class JobDialog(Dialog):
         self.headings, self.notes = headings or {}, notes or {}
 
         WrapLabel(self.body, justify="left",
-                  text=f"Saved in {os.path.abspath(path)}. Method 1 (Search open sources) uses every setting; "
-                       "method 2 (moukhlij4scraping) uses the searches, the years, the sources, the results per "
-                       "source and the topic and property words.").pack(fill="x")
+                  text=f"Saved in {os.path.abspath(path)}. The next search, download and extraction use them."
+                  ).pack(fill="x")
         book = ttk.Notebook(self.body)
         book.pack(fill="both", expand=True, pady=(8, 0))
         self._scrolls: List[ScrollFrame] = []
@@ -246,7 +243,7 @@ class JobDialog(Dialog):
 
     # --- the tabs ------------------------------------------------------
     def _searches_tab(self, tab: ttk.Frame) -> None:
-        _heading(tab, "What to search for", "both methods")
+        _heading(tab, "What to search for")
         _note(tab, "One search per line. A line starting with # is a heading: it groups the searches below it and "
                    "is not searched.")
         self.queries = _words_box(tab, 18)
@@ -254,7 +251,7 @@ class JobDialog(Dialog):
         ttk.Label(tab, textvariable=self.query_count, foreground=_GREY).pack(anchor="w")
         self.queries.bind("<KeyRelease>", lambda e: self._count(), add="+")
 
-        _heading(tab, "Papers you already know", "method 1")
+        _heading(tab, "Papers you already know")
         _note(tab, "Optional: a text file with one DOI, DOI link or arXiv id per line. They are added to what the "
                    "searches find.")
         row = ttk.Frame(tab)
@@ -265,7 +262,7 @@ class JobDialog(Dialog):
         ttk.Button(row, text="Clear", command=lambda: self.ids_file.set("")).pack(side="left", padx=(6, 0))
 
     def _sources_tab(self, tab: ttk.Frame) -> None:
-        _heading(tab, "Years", "both methods")
+        _heading(tab, "Years")
         row = ttk.Frame(tab)
         row.pack(fill="x", pady=(4, 0))
         low, high = LIMITS["years"]
@@ -276,11 +273,10 @@ class JobDialog(Dialog):
         ttk.Spinbox(row, textvariable=self.year_to, from_=low, to=high, width=6).pack(side="left", padx=4)
         ttk.Label(row, text="(both empty: any year)", foreground=_GREY).pack(side="left")
 
-        _heading(tab, "How many results", "both methods")
+        _heading(tab, "How many results")
         self.max_per_query = _spin(tab, "Results asked of each source, for each search", "max_per_query")
 
-        _heading(tab, "Where to search", "method 1 — method 2 uses OpenAlex, Crossref, Semantic Scholar, arXiv "
-                                         "(and Google Scholar)")
+        _heading(tab, "Where to search")
         _note(tab, "A source marked “key missing” is skipped until its key is set in “API keys…”.")
         self.search_frame = ttk.Frame(tab)
         self.search_frame.pack(fill="x", pady=(4, 0))
@@ -288,22 +284,22 @@ class JobDialog(Dialog):
         ttk.Checkbutton(tab, text="Preprints count too (arXiv and the like)",
                         variable=self.include_preprints).pack(anchor="w", pady=(8, 0))
 
-        _heading(tab, "Missing abstracts are asked of", "method 1")
+        _heading(tab, "Missing abstracts are asked of")
         _note(tab, "A paper found without its abstract is looked up there, in this order. Untick them all to ask "
                    "nobody (screening then reads the title only).")
         self.abstract_frame = ttk.Frame(tab)
         self.abstract_frame.pack(fill="x", pady=(4, 0))
 
     def _screening_tab(self, tab: ttk.Frame) -> None:
-        _heading(tab, "How a paper is kept", "method 1")
+        _heading(tab, "How a paper is kept")
         _note(tab, "A paper is kept when its title or abstract has a topic word AND a property word, and its score "
                    "reaches the minimum: a word in the title counts 2 points, in the abstract 1, and each excluded "
                    "word costs 3. One word per line; a line starting with # is a heading.")
-        _heading(tab, "Topic words", "both methods (method 2 makes more searches of them when they run dry)")
+        _heading(tab, "Topic words")
         self.topic_words = _words_box(tab, 8)
-        _heading(tab, "Property words", "both methods")
+        _heading(tab, "Property words")
         self.property_words = _words_box(tab, 7)
-        _heading(tab, "Excluded words", "method 1")
+        _heading(tab, "Excluded words")
         self.exclude_words = _words_box(tab, 6)
         self.min_score = _spin(tab, "Minimum score", "min_score", increment=0.5)
         self.propose_closed = tk.BooleanVar()
@@ -316,20 +312,20 @@ class JobDialog(Dialog):
                              "before anything is downloaded").pack(anchor="w", pady=(6, 0))
 
     def _download_tab(self, tab: ttk.Frame) -> None:
-        _heading(tab, "Where a copy is looked for", "method 1")
+        _heading(tab, "Where a copy is looked for")
         _note(tab, "Only legal copies. They are asked in this order; untick a place to skip it.")
         self.fetch_frame = ttk.Frame(tab)
         self.fetch_frame.pack(fill="x", pady=(4, 0))
-        _heading(tab, "Downloads", "method 1")
+        _heading(tab, "Downloads")
         self.fetch_workers = _spin(tab, "Downloads at once", "workers", after="(1 to 8 — more is impolite to the servers)")
         self.max_pdf_mb = _spin(tab, "Largest PDF accepted, in MB", "max_pdf_mb")
         _heading(tab, "Folder of the PDFs")
         ttk.Label(tab, text=f"{DEFAULT_FOLDER}/   (fixed)").pack(anchor="w")
-        _note(tab, "Not a setting: both methods, the ledger of the search and “Delete outputs” look for the "
+        _note(tab, "Not a setting: the search, its ledger and “Delete outputs” look for the "
                    "papers there.")
 
     def _extraction_tab(self, tab: ttk.Frame) -> None:
-        _heading(tab, "Data to extract", "both methods")
+        _heading(tab, "Data to extract")
         _note(tab, "Activation_Energy covers every name a paper gives it: migration barrier, energy barrier, Ea, …")
         row = ttk.Frame(tab)
         row.pack(fill="x", pady=(6, 0))

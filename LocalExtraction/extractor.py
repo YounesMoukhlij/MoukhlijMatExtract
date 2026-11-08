@@ -17,8 +17,10 @@ from .context import (AMBIENT_PRESSURE, EXPERIMENTAL, NEARBY, ROOM_TEMPERATURE, 
                      is_room_temperature, not_a_result, origin_of, pairs_off, preceding_values, pressure_point,
                      structure_near, structures_of, table_context, temperature_point, temperature_range,
                      value_context, without_type_labels)
-from .models import EquationRecord, ExtractedField, FigureRecord, Material, Relation, TableRecord, WorkflowStep
+from .models import (EquationRecord, ExtractedField, FigureRecord, Material, Relation, TableRecord, WorkflowStep,
+                     as_written)
 from .normalizer import DataNormalizer
+from .species import mobile_species, paper_ion
 from .study import DYNAMIC, LOCAL_PROBE, STATIC, Study, is_quoted, names_interface, technique
 from .transport import classify_transport, classify_transport_contexts, components_in_order
 
@@ -37,6 +39,15 @@ except OSError:
         nlp = spacy.blank("en")
         if "sentencizer" not in nlp.pipe_names:
             nlp.add_pipe("sentencizer")
+# The model used, recorded with every paper it reads (papers.csv, extracted_with): another model splits
+# sentences and parses them differently, so the same PDF can give other values.
+if nlp.meta.get("name", "").startswith("core_"):
+    NLP_MODEL = f"en_{nlp.meta['name']} {nlp.meta.get('version', '')}".strip()
+else:
+    NLP_MODEL = "no language model (blank English, sentence splitter only)"
+    logging.warning("No spaCy language model is installed: sentences are split by punctuation only and "
+                    "fewer values are tied to their material. Install one with: python -m spacy download "
+                    "en_core_web_sm")
 
 _HAS_PARSER = "parser" in nlp.pipe_names or "senter" in nlp.pipe_names
 
@@ -685,6 +696,13 @@ class ExtractorEngine:
         for f in fields:
             note = notes.get(id(f)) or _Note()
             cls._leave_nothing_open(f, note, study, note.quoted or study.review)
+        # The species that moves: read off each value's sentence, else from its material and the paper's main ion.
+        quantities = [f for f in fields if f.property_name in QUANTITY_PROPERTIES]
+        main_ion, main_count = paper_ion(f.source_sentence for f in quantities)
+        for f in quantities:
+            formula = materials.get(f.material_id, "") or (f.material_formula if f.material_formula != "NONE" else "")
+            f.mobile_ion, f.basis["ion"] = mobile_species(f.property_name, f.source_sentence, formula, main_ion,
+                                                          main_count)
 
     @classmethod
     def _leave_nothing_open(cls, f: ExtractedField, note: _Note, study: Study, quoted: bool) -> None:
@@ -915,7 +933,7 @@ class ExtractorEngine:
         def value(cat: str, prop: str, raw: Any, normalized: str, numeric: bool) -> ExtractedField:
             unit = normalized.split(" ", 1)[1] if numeric and " " in normalized else "NONE"
             return ExtractedField(
-                raw_value=str(raw), normalized_value=normalized, confidence=score,
+                raw_value=as_written(raw), normalized_value=normalized, confidence=score,
                 source_page=page, source_section=section, source_sentence=sent, source_type=source_type,
                 unit=unit, category=cat, property_name=prop,
                 source_label=source_label, source_detail=source_detail, cited_refs=cited_refs,
@@ -1151,12 +1169,16 @@ class ExtractorEngine:
                 if item.size > 1 and paired and len({m["formula"] for m in named[1]}) == len(named[1]) == item.size:
                     earlier = (named[1][item.position], named[0], "previous_sentence")
                 else:
+                    # "For x = 0.25, the conductivity reaches ...": the member of the series just named.
+                    earlier = cls._member_of_earlier_series(sent, recent)
                     # A caption describes several panels, so the sentence before one says nothing about
                     # the material of the next: only running text may take its paragraph's topic.
                     topical = item.prop in EA_PROPERTIES and source_type == "Text" and not item.about_class
-                    earlier = cls._earlier_material(recent, refers_back, topical)
+                    earlier = earlier or cls._earlier_material(recent, refers_back, topical)
                 if earlier is not None:
                     cand, earlier_sentence, method = earlier
+                    if cand.get("series"):
+                        results["series"][cand["formula"]] = cand["series"]
                     material = get_or_create_material(cand, score, page, section, earlier_sentence, source_type)
                     cls._link(results, item.field, material, method, max(0.01, score - 0.1))
 
@@ -1263,6 +1285,29 @@ class ExtractorEngine:
         return cls._link_property_to_material(parse(), materials, *item.span)
 
     @staticmethod
+    def _member_of_earlier_series(sent: str, recent: Sequence[Tuple[str, List[Dict[str, Any]]]]
+                                  ) -> Optional[Tuple[Dict[str, Any], str, str]]:
+        """A sentence that names no material but fixes one composition variable ("For x = 0.25, ...") is
+        about that member of the series the nearest of the previous _BACKREF_SENTENCES names — when it
+        names one series only, and the variable is one of its own."""
+        stated = ChemistryEngine.stated_values(sent)
+        if len({name for name, _ in stated}) != 1 or len({value for _, value in stated}) != 1:
+            return None
+        variable, value = stated[0]
+        for text, mentions in list(recent)[:_BACKREF_SENTENCES]:
+            series = {m["formula"]: m for m in mentions if "representative" in m}
+            if not mentions:
+                continue
+            if len(series) != 1:
+                return None
+            mention = next(iter(series.values()))
+            if variable not in re.sub(r"[A-Z][a-z]?", "", mention.get("written", mention["raw"])):
+                return None
+            member = ChemistryEngine.member(mention, {variable: value})
+            return (member, text, "previous_sentence") if member else None
+        return None
+
+    @staticmethod
     def _earlier_material(recent: Sequence[Tuple[str, List[Dict[str, Any]]]], refers_back: bool,
                           topical: bool) -> Optional[Tuple[Dict[str, Any], str, str]]:
         """The material a sentence that names none is about, from the sentences just before it:
@@ -1309,11 +1354,22 @@ class ExtractorEngine:
         # A table with a column of references collects other people's values.
         quoted = any(_REFERENCE_HEADER.search(h) for h in block.get("headers", [])) or is_quoted(caption)
 
+        # A table of a series, one row per value of its variable: the column headed "x" ("x (Ga)",
+        # "x Ga") under a caption naming "Li4-xZn1-xGax(PO4)2" gives each row's member.
+        variable_column = cls._variable_column(block, caption_material)
+
         for row in rows:
             row_text = " ".join(str(v) for h, v in row.items() if not header_props.get(h))
             row_label = next((str(v) for v in row.values() if v), "")
             conditions, row_structure = cls._row_conditions(row), cls._row_structure(row)
             row_material = None
+            if variable_column:
+                header, variable = variable_column
+                number = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*", str(row.get(header, "")))
+                member = ChemistryEngine.member(caption_material, {variable: float(number.group(1))}) if number else None
+                if member:
+                    results["series"][member["formula"]] = member["series"]
+                    row_material = get_or_create_material(member, 0.85, page, section, caption, "Table")
             if material_column != "NONE":
                 cell_materials = ChemistryEngine.find_materials(row.get(material_column, ""), abbreviations)
                 if cell_materials:
@@ -1359,6 +1415,20 @@ class ExtractorEngine:
                 elif caption_material is not None:
                     material = get_or_create_material(caption_material, 0.85, page, section, caption, "Table")
                     cls._link(results, field, material, "table_caption", 0.75)
+
+    @staticmethod
+    def _variable_column(block: Dict[str, Any], series: Optional[Dict[str, Any]]) -> Optional[Tuple[str, str]]:
+        """(header, variable) of the column that gives each row the value of the caption's series
+        variable — a header that is the variable ("x", "x (Ga)", "x Ga", "x in Li7-xLa3Zr2-xTaxO12") of a
+        series the caption names; None otherwise."""
+        if not series or "representative" not in series:
+            return None
+        written = re.sub(r"[A-Z][a-z]?", "", series.get("written", series["raw"]))
+        for header in block.get("headers", []):
+            m = re.match(r"^\s*([xyzδ])(?:\s*(?:\(|\b[A-Z][a-z]?\b|in\b|=|value)|\s*$)", str(header))
+            if m and m.group(1) in written:
+                return header, m.group(1)
+        return None
 
     @staticmethod
     def _material_column(block: Dict[str, Any], abbreviations: Optional[Abbreviations]) -> str:

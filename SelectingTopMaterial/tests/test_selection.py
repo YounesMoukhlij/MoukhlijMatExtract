@@ -169,6 +169,13 @@ class LoaderTests(TemporaryFolder):
         self.assertEqual(read.elements, ("Cl", "Li", "P", "S"))
         self.assertEqual((reports[0].name, reports[0].values, reports[0].papers), ("local_output", 1, 1))
 
+    def test_the_species_and_the_flag_are_read(self):
+        database = write_database(self.tmp / "web_output", [row("Li7La3Zr2O12", 1.65, mobile_ion="Co",
+                                                                plausibility="check: it is the transport of Co")],
+                                  columns=COLUMNS + ["mobile_ion", "plausibility"])
+        read, = loader.load([database])[0]
+        self.assertEqual((read.mobile_ion, read.plausibility[:6]), ("Co", "check:"))
+
     def test_a_database_of_an_earlier_version_is_read_too(self):
         legacy = [c for c in COLUMNS if c not in ("extracted_from", "n_assumed")] + ["source_type"]
         database = write_database(self.tmp / "output", [row("Li6PS5Cl", 0.31, temperature="NONE", structure="NONE",
@@ -352,9 +359,19 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(energy(min_confidence=0.5), {"Li6PS5Cl": 0.35, "Na3Zr2Si2PO12": 0.33})
         self.assertEqual(energy(min_confidence=0.9), {})
         self.assertEqual(energy(origin="simulation", attribution="this work"), {})
-        self.assertEqual(Filters().describe(), "all values")
+        self.assertEqual(Filters().describe(), "all values in range")
         self.assertEqual(Filters(origin="experimental", min_confidence=0.5, elements=("Na",)).describe(),
                          "experimental values · materials with Na · confidence ≥ 0.5")
+
+    def test_flagged_values_are_left_out_unless_asked_for(self):
+        values = [value("Li6PS5Cl", 0.01, plausibility="check: 0.01 eV is outside the 0.05–1.5 eV known for ion conductors"),
+                  value("Li7La3Zr2O12", 0.3, mobile_ion="Co", plausibility="check: it is the transport of Co, not of a "
+                                                                          "conducting ion"),
+                  value("Na3Zr2Si2PO12", 0.33)]
+        energy = lambda **filters: {m.material: m.energy_eV for m in select(values, self.criteria, filters=Filters(**filters)).materials}
+        self.assertEqual(energy(), {"Na3Zr2Si2PO12": 0.33})
+        self.assertEqual(set(energy(include_flagged=True)), {"Li6PS5Cl", "Li7La3Zr2O12", "Na3Zr2Si2PO12"})
+        self.assertIn("flagged values included", Filters(include_flagged=True).describe())
 
     def test_the_phases_of_a_composition_apart_when_asked(self):
         values = [value("Li7La3Zr2O12", 0.23, structure="cubic | garnet", polymorph="cubic"),
@@ -589,7 +606,8 @@ class CommandLineTests(TemporaryFolder):
         self.assertIn("Top materials (2)", said)
         # One ranking per transport component, each in its folder (the test values are all of total
         # transport), and the components side by side in summary.csv.
-        self.assertEqual(sorted(p.name for p in self.out.iterdir() if not p.name.startswith(".")), ["summary.csv", "total"])
+        self.assertEqual(sorted(p.name for p in self.out.iterdir() if not p.name.startswith(".")),
+                         ["run_manifest.json", "summary.csv", "total"])  # the manifest: how it was ranked
         expected = ["all_materials.csv", "report.html", "selection.json", "top_materials.csv", "values.csv"]
         total = self.out / "total"
         self.assertEqual(sorted(p.name for p in total.iterdir() if p.suffix != ".xlsx"), expected)

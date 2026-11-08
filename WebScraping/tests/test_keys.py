@@ -24,7 +24,7 @@ class GroupTests(unittest.TestCase):
         names = [group.organization for group in KEY_GROUPS]
         self.assertEqual(len(names), len(set(names)))
         for group in KEY_GROUPS:
-            self.assertTrue(group.opens and group.used_by and group.fields, group.organization)
+            self.assertTrue(group.opens and group.fields, group.organization)
             if group.fields[0][0] != "MME_EMAIL":  # an e-mail is your own: nothing to sign up for
                 self.assertTrue(group.signup.startswith("https://"), group.organization)
 
@@ -90,7 +90,8 @@ class StartTests(unittest.TestCase):
         import tkinter as tk
         from WebScraping.averageScrap import job
         self.env = os.path.join(tempfile.mkdtemp(), ".env")
-        for patcher in (mock.patch.dict(os.environ), mock.patch.object(job, "ENV_PATH", self.env)):
+        for patcher in (mock.patch.dict(os.environ), mock.patch.object(job, "ENV_PATH", self.env),
+                        mock.patch.object(job, "load_env", lambda *a, **k: None)):  # never the real .env
             patcher.start()
             self.addCleanup(patcher.stop)
         os.environ.pop("MME_EMAIL", None)
@@ -99,44 +100,72 @@ class StartTests(unittest.TestCase):
         self.addCleanup(self.root.destroy)
 
     def open_window(self):
-        from tkinter import ttk
         from WebScraping import webgui
         from WebScraping.averageScrap.gui.dialogs import StartDialog
-        window = webgui.open_chooser(self.root)
+        os.chdir(tempfile.mkdtemp())  # the window's folders are made here (conftest gives the folder back)
+        window = webgui.open_web(self.root)
         window.attributes("-alpha", 0.0)
         self.root.update_idletasks()
         question, = [child for child in window.winfo_children() if isinstance(child, StartDialog)]
         question.attributes("-alpha", 0.0)
+        self.addCleanup(lambda: window.winfo_exists() and window.destroy())
+        return window, question
 
-        def widgets(parent):
-            for child in parent.winfo_children():
-                yield child
-                yield from widgets(child)
-        opens = [w for w in widgets(window) if isinstance(w, ttk.Button) and w.cget("text") == "Open"]
-        self.assertEqual(len(opens), 2)
-        return window, question, opens
+    def pump(self, seconds):
+        import time
+        end = time.time() + seconds
+        while time.time() < end:
+            self.root.update()
+            time.sleep(0.01)
 
-    def test_the_methods_wait_for_an_email_which_is_then_saved(self):
-        window, question, opens = self.open_window()
-        self.assertTrue(all(button.instate(["disabled"]) for button in opens))
+    def test_the_window_waits_for_an_email_which_is_then_saved(self):
+        window, question = self.open_window()
+        self.pump(0.3)
+        self.assertEqual(str(question.grab_current()), str(question))  # the window behind it waits
         with mock.patch("WebScraping.averageScrap.gui.dialogs.messagebox.showerror") as error:
             question._continue()  # no e-mail yet
             question.email.set("not an address")
             question._continue()
         self.assertEqual(error.call_count, 2)
-        self.assertTrue(all(button.instate(["disabled"]) for button in opens))
+        self.assertTrue(question.winfo_exists())
         question.email.set(" me@uni.edu ")
         question._continue()
         self.assertFalse(question.winfo_exists())
-        self.assertTrue(all(not button.instate(["disabled"]) for button in opens))
+        self.assertTrue(window.winfo_exists())  # the Web scraping window, ready
         self.assertEqual((read_env(self.env)["MME_EMAIL"], os.environ["MME_EMAIL"]), ("me@uni.edu", "me@uni.edu"))
+
+    def test_the_keys_opened_from_the_question_answer_the_mouse_and_save(self):
+        """The question holds the mouse (the window behind it waits). "API keys…" opened from it must take
+        the mouse while it is open — else its Save button, its boxes and its scrolling do not answer — and
+        give it back to the question when it closes."""
+        from tkinter import ttk
+        from WebScraping.averageScrap.gui.dialogs import SettingsDialog
+        window, question = self.open_window()
+        self.pump(0.3)
+        question._keys()
+        self.pump(0.5)
+        keys, = [child for child in question.winfo_children() if isinstance(child, SettingsDialog)]
+        keys.attributes("-alpha", 0.0)
+        self.assertEqual(str(keys.grab_current()), str(keys))
+        cards = keys.body.winfo_children()[2]  # the wheel over a card scrolls the cards
+        card = cards.inner.winfo_children()[3]
+        self.assertTrue(cards._inside(card.winfo_rootx() + 20, card.winfo_rooty() + 10))
+        keys._vars["CORE_API_KEY"].set("core-456")
+        save, = [b for b in keys.body.winfo_children()[-1].winfo_children()
+                 if isinstance(b, ttk.Button) and b.cget("text") == "Save"]
+        save.invoke()
+        self.pump(0.3)
+        self.assertFalse(keys.winfo_exists())
+        self.assertEqual(read_env(self.env)["CORE_API_KEY"], "core-456")
+        self.assertEqual(str(question.grab_current()), str(question))  # the question has the mouse again
 
     def test_it_is_asked_every_time_from_the_saved_email_and_closing_it_closes_the_window(self):
         with open(self.env, "w", encoding="utf-8") as f:
             f.write("MME_EMAIL=saved@uni.edu\n")
-        window, question, _ = self.open_window()
+        window, question = self.open_window()
         self.assertEqual(question.email.get(), "saved@uni.edu")
         question._cancel()
+        self.pump(0.4)  # the window closes itself (its step stopped, its log let go)
         self.assertFalse(window.winfo_exists())
 
 

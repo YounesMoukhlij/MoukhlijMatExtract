@@ -11,6 +11,7 @@ import pdfplumber
 from .config import SchemaConfig
 from .normalizer import normalize_scientific_text, repair_hyphenation
 from .ocr import run_ocr
+from . import runcontrol
 
 # "Fig. 3", "Figure S5", "TABLE II" — arabic, supplementary (S-prefixed) or roman numbering. A
 # label that runs straight into a lowercase word ("Fig. 3 shows ...", "Figure 3d,e highlight ...",
@@ -64,6 +65,9 @@ class DocumentParser:
     def parse(self) -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]]:
         """Returns structured metadata, a list of contextual blocks, and split reference entries."""
         doc = fitz.open(self.filepath)
+        if doc.page_count == 0:
+            # A download that stopped part-way: kept out of the database (it would enter it empty).
+            raise ValueError("no page of it can be read — the file is damaged or incomplete; download it again")
 
         metadata = self._extract_advanced_metadata(doc)
 
@@ -71,6 +75,7 @@ class DocumentParser:
         first_page_text, last_page_text = "", ""
 
         for page_num, page in enumerate(doc, start=1):
+            runcontrol.check()  # page by page: Pause holds the reading here, Stop ends it
             text = self._extract_reading_order_text(page)
 
             # Trigger OCR if the page appears to be a scanned image
@@ -343,6 +348,7 @@ class DocumentParser:
         try:
             with pdfplumber.open(self.filepath) as pdf:
                 for page_idx, page in enumerate(pdf.pages, 1):
+                    runcontrol.check()
                     extracted = page.extract_tables()
                     for t_idx, table in enumerate(extracted, 1):
                         block = self._build_table_block(table, page_idx, t_idx, captions_by_page.get(page_idx, []))

@@ -20,12 +20,13 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from LocalExtraction.about import command_name, enter_project_home
+from LocalExtraction.about import command_name, enter_project_home, version_text
 from LocalExtraction.done import already_done, fingerprint, mark_done
+from LocalExtraction.provenance import Run
 
 from .about import CRYSTAL_STRUCTURE, DEFAULT_OUT, DEFAULT_SOURCES, NAME, PACKAGE_DIR, PROJECT_ROOT, STRUCTURE_FAMILIES
 from .classify import COMPONENT_WORDS, NO_FAMILY
-from .database import AXES, BY_COMPONENT, classify, read, write
+from .database import AXES, BY_COMPONENT, classify, partly_rebuilt, read, write
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
                     "and writes one database per class.",
         epilog=f"The window: {command_name('mme-classify', 'Classification')} gui. "
                "MoukhlijMatExtract (MME) — Created by Younes Moukhlij.")
+    parser.add_argument("--version", action="version", version=version_text("mme-classify"))
     parser.add_argument("--source", "-s", nargs="+", action="extend", metavar="DIR",
                         help="Database folder(s) to read, the most trusted first (default: "
                              "LocalExtraction/local_output and WebScraping/web_output, whichever exist)")
@@ -64,11 +66,11 @@ def _count(n: int, word: str) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    enter_project_home("classify")
     if argv[:1] == ["gui"]:  # the window: python -m Classification gui
         from .gui import main as window
         return window(argv[1:])
     args = build_parser().parse_args(argv)
+    enter_project_home("classify")  # after the options are read: --help makes no folder
     folders = [_folder(name) for name in args.source] if args.source else list(DEFAULT_SOURCES)
     out_dir = Path(args.out).expanduser()
 
@@ -76,7 +78,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     for folder in folders:
         source = read(folder)
         if source is None:
-            print(f"  {_shown(folder)}: no database here (no materials.csv) — skipped", file=sys.stderr)
+            why = "its rebuild is not finished — run that part again" if partly_rebuilt(folder) else \
+                "no database here (no materials.csv)"
+            print(f"  {_shown(folder)}: {why} — skipped", file=sys.stderr)
             continue
         if source.path.resolve() == out_dir.resolve():
             print(f"{NAME}: {out_dir} is a database it reads: choose another --out.", file=sys.stderr)
@@ -84,6 +88,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         sources.append(source)
         print(f"  Read {_shown(folder)}: {len(source.tables['materials'])} material rows, "
               f"{len(source.tables['activation_energy'])} activation energies")
+        if partly_rebuilt(folder):
+            print(f"  Warning: {_shown(folder)} is only partly rebuilt (a run was stopped): run that part again "
+                  "to classify all its papers.", file=sys.stderr)
     if not sources:
         print(f"{NAME}: no database to classify. Run the extraction first "
               "(python -m LocalExtraction or python -m WebScraping), or name one with --source.", file=sys.stderr)
@@ -98,9 +105,15 @@ def main(argv: Sequence[str] | None = None) -> int:
               f"  The classes are in {_shown(out_dir)}/ (add --force to classify again).")
         return 0
 
+    run = Run("classification", out_dir, settings={"sources": [str(s.path.resolve()) for s in sources],
+                                                   "out": str(out_dir.resolve())})
     classified = classify(sources)
     summaries = write(classified, out_dir)
     mark_done(out_dir, "classify", stamp, [out_dir / "all_materials.csv", *(out_dir / axis for axis, _, _ in AXES)])
+    try:
+        run.finish({"materials": len(classified.materials)})
+    except OSError as error:
+        print(f"  (the run could not be recorded: {error})", file=sys.stderr)
     print(f"\n  {len(classified.materials)} materials classified into {_shown(out_dir)}/\n")
     for axis, _, column in AXES:
         title = {CRYSTAL_STRUCTURE: "Crystal structure", STRUCTURE_FAMILIES: "Structure families"}[axis]

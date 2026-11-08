@@ -29,6 +29,9 @@ ENV_SETTINGS = (
     ("ADS_API_TOKEN", "NASA ADS token (physics literature, arXiv versions of journal papers)", True),
     ("IEEE_API_KEY", "IEEE Xplore API key", True),
     ("WOS_API_KEY", "Web of Science Starter API key", True),
+    ("LENS_API_TOKEN", "The Lens Scholarly API token (institutional subscription, or a non-commercial trial)", True),
+    ("DIMENSIONS_API_KEY", "Dimensions API key (free for non-commercial research, on application)", True),
+    ("BASE_ACCESS", "BASE: write yes once BASE has registered your network's IP address", False),
 )
 # Where each key is had — all of them free.
 KEY_SIGNUP = {
@@ -40,6 +43,11 @@ KEY_SIGNUP = {
     "ADS_API_TOKEN": "https://ui.adsabs.harvard.edu/ → create an account, then Settings → API Token",
     "IEEE_API_KEY": "https://developer.ieee.org/ → Register",
     "WOS_API_KEY": "https://developer.clarivate.com/apis/wos-starter → Subscribe (Free Trial: 50 requests a day)",
+    "LENS_API_TOKEN": "https://www.lens.org/lens/user/subscriptions → API & Data → request access (through your "
+                      "institution's subscription, or a non-commercial trial)",
+    "DIMENSIONS_API_KEY": "https://www.dimensions.ai/scientometric-research/ → apply (free for non-commercial research)",
+    "BASE_ACCESS": "https://www.base-search.net/about/en/contact.php → ask BASE to register your IP address for "
+                   "non-commercial research, then write yes",
 }
 
 
@@ -47,52 +55,62 @@ class KeyGroup(NamedTuple):
     """The settings one organization issues, as the window shows them: one card each."""
     organization: str
     opens: str                          # what its key gives access to
-    used_by: str                        # which web method uses it
     fields: Tuple[Tuple[str, str], ...]  # (variable of the .env file, its label)
     signup: str = ""                    # where a key is had: a link, then what to do there
 
 
-_METHOD_1, _BOTH = "Search open sources (method 1)", "both methods (Search open sources and moukhlij4scraping)"
 # Every variable of ENV_SETTINGS is in exactly one group (WebScraping/tests/test_keys.py checks it).
 KEY_GROUPS = (
     KeyGroup("Your contact e-mail", "Sent to OpenAlex, Crossref and Unpaywall only, as the polite way to ask: "
-             "Unpaywall needs one; OpenAlex and Crossref answer faster with one.", _BOTH, (("MME_EMAIL", "E-mail"),)),
-    KeyGroup("Elsevier", "Full texts of Elsevier journals (ScienceDirect), and the Scopus search.", _METHOD_1,
+             "Unpaywall needs one; OpenAlex and Crossref answer faster with one.", (("MME_EMAIL", "E-mail"),)),
+    KeyGroup("Elsevier", "Full texts of Elsevier journals (ScienceDirect), and the Scopus search. The key alone "
+             "downloads the closed papers your university subscribes to only on the university's network (campus, "
+             "or a VPN that sends everything through it); elsewhere it also needs the institutional token, which "
+             "Elsevier gives through your library. Without either, closed Elsevier papers are not downloaded — the "
+             "open copies of every paper still are.",
              (("ELSEVIER_API_KEY", "API key"), ("ELSEVIER_INSTTOKEN", "Institutional token (only if Elsevier gave you one)")),
              KEY_SIGNUP["ELSEVIER_API_KEY"]),
-    KeyGroup("Wiley", "Full texts of Wiley journals, for text and data mining.", _METHOD_1,
+    KeyGroup("Wiley", "Full texts of Wiley journals, for text and data mining: the closed papers your "
+             "university subscribes to, only on the university's network (campus or VPN). Open papers anywhere.",
              (("WILEY_TDM_TOKEN", "Text-and-data-mining token"),), KEY_SIGNUP["WILEY_TDM_TOKEN"]),
     KeyGroup("OpenAlex", "The main search index. Without a key it gives the first 100 results of each search, on "
-             "a daily budget shared with your network; a free key gives every result and a budget of its own.", _BOTH,
+             "a daily budget shared with your network; a free key gives every result and a budget of its own.",
              (("OPENALEX_API_KEY", "API key (optional)"),), "https://openalex.org/settings/api"),
-    KeyGroup("Semantic Scholar", "Searches and abstracts. It works without a key; one makes it steadier.", _BOTH,
+    KeyGroup("Semantic Scholar", "Searches and abstracts. It works without a key; one makes it steadier.",
              (("SEMANTIC_SCHOLAR_API_KEY", "API key (optional)"),), KEY_SIGNUP["SEMANTIC_SCHOLAR_API_KEY"]),
-    KeyGroup("CORE", "Full texts of the world's repositories: their search, and copies of the papers.", _METHOD_1,
+    KeyGroup("CORE", "Full texts of the world's repositories: their search, and copies of the papers.",
              (("CORE_API_KEY", "API key"),), KEY_SIGNUP["CORE_API_KEY"]),
-    KeyGroup("Springer Nature", "Search and abstracts of Springer, Nature and BMC papers.", _METHOD_1,
+    KeyGroup("Springer Nature", "Search and abstracts of Springer, Nature and BMC papers.",
              (("SPRINGER_NATURE_API_KEY", "API key"),), KEY_SIGNUP["SPRINGER_NATURE_API_KEY"]),
-    KeyGroup("NASA ADS", "Physics literature, and the arXiv version of journal papers.", _METHOD_1,
+    KeyGroup("NASA ADS", "Physics literature, and the arXiv version of journal papers.",
              (("ADS_API_TOKEN", "API token"),), KEY_SIGNUP["ADS_API_TOKEN"]),
-    KeyGroup("IEEE Xplore", "Search of IEEE journals and conferences.", _METHOD_1,
+    KeyGroup("IEEE Xplore", "Search of IEEE journals and conferences.",
              (("IEEE_API_KEY", "API key"),), KEY_SIGNUP["IEEE_API_KEY"]),
-    KeyGroup("Web of Science (Clarivate)", "The Web of Science Starter search (free trial: 50 requests a day).",
-             _METHOD_1, (("WOS_API_KEY", "Starter API key"),), KEY_SIGNUP["WOS_API_KEY"]),
+    KeyGroup("Web of Science (Clarivate)", "The Web of Science Starter search (free trial: 50 requests a day).", (("WOS_API_KEY", "Starter API key"),), KEY_SIGNUP["WOS_API_KEY"]),
+    KeyGroup("The Lens", "Over 250 million scholarly works merged from Crossref, PubMed, OpenAlex and others.",
+             (("LENS_API_TOKEN", "Scholarly API token"),), KEY_SIGNUP["LENS_API_TOKEN"]),
+    KeyGroup("Dimensions", "About 140 million publications with their abstracts (Digital Science).",
+             (("DIMENSIONS_API_KEY", "API key"),), KEY_SIGNUP["DIMENSIONS_API_KEY"]),
+    KeyGroup("BASE (Bielefeld)", "Over 400 million documents from 11,000 repositories. BASE answers only the networks "
+             "it has registered: once it has registered yours, write yes.", (("BASE_ACCESS", "Registered (yes)"),),
+             KEY_SIGNUP["BASE_ACCESS"]),
 )
 # Where candidates are searched for (WebScraping/sources/ says what each one is). Those that need a
 # key are skipped, with a line saying so, until the key is in WebScraping/averageScrap/.env.
 SOURCES = ("openalex", "arxiv", "crossref", "semanticscholar", "europepmc", "openaire", "doaj", "jstage", "core",
-           "springernature", "scopus", "ads", "ieee", "wos")
+           "springernature", "scopus", "ads", "ieee", "wos",
+           "zenodo", "datacite", "plos", "ntrs", "figshare", "osf", "lareferencia", "thesesfr", "lens", "base", "dimensions")
 # Who is asked, in this order, for the abstract of a paper its search record came without (screening
 # reads the title and the abstract). Springer Nature only knows its own papers, IEEE its own, and
 # Scopus gives abstracts only on the network of the institution its key belongs to.
 ABSTRACT_SOURCES = ("openaire", "crossref", "europepmc", "semanticscholar", "springernature", "scopus", "core",
-                    "ads", "ieee")
+                    "ads", "ieee", "plos")
 # Where a legal copy is looked for, in this order (WebScraping/resolve.py says what each one is). "elsevier"
 # and "wiley" only apply to those publishers' papers and only with ELSEVIER_API_KEY / WILEY_TDM_TOKEN;
 # "unpaywall" wants a contact email; "core" and "ads" their keys; every other source needs nothing but a
 # network connection.
-RESOLVERS = ("elsevier", "wiley", "aps", "openalex", "unpaywall", "arxiv", "pmc", "osti", "hal",
-             "semanticscholar", "ads", "openaire", "core", "crossref")
+RESOLVERS = ("elsevier", "wiley", "aps", "openalex", "unpaywall", "publisher", "arxiv", "pmc", "osti", "hal",
+             "zenodo", "datacite", "semanticscholar", "ads", "openaire", "core", "crossref")
 # How the window names them.
 LABELS = {
     "openalex": "OpenAlex", "arxiv": "arXiv", "crossref": "Crossref", "semanticscholar": "Semantic Scholar",
@@ -100,12 +118,16 @@ LABELS = {
     "springernature": "Springer Nature", "scopus": "Scopus", "ads": "NASA ADS", "ieee": "IEEE Xplore",
     "wos": "Web of Science", "elsevier": "Elsevier", "wiley": "Wiley", "aps": "APS", "unpaywall": "Unpaywall",
     "pmc": "PubMed Central", "osti": "OSTI", "hal": "HAL",
+    "zenodo": "Zenodo", "datacite": "DataCite", "plos": "PLOS", "ntrs": "NASA NTRS", "figshare": "Figshare",
+    "osf": "OSF Preprints", "lareferencia": "LA Referencia", "thesesfr": "theses.fr", "lens": "The Lens", "base": "BASE",
+    "dimensions": "Dimensions", "publisher": "Publisher's page (open-access journals)",
 }
 # The setting of the .env file a source or a copy source cannot work without (all the others need none).
 NEEDS = {
     "scopus": "ELSEVIER_API_KEY", "core": "CORE_API_KEY", "springernature": "SPRINGER_NATURE_API_KEY",
     "ads": "ADS_API_TOKEN", "ieee": "IEEE_API_KEY", "wos": "WOS_API_KEY", "elsevier": "ELSEVIER_API_KEY",
     "wiley": "WILEY_TDM_TOKEN", "unpaywall": "MME_EMAIL",
+    "lens": "LENS_API_TOKEN", "dimensions": "DIMENSIONS_API_KEY", "base": "BASE_ACCESS",
 }
 # The numbers of a job a person may set, and their bounds (the window and the loader both hold them).
 LIMITS = {
@@ -123,6 +145,12 @@ LIMITS = {
 class SearchConfig:
     queries: List[str] = field(default_factory=list)
     ids_file: str = ""  # optional text file: one DOI, DOI link or arXiv id per line
+    # The DOI list Fetch DOIs collects (dois.csv, or a .txt of one DOI per line): every DOI in it is taken
+    # in by the search and checked like the papers the keywords found (OpenAlex record, abstract, score).
+    doi_list: str = ""
+    # true: the search first runs Fetch DOIs (the job's keywords asked of OpenAlex, Crossref, Semantic
+    # Scholar and arXiv), whose new DOIs go to doi_list — the search relies on the DOIs it collects.
+    collect_dois: bool = False
     years: Optional[Tuple[int, int]] = None
     sources: List[str] = field(default_factory=lambda: list(SOURCES))
     max_per_query: int = 200  # candidates asked of each source for each query
@@ -414,8 +442,8 @@ def load_job(path: str) -> Job:
         if not all(LIMITS["years"][0] <= y <= LIMITS["years"][1] for y in s.years):
             raise ValueError(f"search.years: years from {LIMITS['years'][0]} to {LIMITS['years'][1]}")
         s.years = (s.years[0], s.years[1])
-    if not s.queries and not s.ids_file:
-        raise ValueError("search: give at least one query or an ids_file")
+    if not s.queries and not s.ids_file and not s.doi_list:
+        raise ValueError("search: give at least one query, an ids_file or a doi_list")
 
     c = job.screen
     c.topic_words, c.property_words, c.exclude_words = (

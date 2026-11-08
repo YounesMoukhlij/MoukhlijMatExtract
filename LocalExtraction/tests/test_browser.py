@@ -44,8 +44,7 @@ class PartTests(Home):
         self.assertEqual(folder, self.home / "LocalExtraction/local_output")
         self.assertEqual([label for label, _ in tables], [label for _, label in EXTRACTION_TABLES])
         web = [label for label, _ in part_tables("web", self.home)[2]]
-        self.assertIn("Downloads (moukhlij4scraping)", web)
-        self.assertIn("DOI list (Fetch DOIs)", web)
+        self.assertIn("Candidates of the search", web)
         rank = [label for label, _ in part_tables("rank", self.home)[2]]
         self.assertEqual(rank[:4], ["Summary of the components", "Bulk — top materials", "Bulk — all materials",
                                     "Bulk — values"])
@@ -80,7 +79,7 @@ class WindowTests(Home):
     def browser(self, part="local"):
         from LocalExtraction.gui.browser import open_results
         window = open_results(self.root, part, self.home)
-        self.root.update()
+        self.assertTrue(window.wait_loaded())  # the tables are read on another thread
         return window
 
     def test_every_table_listed_with_its_rows_and_shown_whole(self):
@@ -114,6 +113,16 @@ class WindowTests(Home):
         table.tree.focus("1")
         window._show_row()
         self.assertEqual(str(window.doi_button["state"]), "disabled")
+
+    def test_a_value_opens_the_paper_it_comes_from(self):
+        window = self.browser()
+        window.select(1)  # activation energies: no doi column, a paper_id
+        table = window._current()["table"]
+        rows = {window._current()["data"].loc[int(i), "paper_id"]: i for i in table.tree.get_children()}
+        for paper, state in (("a.pdf", "normal"), ("b.pdf", "disabled")):
+            table.tree.focus(rows[paper])
+            window._show_row()
+            self.assertEqual(str(window.doi_button["state"]), state, paper)
 
     def test_a_part_with_no_result_says_so(self):
         window = self.browser("classify")

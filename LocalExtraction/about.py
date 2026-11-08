@@ -42,9 +42,17 @@ CITE_TEXT = f"If you use {ABBREVIATION} in your research, please cite it (CITATI
 
 
 def command_name(command: str, module: str) -> str:
-    """The name to show in a part's help: its mme-* command when started that way (mme-rank),
-    else how it was started (python -m SelectingTopMaterial)."""
-    return command if Path(sys.argv[0]).name.startswith(command) else f"python -m {module}"
+    """The name to show in a part's help: its mme-* command when started that way (mme-rank), or when the
+    manual reads the help (MME_AS_COMMAND: the manual shows the commands a user types), else how it was
+    started (python -m SelectingTopMaterial)."""
+    if os.environ.get("MME_AS_COMMAND") or Path(sys.argv[0]).name.startswith(command):
+        return command
+    return f"python -m {module}"
+
+
+def version_text(command: str = "") -> str:
+    """What `--version` prints, the same for every command: "MoukhlijMatExtract 1.0.3 (mme-rank)"."""
+    return f"MoukhlijMatExtract {version() or 'dev'}" + (f" ({command})" if command else "")
 
 
 def version() -> str:
@@ -65,6 +73,7 @@ PART_FOLDERS = {
     "dois": ("WebScraping/Fetch_DOIs",),
     "rank": ("SelectingTopMaterial/results",),
     "classify": ("Classification/crystal_structure", "Classification/structure_families"),
+    "eval": ("Evaluation",),
 }
 
 # Relative to PROJECT_HOME.

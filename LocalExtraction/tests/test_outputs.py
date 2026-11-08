@@ -37,7 +37,7 @@ class ProjectFolder(unittest.TestCase):
         touch(self.home / "LocalExtraction/local_output/database.xlsx")
         touch(self.home / "WebScraping/Fetch_DOIs/dois.csv")
         touch(self.home / "WebScraping/Fetch_DOIs/dois.txt")
-        touch(self.home / "WebScraping/Fetch_DOIs/get_dois.py")  # not an output: never offered
+        touch(self.home / "WebScraping/Fetch_DOIs/my notes.txt")  # not written by Fetch DOIs: never offered
         touch(self.home / "WebScraping/papers/10.1_a.pdf")
         touch(self.home / "WebScraping/papers/ledger.sqlite")
         touch(self.home / "WebScraping/web_output/papers.csv")
@@ -68,7 +68,7 @@ class OutputsTests(ProjectFolder):
         for part, (_, groups) in outputs.PARTS.items():
             self.assertEqual(outputs.delete([i for g in groups for i in g.items(self.home)]), [])
         self.assertTrue((self.home / "LocalExtraction/papers/mine.pdf").exists())
-        self.assertTrue((self.home / "WebScraping/Fetch_DOIs/get_dois.py").exists())
+        self.assertTrue((self.home / "WebScraping/Fetch_DOIs/my notes.txt").exists())
         self.assertTrue((self.home / "SelectingTopMaterial/results/my notes.txt").exists())
         self.assertTrue((self.home / "configs/sse.yaml").exists())
         self.assertTrue((self.home / "LocalExtraction/local_output").is_dir())  # emptied, not removed
@@ -85,7 +85,7 @@ class OutputsTests(ProjectFolder):
         panel = Panel()
         outputs.register("web", panel.running, "a step is running", groups=("papers",))
         self.assertEqual(outputs.in_use("web", "papers"), "a step is running")
-        self.assertIsNone(outputs.in_use("web", "dois"))
+        self.assertIsNone(outputs.in_use("web", "database"))
         self.assertIsNone(outputs.in_use("local", "database"))
         panel.working = False
         self.assertIsNone(outputs.in_use("web", "papers"))

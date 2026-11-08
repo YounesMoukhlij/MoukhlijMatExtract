@@ -22,8 +22,9 @@ from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
 
-from LocalExtraction.about import command_name, enter_project_home
+from LocalExtraction.about import command_name, enter_project_home, version_text
 from LocalExtraction.done import already_done, fingerprint, mark_done
+from LocalExtraction.provenance import Run
 
 from . import console, exporters, html_report, loader
 from .about import DEFAULT_RESULTS, NAME, PROJECT_ROOT, VERSION
@@ -32,6 +33,15 @@ from .models import COMPONENTS, Filters, component_word
 from .selection import select_from_each
 
 FORMATS = ("csv", "xlsx", "json", "html")
+
+
+def _record(run: Run, selections) -> None:
+    """The run, in <out>/run_manifest.json (what was ranked, with what)."""
+    try:
+        run.finish({component: {"materials": len(s.materials), "values_used": s.values_used,
+                                "values_read": s.values_read} for component, s in selections.items()})
+    except OSError as error:
+        print(f"  (the run could not be recorded: {error})", file=sys.stderr)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -72,6 +82,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Only the materials that contain these elements (--element Na: the sodium conductors)")
     values.add_argument("--min-confidence", type=_confidence, default=0.0, metavar="0-1",
                         help="Only the values the extraction gave at least this confidence (default: all)")
+    values.add_argument("--include-flagged", action="store_true",
+                        help="Also rank the values the extraction flagged (plausibility \"check: …\"): outside "
+                             "0.05–1.5 eV, or the transport of electrons or of another element than a conducting "
+                             "ion. By default they are left out")
 
     shown = parser.add_argument_group("what is shown and written")
     shown.add_argument("--top", type=_positive, metavar="N",
@@ -84,17 +98,17 @@ def build_parser() -> argparse.ArgumentParser:
     shown.add_argument("--no-color", action="store_true", help="No colours in the terminal")
     parser.add_argument("--force", "-f", action="store_true",
                         help="Rank again even when nothing has changed since the last ranking written")
-    parser.add_argument("--version", action="version", version=f"{NAME} {VERSION}")
+    parser.add_argument("--version", action="version", version=version_text("mme-rank"))
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    enter_project_home("rank")
     if argv[:1] == ["gui"]:
         from .gui import main as gui_main  # Tk is loaded only when the window is asked for
         return gui_main(argv[1:])
     args = build_parser().parse_args(argv)
+    enter_project_home("rank")  # after the options are read: --help makes no folder
     _keep_printing(sys.stdout, sys.stderr)
 
     try:
@@ -114,7 +128,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     filters = Filters(min_confidence=args.min_confidence, origin=args.origin or "",
                       attribution=(args.attribution or "").replace("-", " "), component=args.component or "",
-                      elements=tuple(dict.fromkeys(args.element or ())))
+                      elements=tuple(dict.fromkeys(args.element or ())), include_flagged=args.include_flagged)
     # The same databases, criteria, options and code as the ranking already in --out: already done.
     settings = {"databases": [str(Path(d).resolve()) for d in databases], "criteria": repr(criteria),
                 "policy": args.policy, "by_phase": args.by_phase, "filters": repr(filters), "top": args.top,
@@ -130,6 +144,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             webbrowser.open(report.resolve().as_uri())
         return 0
 
+    run = Run("ranking", out_dir, settings={**settings, "include_flagged": args.include_flagged,
+                                            "min_confidence": args.min_confidence})
     selections = select_from_each(databases, criteria, root=PROJECT_ROOT, policy=args.policy,
                                   by_phase=args.by_phase, filters=filters)
     ranked = any(s.materials for s in selections.values())
@@ -141,6 +157,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         except OSError as error:
             return _fail(str(error))
         mark_done(out_dir, "rank", stamp, [p for paths in written_by.values() for p in paths])
+        _record(run, selections)
 
     if not args.quiet or not ranked:
         stream = sys.stdout if ranked else sys.stderr

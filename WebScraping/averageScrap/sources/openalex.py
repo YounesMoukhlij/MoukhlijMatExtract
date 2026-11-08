@@ -83,9 +83,10 @@ class OpenAlex:
         self._said_first_page_only = False
 
     def search(self, query: str, years: Optional[Tuple[int, int]] = None, limit: int = 200,
-               include_preprints: bool = True) -> Iterator[Candidate]:
+               include_preprints: bool = True, within: str = "") -> Iterator[Candidate]:
+        """`within`: only the works one source holds (an OpenAlex source id, e.g. arXiv's)."""
         types = "article|review" + ("|preprint" if include_preprints else "")
-        filters = [f"type:{types}", "language:en"]
+        filters = [f"type:{types}", "language:en"] + ([f"locations.source.id:{within}"] if within else [])
         if years:
             filters += [f"from_publication_date:{years[0]}-01-01", f"to_publication_date:{years[1]}-12-31"]
         cursor, seen = "*", 0

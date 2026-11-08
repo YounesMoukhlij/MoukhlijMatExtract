@@ -10,9 +10,12 @@ Three kinds of source:
     for text mining;
   - the open links the discovery services know: `openalex`, `unpaywall`, `arxiv`;
   - the repositories authors and funders deposit in, asked by DOI: `pmc` (PubMed Central's
-    open-access set), `osti` (US Department of Energy), `hal` (France), `openaire` (Europe), `core`
-    (the world's repositories; a free key) — and `semanticscholar` and `ads` (a free token), which
-    know the arXiv version of a journal paper.
+    open-access set), `osti` (US Department of Energy), `hal` (France), `zenodo` (CERN's repository),
+    `datacite` (the copies university and research-centre repositories register with DataCite),
+    `openaire` (Europe), `core` (the world's repositories; a free key) — and `semanticscholar` and
+    `ads` (a free token), which know the arXiv version of a journal paper;
+  - `publisher`: the article's own page at an open-access journal (MDPI, Frontiers, PLOS, Copernicus,
+    BMC, …), which declares its PDF for search engines and robots alike.
 A source is only asked once the ones before it gave nothing that could be kept, so these lookups
 cost nothing for a paper whose first link works."""
 
@@ -36,9 +39,34 @@ from WebScraping.averageScrap.sources.common import NOT_A_COPY as _NOT_A_COPY
 from WebScraping.averageScrap.sources.common import spell_license as _license
 from WebScraping.averageScrap.sources.core import API as CORE
 from WebScraping.averageScrap.sources.crossref import API as CROSSREF
+from WebScraping.averageScrap.sources.datacite import SAME_WORK as _SAME_WORK
 from WebScraping.averageScrap.wiley import Wiley
 
 UNPAYWALL = "https://api.unpaywall.org/v2"
+MISSING_EMAIL, REFUSED_EMAIL = "missing", "refused"  # Resolver.email_problem
+
+
+def email_advice(email: str, problem: str, in_job_file: bool = False) -> str:
+    """What to tell the user when Unpaywall — which finds most of the free copies — could not be asked.
+    `in_job_file`: the address comes from the job file's contact_email (it wins over API keys…)."""
+    why = ("no contact e-mail is set" if problem == MISSING_EMAIL or not email else
+           f"it refused the contact e-mail “{email}”: it accepts only a real address of your own "
+           "(not example.com, not a typo)")
+    where = ("Change contact_email in the job file (configs/sse.yaml, a text file) to your own academic or "
+             "professional e-mail — or empty it to use the one of “API keys…”" if in_job_file else
+             "Set your own academic or professional e-mail in “API keys…” → “Your contact e-mail”")
+    return (f"Unpaywall, the service that finds most of the free copies, was not asked: {why}.\n\n"
+            f"{where}, then press “3 · Download” again: the papers not found are tried again.")
+
+
+NOT_FOUND_ADVICE = (
+    "Your e-mail is not the reason: every real address gets the same answer from the open sources, so "
+    "another one would not find more. What can help:\n"
+    "  • the Elsevier and Wiley keys (and an institutional token) in “API keys…”, for the journals your "
+    "university subscribes to;\n"
+    "  • running the download from your university's network or VPN, where those subscriptions apply;\n"
+    "  • your library, or a request to the authors — put the PDF in WebScraping/papers/ and “4 · Extract” "
+    "reads it.")
 SEMANTIC_SCHOLAR = "https://api.semanticscholar.org/graph/v1/paper"
 EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 PMC_CLOUD = "https://pmc-oa-opendata.s3.amazonaws.com"
@@ -46,6 +74,28 @@ OSTI = "https://www.osti.gov/api/v1/records"
 HAL = "https://api.archives-ouvertes.fr/search/"
 OPENAIRE = "https://api.openaire.eu/graph/v1/researchProducts"
 APS = "https://harvest.aps.org/v2/journals/articles"
+DOI_HANDLE = "https://doi.org/api/handles"  # where a DOI points, without visiting the page
+ZENODO = "https://zenodo.org/api/records"
+DATACITE = "https://api.datacite.org/dois"
+# Journals whose every article is open access (by DOI prefix): their page is asked for its PDF even
+# when no index has said the paper is open.
+OPEN_PUBLISHERS = ("10.3390/",       # MDPI
+                   "10.3389/",       # Frontiers
+                   "10.1371/",       # PLOS
+                   "10.1155/",       # Hindawi
+                   "10.5194/",       # Copernicus
+                   "10.1186/",       # BioMed Central, SpringerOpen
+                   "10.7717/",       # PeerJ
+                   "10.7554/",       # eLife
+                   "10.3762/",       # Beilstein
+                   "10.21468/",      # SciPost
+                   "10.1038/s41467-", "10.1038/s41598-", "10.1038/s41524-", "10.1038/s41699-",  # Nature Communications, Scientific Reports, npj
+                   "10.1107/s2052252",  # IUCrJ
+                   "10.1039/d0ra", "10.1039/d1ra", "10.1039/d2ra", "10.1039/d3ra", "10.1039/d4ra", "10.1039/d5ra",  # RSC Advances
+                   "10.1039/d0ya", "10.1039/d1ya", "10.1039/d2ya", "10.1039/d3ya", "10.1039/d4ya", "10.1039/d5ya",  # Energy Advances
+                   "10.1149/2754-2734",  # ECS Advances
+                   )
+_OPEN_COLOURS = {"gold", "hybrid", "bronze", "diamond"}  # open at the publisher's site (green is a repository copy)
 
 # The PDF of one version of an article in PubMed Central's cloud copy: "PMC7902639.1/PMC7902639.1.pdf".
 _PMC_PDF = re.compile(r'<Key>((PMC\d+)\.(\d+)/\2\.\3\.pdf)</Key>')
@@ -77,16 +127,31 @@ class Resolver:
         key = os.environ.get("ADS_API_TOKEN", "").strip()
         self._ads_token = {"Authorization": f"Bearer {key}"} if key else None
         self._warned_unpaywall = False
+        # Why Unpaywall could not be asked, if so: no contact e-mail, or one it refuses (a made-up or
+        # mistyped address — any real address gets the same answers). The window tells the user.
+        self.email_problem = ""
         self._lock = threading.Lock()
         self._failed: Dict[str, int] = {}  # service -> lookups in a row that got no usable answer
+        self._local = threading.local()    # the services that refused while this thread looked up its paper
 
     def options(self, candidate: Candidate) -> Iterator[FetchOption]:
+        self._local.refused = []
         seen = set()
         for service in self.sources:
             for option in getattr(self, f"_{service}")(candidate):
                 if option.url not in seen:
                     seen.add(option.url)
                     yield option
+
+    def refused(self) -> List[str]:
+        """The services that refused (too many requests, busy, no answer) or were left alone while the
+        current paper was looked up: the paper was not really checked there, and is to be checked again."""
+        return list(dict.fromkeys(getattr(self._local, "refused", [])))
+
+    def _note_refused(self, service: str) -> None:
+        refused = getattr(self._local, "refused", None)
+        if refused is not None:
+            refused.append(service)
 
     def _ask(self, service: str, url: str, params: Optional[Dict[str, Any]] = None,
              headers: Optional[Dict[str, str]] = None) -> Any:
@@ -96,11 +161,13 @@ class Resolver:
         run, so that a long run does not wait on it paper after paper."""
         with self._lock:
             if self._failed.get(service, 0) >= _PATIENCE:
+                self._note_refused(service)  # left alone for this run: this paper was not checked there
                 return None
         try:
             answer = self.client.get_json(url, params=params, headers=headers)
         except HttpError as error:
             if error.status == 429 or error.status >= 500:
+                self._note_refused(service)
                 self._strike(service, "it allows no more requests for now" if error.status == 429
                              else f"it keeps answering HTTP {error.status}")
             else:
@@ -109,6 +176,7 @@ class Resolver:
         except requests.RequestException:
             # No answer even after the client's own retries (minutes of waiting): the service is
             # down, and asking it again for each paper would cost those minutes paper after paper.
+            self._note_refused(service)
             self._strike(service, "it does not answer", at_once=True)
             return None
         except ValueError:
@@ -167,8 +235,12 @@ class Resolver:
     # The open links the discovery services know
     # ------------------------------------------------------------------
     def _openalex(self, c: Candidate) -> Iterator[FetchOption]:
+        """The links the search records carry: the files, then the repository pages that hold a copy
+        (offered as "repository"), then the paper's own page when it is open."""
         for url in c.oa_urls:
             yield FetchOption("openalex", url, license=c.license)
+        for url in c.copy_pages[:_MAX_COPIES]:
+            yield FetchOption("repository", url, license=c.license, landing=True)
         if c.landing_url and c.access == "open":
             yield FetchOption("openalex", c.landing_url, license=c.license, landing=True)
 
@@ -180,11 +252,28 @@ class Resolver:
                 logging.warning("Unpaywall is skipped: it requires a contact email "
                                 "(contact_email in the job file, or MME_EMAIL).")
                 self._warned_unpaywall = True
+                self.email_problem = MISSING_EMAIL
             return
+        if self.email_problem:
+            return  # it refused the address: asking again for every paper would only be refused again
         try:
             data = self.client.get_json(f"{UNPAYWALL}/{c.doi}", params={"email": self.contact})
         except HttpError as error:
+            if error.status == 422:  # Unpaywall's answer to an address that is not a real one of your own
+                with self._lock:
+                    first, self.email_problem = not self.email_problem, REFUSED_EMAIL
+                if first:
+                    logging.warning(f"Unpaywall refused the contact e-mail “{self.contact}”: it accepts only a real "
+                                    "address of your own (not example.com, not a typo). Set your own academic or "
+                                    "professional address (API keys…, or MME_EMAIL), then download again. Unpaywall "
+                                    "is skipped for the rest of this run.")
+                return
+            if error.status == 429 or error.status >= 500:
+                self._note_refused("Unpaywall")
             logging.debug(f"Unpaywall has nothing for {c.doi}: {error}")
+            return
+        except requests.RequestException:
+            self._note_refused("Unpaywall")
             return
         for location in [data.get("best_oa_location"), *(data.get("oa_locations") or [])]:
             if not location:
@@ -194,6 +283,54 @@ class Resolver:
             elif location.get("url_for_landing_page"):
                 yield FetchOption("unpaywall", location["url_for_landing_page"], landing=True,
                                   license=location.get("license") or "")
+
+    def _publisher(self, c: Candidate) -> Iterator[FetchOption]:
+        """The article's page at its publisher, when the article is open there (an open-access journal,
+        or an index that says so): the page declares its PDF (citation_pdf_url), which is followed once.
+        Where the DOI points is asked of the DOI system first, so that the publisher's own robots.txt
+        is the one consulted."""
+        if not c.doi or not (c.doi.startswith(OPEN_PUBLISHERS) or c.oa_status in _OPEN_COLOURS
+                             or c.license.startswith("cc")):
+            return
+        data = self._ask("doi.org", f"{DOI_HANDLE}/{c.doi}", {"type": "URL"})
+        page = next((v.get("data", {}).get("value") for v in (data or {}).get("values") or []
+                     if v.get("type") == "URL"), "")
+        if page and urlsplit(page).netloc.lower() not in _OWN_SOURCE:
+            yield FetchOption("publisher", page, license=c.license, landing=True)
+
+    def _zenodo(self, c: Candidate) -> Iterator[FetchOption]:
+        """The copy of a journal article its authors deposited in Zenodo under the article's DOI."""
+        if not c.doi:
+            return
+        data = self._ask("Zenodo", ZENODO, {"q": f'doi:"{c.doi}"', "size": 5})
+        for record in ((data or {}).get("hits") or {}).get("hits") or []:
+            meta = record.get("metadata") or {}
+            if normalize_doi(record.get("doi") or meta.get("doi") or "") != c.doi or meta.get("access_right") != "open":
+                continue
+            for file in record.get("files") or []:
+                link = (file.get("links") or {}).get("self") or ""
+                if (file.get("key") or "").lower().endswith(".pdf") and link:
+                    yield FetchOption("zenodo", link, license=_license((meta.get("license") or {}).get("id") or ""))
+
+    def _datacite(self, c: Candidate) -> Iterator[FetchOption]:
+        """The copies university and research-centre repositories registered with DataCite as another
+        form of the article (its accepted manuscript, its preprint): the repository's page of each."""
+        if not c.doi:
+            return
+        data = self._ask("DataCite", DATACITE, {"query": f'relatedIdentifiers.relatedIdentifier:"{c.doi}"',
+                                                "page[size]": 10})
+        copies: List[str] = []
+        for record in (data or {}).get("data") or []:
+            attributes = record.get("attributes") or {}
+            if ((attributes.get("types") or {}).get("resourceTypeGeneral") or "") == "Dataset":
+                continue
+            related = {normalize_doi(r.get("relatedIdentifier") or "") for r in attributes.get("relatedIdentifiers") or []
+                       if r.get("relationType") in _SAME_WORK}
+            for url in [*(attributes.get("contentUrl") or []), attributes.get("url") or ""]:
+                if c.doi in related and url and url not in copies:
+                    copies.append(url)
+        for url in copies[:_MAX_COPIES]:
+            yield FetchOption("datacite", url, landing=not url.lower().endswith(".pdf"))
 
     def _arxiv(self, c: Candidate) -> Iterator[FetchOption]:
         if c.arxiv_id:

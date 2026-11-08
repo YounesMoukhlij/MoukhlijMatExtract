@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import shutil
 from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
@@ -14,7 +15,9 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 import pandas as pd
 
 from .chemistry import ChemistryEngine, common_radii
-from .models import ExtractedField, Material, PaperData, TableRecord
+from .models import ExtractedField, Material, PaperData, TableRecord, as_written
+from .provenance import extracted_with
+from .species import mobile_species, paper_ion, plausibility
 
 # Characters XML (and therefore .xlsx) cannot store.
 _ILLEGAL_XML_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
@@ -41,21 +44,24 @@ TABLE_NAMES = ["papers", "materials", "properties", *(table for _, table, _, _ i
 # carried over from an earlier version, or a row added to a column someone added by hand.
 NOT_RECORDED = "not recorded (written by an earlier version of MoukhlijMatExtract)"
 ADDED_BY_HAND = "not filled (a column added by hand)"
+# Columns a later version added that `upgrade` can work out for the rows an earlier version wrote.
+UPGRADABLE = {"extracted_with", "mobile_ion", "plausibility", "equation_basis"}
+EARLIER_VERSION = "an earlier version of MoukhlijMatExtract (before the version was recorded with each paper)"
 # The rebuilds of a folder whose papers have not all been brought back yet (see `archive`).
 _PENDING_REBUILDS = "rebuild_pending.json"
-_BASIS_ORDER = ("structure", "temperature", "pressure", "origin", "component")
+_BASIS_ORDER = ("structure", "temperature", "pressure", "origin", "component", "ion")
 _EXCEL_CELL_LIMIT = 32767  # the characters one cell of a workbook can hold
 
 _VALUE_CONTEXT = ["temperature", "pressure", "data_origin", "attribution", "n_assumed", "basis"]
-_QUANTITY_COLUMNS = ["paper_id", "material_formula", "{value}", "reported_as", "extracted_from", "page", "composition",
-                     "structure", "ionic_radii", "temperature", "pressure", "data_origin", "transport_component",
-                     "attribution", "n_assumed", "basis", "confidence", "source", "section", "sentence", "raw_value",
+_QUANTITY_COLUMNS = ["paper_id", "material_formula", "{value}", "reported_as", "extracted_from", "page", "plausibility",
+                     "composition", "structure", "ionic_radii", "temperature", "pressure", "data_origin",
+                     "transport_component", "mobile_ion", "attribution", "n_assumed", "basis", "confidence", "source", "section", "sentence", "raw_value",
                      "material_id", "material_link"]
 # The columns of every table, so that a table with no row yet is still written with its header.
 COLUMNS: Dict[str, List[str]] = {
     "papers": ["paper_id", "filename", "title", "authors", "journal", "doi", "publication_year", "metadata_basis",
                "n_materials", "n_relations", "n_references", "origin", "source_service", "source_url", "license",
-               "retrieved_at", "file_sha256", "openalex_id"],
+               "retrieved_at", "file_sha256", "openalex_id", "extracted_with"],
     "materials": ["paper_id", "material_id", "raw_formula", "normalized_formula", "elements", "elements_basis", "structure",
                   "structure_basis", "ionic_radii", "ionic_radii_basis", "is_known_alias", "confidence", "extracted_from",
                   "page", "section"],
@@ -73,8 +79,8 @@ COLUMNS: Dict[str, List[str]] = {
                "material_column"],
     "figures": ["paper_id", "figure_number", "caption", "page", "section", "referenced_materials",
                 "referenced_properties", "referenced_tables", "referenced_equations", "mentioned_methods"],
-    "equations": ["paper_id", "equation_type", "equation_text", "page", "section", "variables", "variables_basis",
-                  "context_sentence"],
+    "equations": ["paper_id", "equation_type", "equation_text", "equation_basis", "page", "section", "variables",
+                  "variables_basis", "context_sentence"],
     "workflow": ["paper_id", "step_order", "stage", "evidence_sentence", "page", "section"],
     "summary": ["paper_id", "title", "publication_year", "origin", "n_materials", "materials",
                 *(f"n_{table}" for _, table, _, _ in QUANTITY_TABLES), "n_other_properties", "highlights"],
@@ -106,6 +112,58 @@ _USUAL_VARIABLES = {
     "Fick's Law": "J | D | c | x", "Vegard's Law": "a | x",
 }
 
+
+# The standard form of each law, for a sentence that names the law without writing it ("the Arrhenius
+# plots show …"): the equations table then holds an equation in every row, and says which were written.
+STANDARD_FORMS = {
+    "Arrhenius": "σT = σ0 · exp(−Ea / (kB·T))",
+    "Nernst-Einstein": "σ = n·q²·D / (kB·T)",
+    "MSD/Diffusion": "D = MSD(t) / (2·d·t)   (d = 3 dimensions: D = MSD / 6t)",
+    "Einstein Relation": "D = lim(t→∞) MSD(t) / (6·t)",
+    "NEB": "Ea = E(saddle point) − E(initial site), along the minimum-energy path",
+    "Butler-Volmer": "j = j0 · [exp(αa·F·η / (R·T)) − exp(−αc·F·η / (R·T))]",
+    "Fick's Law": "J = −D · ∂c/∂x   (second law: ∂c/∂t = D · ∂²c/∂x²)",
+    "Vegard's Law": "a(A1−x Bx) = (1 − x) · a(A) + x · a(B)",
+}
+WRITTEN = "written in the paper"
+_MATH = re.compile(r"=|∝|exp\s*\(|\bln\s*\(|√|∑|∫")
+
+
+def equation_columns(equation_type: str, text: str) -> Tuple[str, str]:
+    """(equation_text, equation_basis): the equation as the paper writes it, or — when the text is a
+    sentence that only names the law — the law's standard form, said so."""
+    text = (text or "").strip()
+    is_sentence = len(re.findall(r"[A-Za-z]{3,}", text)) >= 7 or not _MATH.search(text)
+    if is_sentence and equation_type in STANDARD_FORMS:
+        return (STANDARD_FORMS[equation_type],
+                f"the standard form of the {equation_type} {'method' if equation_type == 'NEB' else 'law'} the "
+                f"sentence names (the paper does not write it there)")
+    return text, WRITTEN
+
+
+def _equation_rows(table: pd.DataFrame) -> pd.DataFrame:
+    """Rows of earlier versions, which held the naming sentence as the equation: the same as new ones."""
+    if "equation_text" not in table.columns or "equation_type" not in table.columns:
+        return table
+    pairs = [equation_columns(kind, text) for kind, text in zip(table["equation_type"], table["equation_text"])]
+    table = table.copy()
+    if "context_sentence" in table.columns:
+        empty = table["context_sentence"].isin(["", "NONE"])
+        table.loc[empty, "context_sentence"] = table.loc[empty, "equation_text"]
+    table["equation_text"] = [p[0] for p in pairs]
+    table["equation_basis"] = [p[1] for p in pairs]
+    return table
+
+
+def _written_values(node: Any) -> Any:
+    """A paper of database.json with every raw_value as the paper writes it (earlier versions stored
+    "('1.65', 'eV')")."""
+    if isinstance(node, dict):
+        return {k: (as_written(v) if k == "raw_value" and isinstance(v, str) else _written_values(v))
+                for k, v in node.items()}
+    if isinstance(node, list):
+        return [_written_values(v) for v in node]
+    return node
 
 class UnreadableTable(RuntimeError):
     """A file of the database that cannot be read. It is never written over — that would lose its
@@ -240,6 +298,95 @@ class StrictExporter:
                 return False  # it is said when the table is read, not taken for an earlier version
         return False
 
+    @classmethod
+    def lacking(cls, output_dir: str) -> Optional[Dict[str, List[str]]]:
+        """The columns this version writes that each table of the folder lacks; None when a table is
+        missing altogether (then the database cannot be brought up to date: it has to be rebuilt)."""
+        lacking: Dict[str, List[str]] = {}
+        for name in TABLE_NAMES:
+            path = os.path.join(output_dir, f"{name}.csv")
+            if not os.path.exists(path):
+                return None
+            header = _header(path)
+            missing = [column for column in COLUMNS[name] if column not in header]
+            if missing:
+                lacking[name] = missing
+        return lacking
+
+    @classmethod
+    def can_upgrade(cls, output_dir: str) -> bool:
+        """Whether a database of an earlier version can take new articles as it is: every column it lacks
+        can be worked out for its rows from the rows themselves (`upgrade`)."""
+        try:
+            lacking = cls.lacking(output_dir)
+        except OSError:
+            return False
+        return lacking is not None and all(set(columns) <= UPGRADABLE for columns in lacking.values())
+
+    @classmethod
+    def upgrade(cls, output_dir: str) -> str:
+        """Brings a database of an earlier version up to date in place, so that new articles are added to
+        it: the columns it lacks are filled for the rows already there — the moving ion and the
+        plausibility of each value worked out from its own sentence, material and number (as this
+        version does for a new value), the standard form of each equation, and, for each paper, that an
+        earlier version read it. Nothing is extracted again. The files as they were are copied first into
+        a dated sub-folder ("previous_<date>"). Returns that sub-folder."""
+        lacking = cls.lacking(output_dir)
+        if lacking is None or not all(set(columns) <= UPGRADABLE for columns in lacking.values()):
+            raise ValueError(f"{output_dir} cannot be brought up to date: it has to be rebuilt")
+        if not lacking:
+            return ""
+        kept = os.path.join(output_dir, "previous_" + datetime.now().strftime("%Y%m%d_%H%M%S"))
+        os.makedirs(kept)
+        for name in os.listdir(output_dir):
+            if name.endswith(".csv") or name in ("database.json", "database.xlsx"):
+                shutil.copy2(os.path.join(output_dir, name), os.path.join(kept, name))
+        quantity = {table: (prop, value) for prop, table, value, _ in QUANTITY_TABLES}
+        frames = {name: read_table(os.path.join(output_dir, f"{name}.csv")) for name in lacking}
+        # The ion each paper's values name most, as the extraction finds it for a new paper.
+        sentences: Dict[str, List[str]] = {}
+        for table in quantity:
+            frame = frames.get(table)
+            if frame is None:
+                frame = read_table(os.path.join(output_dir, f"{table}.csv"))
+            if {"paper_id", "sentence"} <= set(frame.columns):
+                for pid, sentence in zip(frame["paper_id"], frame["sentence"]):
+                    sentences.setdefault(str(pid), []).append(str(sentence))
+        main_ions = {pid: paper_ion(found) for pid, found in sentences.items()}
+        for name, missing in lacking.items():
+            frame = frames[name]
+            if name == "papers" and "extracted_with" in missing:
+                frame["extracted_with"] = EARLIER_VERSION
+            if name == "equations" and "equation_basis" in missing:
+                frame = _equation_rows(frame)
+            if name in quantity:
+                prop, value = quantity[name]
+                ions, notes = [], []
+                for _, row in frame.iterrows():
+                    formula = str(row.get("material_formula", "") or "")
+                    ion, why = mobile_species(prop, str(row.get("sentence", "") or ""),
+                                              "" if formula in ("NONE", "nan") else formula,
+                                              *main_ions.get(str(row.get("paper_id", "")), (None, 0)))
+                    ions.append(ion)
+                    notes.append(why)
+                if "mobile_ion" in missing:
+                    frame["mobile_ion"] = ions
+                    if "basis" in frame.columns:
+                        frame["basis"] = [f"{basis} | ion: {why}" if str(basis) not in ("", "NONE", "nan")
+                                          else f"ion: {why}" for basis, why in zip(frame["basis"], notes)]
+                if "plausibility" in missing:
+                    frame["plausibility"] = [plausibility(prop, number, ion)
+                                             for number, ion in zip(frame.get(value, [""] * len(frame)), frame["mobile_ion"])]
+            order = [c for c in COLUMNS[name] if c in frame.columns] + [c for c in frame.columns if c not in COLUMNS[name]]
+            frame = cls._strict_none(frame[order])
+            path = os.path.join(output_dir, f"{name}.csv")
+            _write_atomically(path, lambda part, frame=frame: frame.to_csv(part, index=False, encoding="utf-8-sig"))
+        if os.path.exists(os.path.join(output_dir, "database.xlsx")):
+            cls(output_dir).export_excel()
+        logging.info(f"Brought the database of {output_dir} up to date ({', '.join(sorted(lacking))}); "
+                     f"the files as they were are in {kept}.")
+        return kept
+
     @staticmethod
     def archive(output_dir: str) -> str:
         """Moves the database files of a folder into a dated sub-folder of it, so that the database
@@ -324,6 +471,15 @@ class StrictExporter:
             "structure": structure,
             "ionic_radii": cls.radii_of(m, f.material_formula)[0],
         }
+
+    @staticmethod
+    def species_of(f: ExtractedField) -> str:
+        """The species that moves; a value of an earlier run, read back without one, gets it now."""
+        if f.mobile_ion != "NONE":
+            return f.mobile_ion
+        f.mobile_ion, f.basis["ion"] = mobile_species(f.property_name, f.source_sentence,
+                                                      f.material_formula if f.material_formula != "NONE" else "")
+        return f.mobile_ion
 
     @staticmethod
     def basis_text(f: ExtractedField) -> str:
@@ -456,6 +612,8 @@ class StrictExporter:
                 "origin": paper.origin,
                 **{key: provenance.get(key, "NONE") for key in (
                     "source_service", "source_url", "license", "retrieved_at", "file_sha256", "openalex_id")},
+                # The version and language model that read it: a database grows over many runs.
+                "extracted_with": extracted_with(),
             })
 
             for m in paper.materials:
@@ -505,11 +663,13 @@ class StrictExporter:
                         tables[table].append({
                             "paper_id": pid, "material_formula": columns["material_formula"],
                             number: float(c.normalized_value.split(" ", 1)[0]),
+                            "plausibility": plausibility(prop, c.normalized_value, cls.species_of(c)),
                             "reported_as": c.reported_as if c.reported_as != "NONE" else prop.replace("_", " ").lower(),
                             **cls._part_columns(c),
                             "composition": columns["composition"], "structure": columns["structure"],
                             "ionic_radii": columns["ionic_radii"],
-                            **cls._condition_columns(c, component=True), "confidence": round(c.confidence, 3),
+                            **cls._condition_columns(c, component=True), "mobile_ion": cls.species_of(c),
+                            "confidence": round(c.confidence, 3),
                             "source": cls.source_text(c), "section": c.source_section, "sentence": cls.sentence_of(c),
                             "raw_value": c.raw_value, "material_id": c.material_id, "material_link": c.material_link,
                         })
@@ -544,9 +704,10 @@ class StrictExporter:
                 variables, basis = (" | ".join(e.variables), "its text") if e.variables else (
                     _USUAL_VARIABLES.get(e.equation_type, "none (a relation between named quantities)"),
                     "the usual variables of this equation (its text names none)")
+                equation_text, equation_basis = equation_columns(e.equation_type, e.equation_text)
                 tables["equations"].append({
-                    "paper_id": pid, "equation_type": e.equation_type, "equation_text": e.equation_text,
-                    "page": e.page, "section": e.section, "variables": variables, "variables_basis": basis,
+                    "paper_id": pid, "equation_type": e.equation_type, "equation_text": equation_text,
+                    "equation_basis": equation_basis, "page": e.page, "section": e.section, "variables": variables, "variables_basis": basis,
                     "context_sentence": e.context_sentence if e.context_sentence not in ("", "NONE") else e.equation_text,
                 })
 
@@ -614,6 +775,8 @@ class StrictExporter:
         for name in sorted(merged, key=lambda name: name == "papers"):
             _write_atomically(os.path.join(self.output_dir, f"{name}.csv"),
                               lambda part, frame=merged[name]: frame.to_csv(part, index=False, encoding="utf-8-sig"))
+        from .schema import write_csv  # what every column holds, next to the tables (schema imports this module)
+        write_csv(self.output_dir)
 
     @staticmethod
     def _read_json(path: str) -> List[Dict[str, Any]]:
@@ -626,7 +789,8 @@ class StrictExporter:
             raise UnreadableTable(
                 f"{path} cannot be read ({error}). Nothing was written, so none of its papers are lost; move it "
                 "out of the folder to start the JSON anew (the CSV files keep every paper).") from error
-        return existing.get("papers", []) if isinstance(existing, dict) else existing
+        papers = existing.get("papers", []) if isinstance(existing, dict) else existing
+        return [_written_values(p) for p in papers]
 
     @staticmethod
     def _dump_json(path: str, papers: List[Dict[str, Any]]) -> None:
@@ -654,6 +818,8 @@ class StrictExporter:
                     table = table.apply(lambda col: col.map(
                         lambda v: v[:_EXCEL_CELL_LIMIT - 1] + "…" if isinstance(v, str) and len(v) > _EXCEL_CELL_LIMIT else v))
                 table.to_excel(writer, sheet_name=name[:31], index=False)
+            from .schema import rows
+            pd.DataFrame(rows()).to_excel(writer, sheet_name="data_dictionary", index=False)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -672,6 +838,10 @@ class StrictExporter:
         replaced = set(replaced)
         if replaced and "paper_id" in old.columns:
             old = old[~old["paper_id"].isin(replaced)]
+        if "raw_value" in old.columns:  # rows of earlier versions: "('1.65', 'eV')" -> "1.65 eV"
+            old = old.assign(raw_value=old["raw_value"].map(as_written))
+        if os.path.basename(path) == "equations.csv" and "equation_basis" not in old.columns:
+            old = _equation_rows(old)
         new_df = new_df.copy()
         for column in new_df.columns:
             if column not in old.columns:
@@ -704,7 +874,7 @@ class StrictExporter:
                 "material_link": f.material_link, "structure": f.structure,
                 "temperature": f.temperature, "pressure": f.pressure,
                 "data_origin": f.data_origin, "data_origin_evidence": f.data_origin_evidence,
-                "reported_as": f.reported_as, "attribution": f.attribution,
+                "reported_as": f.reported_as, "attribution": f.attribution, "mobile_ion": f.mobile_ion,
             }
             return {
                 "raw_value": f.raw_value, "normalized_value": f.normalized_value, "unit": f.unit,

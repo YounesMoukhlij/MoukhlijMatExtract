@@ -1,0 +1,28 @@
+{
+  "title": "MoukhlijMatExtract (MME): extraction, ranking and classification of solid-state-electrolyte data from scientific papers",
+  "upload_type": "software",
+  "description": "MoukhlijMatExtract extracts activation energies, ionic and electronic conductivities and diffusion coefficients of solid-state electrolytes from scientific papers (local PDFs and legal open-access copies found on the web), with the material, the conditions, the moving species and the provenance of every value; ranks the materials by activation energy and classifies them by crystal-structure type and structure family. It records how each result was made (run manifests, requirements.lock) and measures its own accuracy against annotated papers (mme-eval).",
+  "creators": [
+    {
+      "name": "Moukhlij, Younes",
+      "affiliation": "Faculté Polydisciplinaire de Khouribga (FPK), Université Sultan Moulay Slimane (USMS)"
+    }
+  ],
+  "license": "MIT",
+  "keywords": [
+    "solid-state electrolytes",
+    "materials science",
+    "scientific literature mining",
+    "text mining",
+    "activation energy",
+    "ionic conductivity",
+    "reproducibility"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/YounesMoukhlij/MoukhlijMatExtract",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

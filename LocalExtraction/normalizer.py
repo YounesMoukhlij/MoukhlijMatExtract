@@ -1,6 +1,7 @@
 # LocalExtraction/normalizer.py
 
 import re
+import threading
 import unicodedata
 from collections import Counter
 from typing import List, Optional, Sequence, Tuple, Union
@@ -38,15 +39,108 @@ _SOFT_HYPHEN_AT_BREAK = re.compile(chr(0xAD) + r'(?=\s)')
 _LOST_TIMES = re.compile(r'(?<=\d)\s9\s(?=10\s?[-−–]\s?\d)')
 
 
+# Subscripts that a PDF's text layer gives as separate words: "Na 3 PSe 4", "Li 6.4 La 3 Zr 1.4 Ta 0.6 O 12",
+# "Li 6 PS 5 Cl", "Li 1.3 Al 0.3 Ti 1.7 (PO 4 ) 3". Read as they stand, "PSe" would be taken for the
+# material. A run of at least two element groups each followed by its subscript (a bracketed group
+# too, and, last, a group without one) is put back together.
+_GROUP = r'(?:[A-Z][a-z]?){1,4}'
+_SUBSCRIPT = r'\d{1,2}(?:\.\d{1,3})?'
+_UNIT = rf'(?:{_GROUP} {_SUBSCRIPT}|\( ?{_GROUP} ?{_SUBSCRIPT}?(?: {_GROUP} {_SUBSCRIPT})* ?\) ?{_SUBSCRIPT})'
+_SPACED_FORMULA = re.compile(rf'(?<![\w.,/−–-])(?<![A-Za-z0-9]\()({_UNIT}(?: ?{_UNIT})+)(?: ({_GROUP}))?(?![\w.−–/-]*\w)')
+# One group and its subscript ("LiNbO 3", "BaTiO 3"): only a group of two or more symbols with a two-letter one
+# among them, so "S 2", "K 2" or an acronym ("SI 2", "BCC 2") stay as they are.
+_SPACED_SINGLE = re.compile(rf'(?<![\w.,/−–-])(?<![A-Za-z0-9]\()((?:[A-Z][a-z]?){{2,4}}) ({_SUBSCRIPT})(?![\w.−–/-]*\w)')
+# A number followed by a unit is a quantity, not a subscript: "LiPON 2 µm", "SnO 2 wt%".
+_UNIT_AFTER = re.compile(r'\s?(?:[nµμu]?m|mm|cm|nm|wt|vol|mol|at\.?|h|min|K|°|%|mAh|mV|V|GPa|MPa)(?![A-Za-z])')
+_SYMBOL_SET = frozenset(
+    "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr Rb Sr Y Zr "
+    "Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu Hf Ta W Re Os Ir Pt "
+    "Au Hg Tl Pb Bi Po At Rn Fr Ra Ac Th Pa U Np Pu".split())
+# A trailing group that is also an English word is the next word, not the end of the formula.
+_WORDS_LIKE_SYMBOLS = frozenset({"In", "As", "At", "No", "I", "He", "Be", "Am", "Ce", "Co", "Ho", "Pa", "Ti"})
+
+
+def _is_element_group(group: str) -> bool:
+    """"PSe" = P + Se, "GeP" = Ge + P; "Ab" is no element."""
+    parts = re.findall(r'[A-Z][a-z]?', group)
+    return "".join(parts) == group and all(part in _SYMBOL_SET for part in parts)
+
+
+# The inside of a formula's bracket the run cannot be joined in whole: "Li(Ni 0.8 Co 0.1 Mn 0.1 )O 2".
+_IN_FORMULA_BRACKET = re.compile(rf'[A-Za-z0-9]\(\s?(?:{_GROUP} {_SUBSCRIPT} ?)*$')
+
+
+def _in_formula_bracket(match: "re.Match") -> bool:
+    return bool(_IN_FORMULA_BRACKET.search(match.string, max(0, match.start() - 80), match.start()))
+
+
+def _join_formula(match: "re.Match") -> str:
+    run, tail = match.group(1), match.group(2)
+    if not all(_is_element_group(g) for g in re.findall(r'[A-Za-z]+', run)) or _in_formula_bracket(match):
+        return match.group(0)
+    if not tail and _UNIT_AFTER.match(match.string, match.end()):
+        return match.group(0)
+    joined = run.replace(" ", "")
+    if tail:
+        if _is_element_group(tail) and tail not in _WORDS_LIKE_SYMBOLS:
+            return joined + tail
+        return joined + " " + tail
+    return joined
+
+
+def _join_single(match: "re.Match") -> str:
+    group = match.group(1)
+    if (_is_element_group(group) and any(c.islower() for c in group)
+            and not _UNIT_AFTER.match(match.string, match.end()) and not _in_formula_bracket(match)):
+        return group + match.group(2)
+    return match.group(0)
+
+
+def join_spaced_formulas(text: str) -> str:
+    """"The Na 3 PSe 4 phase" -> "The Na3PSe4 phase", "a LiNbO 3 coating" -> "a LiNbO3 coating"
+    (see _SPACED_FORMULA, _SPACED_SINGLE)."""
+    if not text or " " not in text:
+        return text
+    return _SPACED_SINGLE.sub(_join_single, _SPACED_FORMULA.sub(_join_formula, text))
+
+
+# Some publishers' symbol fonts (Wiley-VCH, 1990s–2010s) come out of the PDF as other letters: the
+# times sign as "Õ", the minus as "¢", Ω as "W". "2.9Õ10¢9 W¢1cm¢1" is 2.9 × 10−9 Ω−1 cm−1. Only these
+# places are mended: between a number and its power of ten, and in an exponent of a unit.
+_SYMBOL_TIMES = re.compile(r'(?<=\d)\s?Õ\s?(?=10[¢−-]?\d)')
+_SYMBOL_MINUS = re.compile(r'(?:(?<=\b10)|(?<=[A-Za-zΩ]))¢(?=[1-9](?!\d))')
+_SYMBOL_OHM = re.compile(r'\bW(?=−1\s?(?:cm|m)\b)')
+# A conductivity in inverse ohms is one in siemens: "Ω−1 cm−1", "(Ω cm)−1", "ohm-1 cm-1", "mho/cm" → "S cm−1".
+_INVERSE_OHM = re.compile(
+    r'(?:(?:Ω|ohm)\s?[−-]\s?1\s?(?:·\s?)?(c?m)\s?[−-]\s?1'
+    r'|\(\s?(?:Ω|ohm)\s?(?:·\s?)?(c?m)\s?\)\s?[−-]\s?1'
+    r'|\bmhos?\s?(?:/\s?(c?m)\b|(c?m)\s?[−-]\s?1))')
+
+
+def _siemens(match: "re.Match") -> str:
+    length = next(g for g in match.groups() if g)
+    return f"S {length}−1"
+
+
+def mend_units(text: str) -> str:
+    """The symbol-font letters of a value put back (_SYMBOL_TIMES …), and inverse ohms written as siemens."""
+    if "Õ" in text or "¢" in text:
+        text = _SYMBOL_OHM.sub("Ω", _SYMBOL_MINUS.sub("−", _SYMBOL_TIMES.sub(" × ", text)))
+    if "Ω" in text or "ohm" in text or "mho" in text:
+        text = _INVERSE_OHM.sub(_siemens, text)
+    return text
+
+
 def normalize_scientific_text(text: str) -> str:
     """NFKC-normalizes text while preserving Greek letters, sub/superscripts, and symbols, and
-    restores a minus sign the PDF's font lost (see _LOST_MINUS) or hid (_OVERLINE) and a
-    multiplication sign it misprinted (_LOST_TIMES)."""
+    restores a minus sign the PDF's font lost (see _LOST_MINUS) or hid (_OVERLINE), a
+    multiplication sign it misprinted (_LOST_TIMES) and the formulas whose subscripts it set apart
+    (_SPACED_FORMULA)."""
     if not text:
         return text
     text = _LOST_MINUS.sub(_UNICODE_MINUS, unicodedata.normalize("NFKC", text))
     text = _OVERLINE.sub("-", _SOFT_HYPHEN_AT_BREAK.sub("-", text)).replace(_SOFT_HYPHEN, "")
-    return _LOST_TIMES.sub(" × ", text)
+    return join_spaced_formulas(mend_units(_LOST_TIMES.sub(" × ", text)))
 
 
 # A word a line break split in two, as the parser's joined lines show it: "activa- tion",
@@ -132,20 +226,30 @@ def _readings(raw: str) -> List[float]:
 
 
 # ---------------------------------------------------------------------------
-# Unit engine (schema section 14). Built once at import time and shared
-# read-only across threads.
+# Unit engine (schema section 14). Built once, on first use (it takes ~0.4 s: not when a window
+# opens), and shared read-only across threads.
 # ---------------------------------------------------------------------------
-_ureg = pint.UnitRegistry(autoconvert_offset_to_baseunit=True)
-# pint's default registry already ships 'rydberg'/'Ry', 'hartree', 'Ah' and 'Wh' — only the
-# common short alias 'Ha' for hartree is missing, so that's the only addition needed.
-_ureg.define('@alias hartree = Ha')
-Q_ = _ureg.Quantity
+_REGISTRY = None
+_REGISTRY_LOCK = threading.Lock()
+
+
+def _units() -> "pint.UnitRegistry":
+    global _REGISTRY
+    with _REGISTRY_LOCK:
+        if _REGISTRY is None:
+            registry = pint.UnitRegistry(autoconvert_offset_to_baseunit=True)
+            # pint's default registry already ships 'rydberg'/'Ry', 'hartree', 'Ah' and 'Wh' — only the
+            # common short alias 'Ha' for hartree is missing, so that's the only addition needed.
+            registry.define('@alias hartree = Ha')
+            _REGISTRY = registry
+    return _REGISTRY
 
 # Exact captured-unit-text -> pint-parseable unit string. Kept as an explicit lookup (rather
 # than generic regex munging) since every possible unit token is enumerated in config.py's
 # SCHEMA patterns and controlled by this same codebase.
 UNIT_ALIASES = {
     'S/cm': 'S/cm', 'mS/cm': 'mS/cm', 'μS/cm': 'microsiemens/cm', 'uS/cm': 'microsiemens/cm',
+    'S/m': 'S/m', 'mS/m': 'mS/m', 'μS/m': 'microsiemens/m', 'uS/m': 'microsiemens/m', 'µS/m': 'microsiemens/m',
     'cm2/s': 'cm**2/s', 'cm^2/s': 'cm**2/s', 'cm2/?s': 'cm**2/s', 'm2/s': 'm**2/s', 'm^2/s': 'm**2/s',
     'eV': 'eV', 'meV': 'meV', 'eV/atom': 'eV', 'meV/atom': 'meV', 'eV/f.u.': 'eV',
     'Ry': 'Ry', 'Ha': 'Ha', 'kJ/mol': 'kJ/mol', 'kcal/mol': 'kcal/mol',
@@ -277,7 +381,7 @@ class DataNormalizer:
 
         target = CANONICAL_UNITS[norm_type]
         try:
-            qty = Q_(num, pint_unit)
+            qty = _units().Quantity(num, pint_unit)
         except Exception:
             return "NONE"
 
@@ -287,7 +391,7 @@ class DataNormalizer:
             except pint.errors.DimensionalityError:
                 # A molar energy ("31.2 kJ/mol") is the same quantity per mole of particles: one
                 # activation energy column needs it in eV like every other.
-                converted = (qty / _ureg.avogadro_constant).to(target)
+                converted = (qty / _units().avogadro_constant).to(target)
             out_val, out_unit = converted.magnitude, target
             lo, hi = BOUNDS[norm_type]
             if not (lo <= out_val <= hi):

@@ -397,7 +397,9 @@ class ContextTests(unittest.TestCase):
 
     def test_every_value_says_where_each_answer_comes_from(self):
         value = self.one("Li6PS5Cl has an activation energy of 0.30 eV.")
-        self.assertEqual(sorted(value.basis), ["component", "origin", "pressure", "structure", "temperature"])
+        self.assertEqual(sorted(value.basis), ["component", "ion", "origin", "pressure", "structure", "temperature"])
+        self.assertEqual(value.mobile_ion, "Li+")
+        self.assertTrue(value.basis["ion"].startswith("assumed (the only conducting-ion element of Li6PS5Cl"))
         self.assertEqual(value.structure, "argyrodite")
         self.assertEqual(value.basis["structure"], "known for this composition")
         self.assertEqual((value.pressure, value.basis["pressure"]), ("ambient pressure", "assumed (no pressure is stated)"))
@@ -616,8 +618,9 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(list(properties.columns[at + 1:at + 3]), ["extracted_from", "page"])
         self.assertFalse(energies.isin(["NONE", "", "unspecified", "n/a"]).any().any(), energies.to_dict("records"))
         # How many of a row's answers are defaults is a column of its own.
-        self.assertTrue(energies.n_assumed.astype(int).between(0, 5).all())
-        self.assertEqual(int(energies.n_assumed[energies.material_formula == "Li6PS5Cl"].iloc[0]), 4)
+        self.assertTrue(energies.n_assumed.astype(int).between(0, 6).all())
+        # structure, temperature, pressure, component and the ion (from the composition) are defaults here
+        self.assertEqual(int(energies.n_assumed[energies.material_formula == "Li6PS5Cl"].iloc[0]), 5)
 
     def test_adding_papers_keeps_what_is_already_there_as_written(self):
         first = self.paper("Li6PS5Cl has an electronic conductivity of 4 × 10−9 S/cm.")

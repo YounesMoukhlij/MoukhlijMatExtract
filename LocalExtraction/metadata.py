@@ -32,6 +32,8 @@ from typing import Any, Dict, Optional, Tuple
 
 import requests
 
+from . import runcontrol
+
 OPENALEX = "https://api.openalex.org/works"
 CROSSREF = "https://api.crossref.org/works"
 CACHE_NAME = "metadata_cache.json"
@@ -70,6 +72,14 @@ def title_is_printed(title: str, first_page: str) -> bool:
     return match.size >= 0.85 * len(wanted)
 
 
+def _retry_after(answer: requests.Response) -> float:
+    """The Retry-After a service asked for, in seconds, at most a minute (0 when it gave none, or a date)."""
+    try:
+        return min(60.0, float(answer.headers.get("Retry-After", "") or 0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _get(url: str, params: Optional[Dict[str, str]] = None) -> Any:
     """The JSON answer of a service; {} for "not found"; None for another refusal; UNREACHABLE
     when the service could not be reached even after asking again."""
@@ -86,10 +96,11 @@ def _get(url: str, params: Optional[Dict[str, str]] = None) -> Any:
     answer = None
     for attempt in range(4):
         try:
-            answer = requests.get(url, params=params, headers=headers, timeout=_TIMEOUT)
+            with runcontrol.no_wait():  # a paper is read without its metadata rather than wait for the internet
+                answer = requests.get(url, params=params, headers=headers, timeout=_TIMEOUT)
         except requests.RequestException as error:
             if attempt < 2:
-                time.sleep(2.0 * (attempt + 1))  # a dropped connection: ask again
+                runcontrol.sleep(2.0 * (attempt + 1))  # a dropped connection: ask again (Pause holds it, Stop ends it)
                 continue
             with _outage_lock:
                 _outage["until"] = time.monotonic() + _PAUSE_AFTER_OUTAGE
@@ -101,7 +112,7 @@ def _get(url: str, params: Optional[Dict[str, str]] = None) -> Any:
         if answer.status_code not in (429, 500, 502, 503, 504):
             break
         # Too many requests at once (several PDFs are read in parallel), or a busy server: wait, ask again.
-        time.sleep(float(answer.headers.get("Retry-After", "") or 0) or 1.5 * (attempt + 1))
+        runcontrol.sleep(_retry_after(answer) or 1.5 * (attempt + 1))
     if answer is None or answer.status_code in (429, 500, 502, 503, 504):
         return UNREACHABLE
     if answer.status_code == 404:

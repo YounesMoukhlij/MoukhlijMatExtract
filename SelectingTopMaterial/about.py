@@ -3,10 +3,10 @@
 
 from pathlib import Path
 
-from LocalExtraction.about import PROJECT_HOME
+from LocalExtraction.about import PROJECT_HOME, version
 
 NAME = "SelectingTopMaterial"
-VERSION = "1.0.0"
+VERSION = version() or "dev"  # the version of MoukhlijMatExtract it is part of
 
 PACKAGE_DIR = Path(__file__).resolve().parent     # where the code and its data (criteria.toml) live
 # The databases and the results live in ~/MoukhlijMatExtract — not where the package is installed,

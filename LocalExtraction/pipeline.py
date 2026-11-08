@@ -8,16 +8,18 @@ import re
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Set
 from urllib.parse import unquote, urlsplit
 
 import pandas as pd
 
-from . import metadata
+from . import metadata, runcontrol
 from .exporter import CATEGORY_FIELDS, StrictExporter, read_table
 from .extractor import ExtractorEngine
 from .models import ExtractedField, PaperData
 from .parser import DocumentParser
+from .provenance import Run
 from .ranking import Ranker
 
 # Papers are saved to the database in batches of this many, so a crash or a Ctrl-C part-way through
@@ -25,6 +27,15 @@ from .ranking import Ranker
 BATCH_SIZE = 50
 _META_KEYS = ("title", "authors", "journal", "doi", "publication_year")
 _MISSING = (None, "", "NONE")
+# A file named after its DOI, as the web part saves them: 10.1002_aenm.201570133.pdf
+_DOI_NAME = re.compile(r"^(10\.\d{4,9})_(\S+)$")
+
+
+def doi_of_name(filepath: str) -> str:
+    """The DOI a file name gives ("10.1002_inf2.12487.pdf" → "10.1002/inf2.12487"), or "". Only a
+    candidate: it is kept when the work it names has its title printed on the first page."""
+    found = _DOI_NAME.match(os.path.splitext(os.path.basename(filepath))[0])
+    return f"{found.group(1)}/{found.group(2)}" if found else ""
 
 
 def file_sha256(path: str) -> str:
@@ -284,8 +295,12 @@ class NaLiXPipeline:
         if self.lookup and not complete:
             found = self.cache.get(digest) if self.cache is not None else None
             if found is None:
-                found, unreachable = metadata.find(raw_meta.get("doi", ""), raw_meta.get("title", ""), first_page,
+                doi = raw_meta.get("doi", "")
+                named = doi_of_name(filepath) if doi in _MISSING else ""
+                found, unreachable = metadata.find(named or doi, raw_meta.get("title", ""), first_page,
                                                    trusted_doi=from_source and bool(extra.get("doi")))
+                if found and named and found.get("doi", "").casefold() == named.casefold():
+                    found["basis"] += " — the DOI its file name gives"
                 if found and self.cache is not None:
                     self.cache.put(digest, found)
         if found:
@@ -335,6 +350,11 @@ class NaLiXPipeline:
         `batch_size`: papers are saved to the database every this many, not only at the end.
         """
         # 1. What the database holds, and what is left to extract (a rebuild under way included)
+        run = Run("extraction", Path(self.output_dir), with_model=True, settings={
+            "input": os.path.abspath(self.input_dir), "output": os.path.abspath(self.output_dir),
+            "workers": max_workers, "origin": self.origin, "metadata_lookup": self.lookup,
+            "properties": sorted(self.properties) if self.properties else "all",
+            "require_material": self.require_material})
         known = self.known_papers()
         rebuilt_from = StrictExporter.pending_rebuilds(self.output_dir)
         work = self.plan(known, rebuilt_from)
@@ -373,11 +393,21 @@ class NaLiXPipeline:
         # across these worker threads — see the module-level notes in extractor.py/normalizer.py).
         # Submitted (rather than mapped) so a stop request can cancel PDFs that haven't started yet.
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(self.process_document, w.filename, w.path): w for w in new_pdfs}
+            # Each PDF waits for its turn while the step is paused (Pause in the window)
+            futures = {executor.submit(runcontrol.task(stop_event, self.process_document, w.filename, w.path)): w
+                       for w in new_pdfs}
             for future in concurrent.futures.as_completed(futures):
                 item = futures[future]
                 filename = item.filename
-                r = future.result()
+                try:
+                    r = future.result()
+                except runcontrol.StepStopped:  # stopped in the middle of this PDF: read again next run
+                    for pending_future in futures:
+                        pending_future.cancel()
+                    logging.info(f"Stop requested — the PDFs being read were left off (read again next run); "
+                                 f"{added + len(pending)}/{len(new_pdfs)} finished.")
+                    stopped = True
+                    break
                 if r:
                     r.paper_id = self._identity(item, r) if item.namesakes else item.paper_id
                     if item.namesakes and r.paper_id != item.paper_id:
@@ -410,6 +440,11 @@ class NaLiXPipeline:
         if added:
             exporter.export_excel()
             logging.info(f"Successfully added {added} new papers to the database.")
+        try:  # what this run did, with what — appended to <output>/run_manifest.json
+            run.finish({"pdfs_new": len(new_pdfs), "already_extracted": self.skipped, "papers_added": added},
+                       status="stopped" if stopped else "finished")
+        except OSError as error:
+            logging.warning(f"The run could not be recorded in {self.output_dir}: {error}")
         return added
 
     def _bring_back(self, archives: List[str], excel: bool = True) -> int:

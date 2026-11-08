@@ -25,6 +25,7 @@ from .models import NOT_REPORTED, DatabaseReport, Measurement
 # hold the same paper: the local articles, then the ones fetched from the web.
 KNOWN_DATABASES = ("LocalExtraction/local_output", "WebScraping/web_output")
 TABLE, PAPERS, UNASSIGNED = "activation_energy.csv", "papers.csv", "unassigned_values.csv"
+PENDING = "rebuild_pending.json"  # left by an extraction while it rebuilds the database, removed at its end
 
 _FORMULA_COLUMNS = ("material_formula", "normalized_formula", "formula", "material")
 _ENERGY_COLUMNS = ("activation_energy_eV", "activation_energy", "Ea_eV", "Ea")
@@ -113,7 +114,9 @@ def _load_database(path: Path, root: Path | None,
     try:
         rows = _read(table)
     except FileNotFoundError:
-        return [], replace(report, problem=f"no {TABLE} in it — run the extraction first"), set()
+        why = "its rebuild is not finished — run that part again" if (folder / PENDING).exists() else \
+            f"no {TABLE} in it — run the extraction first"
+        return [], replace(report, problem=why), set()
     except (OSError, UnicodeDecodeError, csv.Error) as error:
         return [], replace(report, problem=f"{table.name} cannot be read ({error})"), set()
 
@@ -148,7 +151,7 @@ def _load_database(path: Path, root: Path | None,
     return found, replace(
         report, rows=len(rows), values=len(found), papers=len({v.paper_key for v in found}),
         already_read=already_read, repeated=repeated, unreadable=unreadable,
-        unassigned=_unassigned(folder, papers, claimed)), covered
+        unassigned=_unassigned(folder, papers, claimed), partial=(folder / PENDING).exists()), covered
 
 
 def _measurement(row: dict[str, str], papers: dict[str, dict[str, str]], database: str) -> Measurement | None:
@@ -178,7 +181,8 @@ def _measurement(row: dict[str, str], papers: dict[str, dict[str, str]], databas
         year=about.get("year") or NOT_REPORTED, database=database,
         extracted_from=_cell(row, "extracted_from", "source_type") or NOT_REPORTED,
         page=_cell(row, "page") or NOT_REPORTED, source=_cell(row, "source") or NOT_REPORTED,
-        section=_cell(row, "section") or NOT_REPORTED, sentence=_cell(row, "sentence") or NOT_REPORTED)
+        section=_cell(row, "section") or NOT_REPORTED, sentence=_cell(row, "sentence") or NOT_REPORTED,
+        mobile_ion=_cell(row, "mobile_ion") or "Li+", plausibility=_cell(row, "plausibility") or "in range")
 
 
 def _papers(folder: Path) -> dict[str, dict[str, str]]:
@@ -272,6 +276,8 @@ def describe(report: DatabaseReport) -> str:
         parts.append(f"{_count(report.repeated, 'repeated value')} counted once")
     if report.unreadable:
         parts.append(f"{_count(report.unreadable, 'row')} without a material or a usable energy")
+    if report.partial:
+        parts.append("only partly rebuilt (a run was stopped): run that part again to rank all its papers")
     return " · ".join(parts)
 
 

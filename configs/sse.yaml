@@ -279,12 +279,22 @@ search:
   years: [2014, 2026]
 
   sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
-            scopus, ads, ieee, wos]
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
 
   max_per_query: 200
   include_preprints: true
 
-  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee]
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # The DOI list Fetch DOIs (mme-dois) collects: every DOI in it is taken in by the search and checked
+  # like the papers the keywords found (OpenAlex record, abstract, topic score). Empty: not used.
+  doi_list: WebScraping/Fetch_DOIs/dois.csv
+
+  # true: mme-web (the terminal) first runs Fetch DOIs — the keywords asked of OpenAlex, Crossref,
+  # Semantic Scholar and arXiv for DOIs, saved in doi_list — then searches by keyword and checks both.
+  # In the window, Fetch DOIs is its own button ("1 · Fetch DOIs"); "2 · Search" uses the DOIs saved.
+  collect_dois: true
 
 screen:
   topic_words:
@@ -599,8 +609,8 @@ screen:
 
 fetch:
   folder: WebScraping/papers
-  sources: [ elsevier, wiley, aps, openalex, unpaywall, arxiv, pmc, osti, hal, semanticscholar, ads, openaire, core,
-            crossref]
+  sources: [ elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
   workers: 3
   max_pdf_mb: 60
 

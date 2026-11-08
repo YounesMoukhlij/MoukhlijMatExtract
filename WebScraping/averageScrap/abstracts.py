@@ -12,6 +12,8 @@
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
+
+from LocalExtraction import runcontrol
 from typing import Dict, List, Optional, Tuple
 
 import requests
@@ -27,18 +29,34 @@ _REFUSED = {
 }
 
 
+ASKED_OPENALEX = "openalex"  # in abstract_asked: OpenAlex was asked for this paper's record
+_OPENALEX_BATCH = 50
+
+
 def complete_from_openalex(ledger: Ledger, client: PoliteClient, contact: str = "") -> int:
     """OpenAlex's record merged into every new paper another source found. Returns how many it knew."""
-    todo = [c.doi for c in ledger.all(NEW) if c.doi and not c.openalex_id]
+    waiting = {c.doi: c for c in ledger.all(NEW) if c.doi and not c.openalex_id and ASKED_OPENALEX not in c.abstract_asked}
+    todo = list(waiting)
     if not todo:
         return 0
     known = 0
+    openalex = OpenAlex(client, contact)
     try:
-        for record in OpenAlex(client, contact).lookup_many(todo):
-            ledger.add(record)
-            known += 1
+        for start in range(0, len(todo), _OPENALEX_BATCH):
+            batch = todo[start:start + _OPENALEX_BATCH]
+            for record in openalex.lookup_many(batch):
+                ledger.add(record)
+                known += 1
+            # Asked: a DOI OpenAlex does not know is not asked again by every search.
+            for doi in batch:
+                paper = ledger.get(waiting[doi].key)
+                if paper is not None and ASKED_OPENALEX not in paper.abstract_asked:
+                    ledger.update(paper.key, abstract_asked=[*paper.abstract_asked, ASKED_OPENALEX])
+            if start and start % (_OPENALEX_BATCH * 40) == 0:
+                logging.info(f"OpenAlex: {start:,} of {len(todo):,} new papers looked up …")
     except (HttpError, requests.RequestException, ValueError) as error:
-        logging.warning(f"OpenAlex: the lookup of the papers other sources found stopped early: {error}")
+        logging.warning(f"OpenAlex: the lookup of the new papers stopped early ({error}); the rest are looked up "
+                        "by the next search.")
     logging.info(f"OpenAlex knew {known} of the {len(todo)} new paper(s) other sources found.")
     return known
 
@@ -130,8 +148,9 @@ def fill(ledger: Ledger, finder: AbstractFinder, workers: int = 4) -> int:
         with lock:
             found += bool(text)
 
+    control = runcontrol.current()  # the step these lookups are for: they pause and stop with it
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        for done, _ in enumerate(pool.map(one, todo), 1):
+        for done, _ in enumerate(pool.map(lambda c: runcontrol.task(control, one, c)(), todo), 1):
             if done % 50 == 0 or done == len(todo):
                 logging.info(f"Abstracts: {done}/{len(todo)} asked, {found} found")
     return found

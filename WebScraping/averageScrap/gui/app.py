@@ -25,13 +25,19 @@ class App(Window):
                          size="1280x860", minsize=(860, 600))
 
     def header_buttons(self, bar: ttk.Frame) -> None:
+        from LocalExtraction.gui.csv_browser import results_buttons
         ttk.Button(bar, text="API keys…", command=self._settings).pack(side="right")
+        results_buttons(bar, "2 · Web scraping", lambda: self.panel.output.get(), extra=lambda: self.panel.results_extra())
 
     def build_panel(self, parent: tk.Misc) -> ttk.Frame:
         return WebPanel(parent, self, self._job_path, self._output_dir)
 
     def _settings(self) -> None:
         SettingsDialog(self.root, on_saved=self.panel.settings_changed)
+
+    def open_keys(self) -> None:
+        """The "API keys…" window (the contact e-mail is its first card)."""
+        self._settings()
 
 
 def main(job_path: Optional[str] = None, output_dir: str = DEFAULT_OUTPUT, workers: int = 4) -> None:

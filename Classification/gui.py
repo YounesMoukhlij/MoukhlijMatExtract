@@ -31,12 +31,12 @@ from LocalExtraction.gui.result_card import FAILED, NOTHING, Outcome, ResultCard
 from LocalExtraction.exporter import article_title
 from LocalExtraction.gui.widgets import FolderRow, Table, WrapLabel, _sort_key, open_path
 
-from LocalExtraction.about import command_name
+from LocalExtraction.about import command_name, enter_project_home
 
 from .about import CRYSTAL_STRUCTURE, DEFAULT_OUT, DEFAULT_SOURCES, NAME, PROJECT_ROOT
 from .classify import COMPONENT_WORDS, COMPONENTS, NO_FAMILY
 from .database import (AXES, Classified, Source, class_groups, class_kind, classify, component_stats,
-                       conductivities_of, energies_of, material_rows, read, write)
+                       conductivities_of, energies_of, material_rows, partly_rebuilt, read, write)
 
 TITLE = f"MoukhlijMatExtract (MME) · {NAME}"
 ORIGINS = {"measured and computed": "", "measured only": "experiment", "computed only": "simul"}
@@ -180,6 +180,8 @@ class App:
     def __init__(self, root: tk.Tk, sources: Sequence[Path] | None = None, out_dir: Path = DEFAULT_OUT,
                  write_files: bool = True, start: bool = True):
         self.root = root
+        from LocalExtraction.gui import theme
+        theme.apply(root)  # buttons that light up under the mouse and show the step that runs
         root.title(TITLE)
         root.geometry("1320x860")
         root.minsize(980, 640)
@@ -212,7 +214,8 @@ class App:
         ttk.Button(line, text="Add a database…", command=self._pick_source).pack(side="left", padx=8)
         self.classify_button = ttk.Button(line, text="Classify", command=self.classify)
         self.classify_button.pack(side="right")
-        ttk.Button(line, text="Open the class folders", command=self._open_folder).pack(side="right", padx=6)
+        from LocalExtraction.gui.csv_browser import results_buttons
+        results_buttons(line, "4 · Classification", lambda: str(_folder(self.out.get())))
         self.delete_button = delete_outputs_button(line, "classify", after=self._outputs_deleted)
         self.delete_button.pack(side="right")
         outputs.register("classify", self.busy, "a classification is running")
@@ -367,6 +370,8 @@ class App:
             return
         out_dir = _folder(self.out.get()) if self.write_files.get() else None
         self._busy = True
+        from LocalExtraction.gui import theme
+        theme.mark(self.classify_button)  # stays blue while it runs
         self.classify_button.configure(state="disabled")
         self.delete_button.configure(state="disabled")
         self.status.configure(text="Classifying the materials of " + ", ".join(_shown(f) for f in folders) + " …")
@@ -389,6 +394,8 @@ class App:
             self.root.after(100, self._poll)
             return
         self._busy = False
+        from LocalExtraction.gui import theme
+        theme.unmark(self.classify_button)
         self.classify_button.configure(state="normal")
         self.delete_button.configure(state="normal")
         if result.error:
@@ -488,7 +495,9 @@ class App:
             + (f", other {len(energies) - sum(int(parts.get(c, 0)) for c in COMPONENTS)}"
                if len(energies) > sum(int(parts.get(c, 0)) for c in COMPONENTS) else "")
             + f"; the paper itself states the component of {stated} of them (the extraction assumed the others, "
-              f"saying why in its basis)." + written))
+              f"saying why in its basis)." + written
+            + "".join(f" Warning: {s.name} is only partly rebuilt (a run was stopped): run that part again to "
+                      "classify all its papers." for s in self.result.sources if partly_rebuilt(s.path))))
 
     def _branches(self, axis: str, column: str, groups: dict[str, list[str]], energies: pd.DataFrame,
                   stats: pd.DataFrame) -> list[tuple]:
@@ -630,6 +639,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         help="Folder the class folders are written into (default: Classification/)")
     parser.add_argument("--no-write", action="store_true", help="Only show the classes; write no file")
     args = parser.parse_args(argv)
+    enter_project_home("classify")  # after the options are read: --help makes no folder
     root = tk.Tk()
     App(root, [_folder(s) for s in args.source] if args.source else None, _folder(args.out), not args.no_write)
     root.mainloop()

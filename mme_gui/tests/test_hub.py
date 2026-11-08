@@ -1,6 +1,6 @@
 # mme_gui/tests/test_hub.py
 """The hub window: the Requirements button is red until the guide is opened, then green (and that is
-remembered on disk), and the guide holds the manual and the requirements (Chrome, Tesseract, …).
+remembered on disk), and the guide holds the manual and the requirements (Tesseract, the language model, …).
 
 The window tests need a screen; without one they are skipped."""
 
@@ -37,11 +37,11 @@ class MarkerTests(unittest.TestCase):
 
 class ManualTests(unittest.TestCase):
     def test_the_manual_names_what_the_program_needs(self):
-        for needed in ("Tesseract", "Google Chrome", "spacy download en_core_web_sm", "API keys",
+        for needed in ("Tesseract", "spacy download en_core_web_sm", "API keys",
                        "Local extraction", "Web scraping", "Ranking", "Classification"):
             self.assertIn(needed, hub.MANUAL, needed)
         # … and the features a newcomer would not find alone.
-        for needed in ("Search settings", "Fetched DOIs", "main results folder", "results card", "Delete outputs",
+        for needed in ("Search settings", "Pause", "main results folder", "results card", "Delete outputs",
                        "skipped"):
             self.assertIn(needed, hub.MANUAL, needed)
 
@@ -91,7 +91,7 @@ class WindowTests(unittest.TestCase):
         self.assertTrue(texts)
         shown = texts[0].get("1.0", "end")
         self.assertIn("Tesseract", shown)
-        self.assertIn("Chrome", shown)
+        self.assertIn("spacy download", shown)
         window.destroy()
 
 

@@ -6,19 +6,22 @@ supplement, a cover sheet or another article). A refusal (401/403) or a robots.t
 means "next option" — nothing here tries to get around one."""
 
 import hashlib
+import json
 import logging
 import os
 import re
 import threading
+import time
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from urllib.parse import urljoin
 
-import pymupdf
 import requests
+
+from LocalExtraction import runcontrol
 
 from WebScraping.averageScrap.http import Disallowed, PoliteClient
 from WebScraping.averageScrap.ids import file_stem
@@ -34,7 +37,21 @@ _STOPWORDS = {"with", "from", "that", "this", "using", "based", "into", "their",
               "under", "over", "between", "after", "within", "study", "analysis", "approach", "new"}
 # A publisher's API that answers "too many requests" has used up an allowance that will not come
 # back in a few seconds: the source is switched off for the rest of the run.
+DOWNLOAD_SECONDS = 300  # a PDF not in whole after this long is given up (a site sending a byte at a time)
+# A try that failed for now, not for good: too many requests, a busy server, no answer, a crawl.
+_NOT_NOW = re.compile(r'HTTP (?:408|425|429|5\d\d)\b|network error|too slow')
+# What a sidecar says of a copy whose source is not known: no legal source is on record for it.
+UNRECORDED_SOURCES = {"", "already in the folder", "a file of this computer"}
 _ALLOWANCE = {"elsevier": "its weekly quota is used up", "wiley": "it allows no more requests for now"}
+# Publisher APIs that answer a request the subscription does not cover with the article's first page only.
+_FIRST_PAGE_WHEN_NOT_ENTITLED = {"elsevier"}
+# What a publisher's refusal (403) means, said where the paper's failure is shown.
+NOT_ENTITLED_MARK = "not entitled"
+_NOT_ENTITLED = {
+    "elsevier": f"{NOT_ENTITLED_MARK}: closed Elsevier papers download only on your university's network (campus or "
+                "VPN) or with ELSEVIER_INSTTOKEN, and only if the university subscribes to the journal",
+    "wiley": f"{NOT_ENTITLED_MARK}: closed Wiley papers download only on your university's network (campus or VPN), "
+             "and only if the university subscribes to the journal"}
 
 
 @dataclass
@@ -65,6 +82,7 @@ def check_pdf(data: bytes, title: str = "") -> PdfCheck:
     if b"%PDF-" not in data[:1024]:
         return PdfCheck(False, "not a PDF (a web page, most likely)")
     try:
+        import pymupdf  # loaded with the first PDF to check, not when the web window opens
         document = pymupdf.open(stream=data, filetype="pdf")
     except Exception as error:
         return PdfCheck(False, f"the PDF cannot be opened ({type(error).__name__})")
@@ -112,6 +130,9 @@ class Outcome:
     pages: int = 0
     title_match: float = 1.0
     error: str = ""
+    # The services and sites that refused (too many requests, busy, no answer) while this paper was
+    # looked for: it was not really checked, and the watcher checks it again later.
+    refused: List[str] = field(default_factory=list)
 
 
 class Downloader:
@@ -130,13 +151,31 @@ class Downloader:
     # ------------------------------------------------------------------
     # One option
     # ------------------------------------------------------------------
-    def _read(self, response: requests.Response) -> Optional[bytes]:
+    def _read(self, response: requests.Response) -> Tuple[Optional[bytes], str]:
+        """The body of a download, or (None, why not). It is read as it comes — whatever has arrived,
+        not a full block — so that a site sending a few bytes at a time cannot hold the step: Pause and
+        Stop are answered between two pieces, and a download has DOWNLOAD_SECONDS at most."""
         data = bytearray()
-        for chunk in response.iter_content(65536):
+        started = time.monotonic()
+        raw = getattr(response, "raw", None)
+        if hasattr(raw, "read1"):
+            read = lambda: raw.read1(65536, decode_content=True)  # noqa: E731
+        else:  # an older urllib3, or an answer without a connection behind it: block by block
+            pieces = response.iter_content(65536)
+            read = lambda: next(pieces, b"")  # noqa: E731
+        while True:
+            runcontrol.check()  # Pause holds a download here; Stop ends it
+            try:
+                chunk = read()
+            except Exception as error:  # urllib3's own errors, as requests would have raised them
+                raise requests.ConnectionError(error) from error
+            if not chunk:
+                return bytes(data), ""
             data.extend(chunk)
             if len(data) > self.max_bytes:
-                return None
-        return bytes(data)
+                return None, f"larger than {self.max_bytes // (1024 * 1024)} MB"
+            if time.monotonic() - started > DOWNLOAD_SECONDS:
+                return None, f"too slow: not in whole after {DOWNLOAD_SECONDS // 60} minutes"
 
     def _attempt(self, option: FetchOption) -> Tuple[Optional[bytes], str]:
         """The bytes an option gives, or (None, why not)."""
@@ -153,12 +192,17 @@ class Downloader:
                 self._disable(option.service, _ALLOWANCE[option.service])
             if option.service == "elsevier" and status == 401:
                 self._disable("elsevier", "the API key was refused (is ELSEVIER_API_KEY right?)")
+            if status == 403 and option.service in _NOT_ENTITLED:
+                return None, f"HTTP 403 ({_NOT_ENTITLED[option.service]})"
             if status != 200:
                 return None, f"HTTP {status}"
             kind = (response.headers.get("Content-Type") or "").lower()
-            body = self._read(response)
+            try:
+                body, why = self._read(response)
+            except requests.RequestException as error:  # the connection dropped during the download
+                return None, f"network error ({type(error).__name__})"
             if body is None:
-                return None, f"larger than {self.max_bytes // (1024 * 1024)} MB"
+                return None, why
             if "xml" in kind or "json" in kind:
                 return None, (f"answered with {kind.split(';')[0]}, not a PDF (a reader for it is not built yet)"
                               if option.service == "elsevier" else f"answered with {kind.split(';')[0]}, not a PDF")
@@ -179,9 +223,8 @@ class Downloader:
     # One paper
     # ------------------------------------------------------------------
     def _on_disk(self, candidate: Candidate) -> Optional[str]:
-        """The PDF of this paper already in the folder — saved by an earlier run, or by the other
-        scraping method (moukhlij4scraping names a file after its DOI, "/" made "_"). None if there
-        is none."""
+        """The PDF of this paper already in the folder — saved by an earlier run, or put there under
+        its DOI ("/" made "_", as earlier versions named them). None if there is none."""
         names = [f"{file_stem(candidate.key)}.pdf"]
         if candidate.doi:
             names.append(f"{candidate.doi.replace('/', '_')}.pdf")
@@ -191,9 +234,21 @@ class Downloader:
                 return path
         return None
 
+    @staticmethod
+    def _legal_record(path: str) -> bool:
+        """Whether a PDF in the folder came with the record of the legal source it was downloaded from
+        (its sidecar names one). A PDF without one — put there by hand, or by an earlier tool — is not
+        taken as fetched: a legal copy is looked for, and replaces it when one is found."""
+        try:
+            with open(sidecar_path(path), encoding="utf-8") as f:
+                service = str(json.load(f).get("source_service") or "").strip()
+        except (OSError, ValueError, AttributeError):
+            return False
+        return service not in UNRECORDED_SOURCES
+
     def fetch(self, candidate: Candidate) -> Outcome:
         existing = self._on_disk(candidate)
-        if existing:
+        if existing and self._legal_record(existing):
             with open(existing, "rb") as f:
                 data = f.read()
             check = check_pdf(data, candidate.title)
@@ -212,10 +267,19 @@ class Downloader:
                 tried.append(f"{option.service}: {reason}")
                 continue
             check = check_pdf(data, candidate.title)
+            if check.ok and option.service in _FIRST_PAGE_WHEN_NOT_ENTITLED and check.pages == 1:
+                # What a publisher's API sends a reader its subscription does not cover: the first page.
+                check = PdfCheck(False, f"only the first page ({NOT_ENTITLED_MARK}: the university's network or "
+                                        "ELSEVIER_INSTTOKEN is needed, and a subscription to the journal)", 1)
             if not check.ok:
                 tried.append(f"{option.service}: {check.reason}")
                 continue
             return self._save(candidate, option, data, check)
+        refused = list(dict.fromkeys([*self.resolver.refused(),
+                                      *(t.split(":", 1)[0] for t in tried if _NOT_NOW.search(t))]))
+        if refused:  # not an answer: a lookup or a site said "not now"
+            return Outcome(candidate.key, FAILED, error="; ".join(tried)[:500] or "not checked: " + ", ".join(refused),
+                           refused=refused)
         if not offered:
             return Outcome(candidate.key, CLOSED, error="no legal copy found: needs a manual PDF")
         return Outcome(candidate.key, FAILED, error="; ".join(tried)[:500])

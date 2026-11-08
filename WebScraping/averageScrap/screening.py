@@ -12,7 +12,7 @@ from WebScraping.averageScrap.elsevier import Elsevier
 from WebScraping.averageScrap.ids import normalize_title
 from WebScraping.averageScrap.wiley import Wiley
 from WebScraping.averageScrap.job import ScreenConfig
-from WebScraping.averageScrap.ledger import APPROVED, DOWNLOADED, EXTRACTED, NEW, NO, REJECTED, SCREENED, YES, Candidate, Ledger
+from WebScraping.averageScrap.ledger import DOI_LIST, APPROVED, DOWNLOADED, EXTRACTED, NEW, NO, REJECTED, SCREENED, YES, Candidate, Ledger
 
 _TITLE_POINTS, _ABSTRACT_POINTS, _EXCLUDE_POINTS = 2, 1, -3
 _OPEN = {"gold", "green", "hybrid", "bronze", "diamond"}
@@ -44,7 +44,7 @@ def _hits(candidate: Candidate, words: List[Tuple[str, re.Pattern]]) -> Tuple[in
 def access_of(candidate: Candidate, elsevier_ok: bool, wiley_ok: bool = False) -> str:
     """How a copy is expected to be had: from an open source, through its publisher's API, or — as
     far as the search knows — not at all (a repository may still hold one: see `propose_closed`)."""
-    if candidate.oa_urls or candidate.arxiv_id or candidate.oa_status in _OPEN:
+    if candidate.oa_urls or candidate.copy_pages or candidate.arxiv_id or candidate.oa_status in _OPEN:
         return "open"
     if elsevier_ok and Elsevier.applies(candidate):
         return "elsevier"
@@ -98,7 +98,10 @@ def screen(ledger: Ledger, cfg: ScreenConfig, elsevier_ok: bool = False, approve
     prop = [(w, _pattern(w)) for w in cfg.property_words]
     exclude = [(w, _pattern(w)) for w in cfg.exclude_words]
 
+    scored = 0
     for candidate in ledger.all(NEW):
+        if candidate.found_by == [DOI_LIST] and not candidate.openalex_id and "openalex" not in candidate.abstract_asked:
+            continue  # a DOI and a title only: scored once its OpenAlex record was looked up (next search)
         topic_points, topic_found = _hits(candidate, topic)
         prop_points, prop_found = _hits(candidate, prop)
         _, exclude_found = _hits(candidate, exclude)
@@ -114,7 +117,8 @@ def screen(ledger: Ledger, cfg: ScreenConfig, elsevier_ok: bool = False, approve
             f"excluded: {', '.join(exclude_found)}" if exclude_found else "") if part)
         ledger.update(candidate.key, score=float(score), why=why or "no topic or property word found",
                       flags=flags, access=access, decision=YES if passes else NO, status=SCREENED)
-    duplicates = _mark_duplicates(ledger)
+        scored += 1
+    duplicates = _mark_duplicates(ledger) if scored else 0  # nothing new: no new duplicate either
     if duplicates:
         logging.info(f"Screening: {duplicates} duplicate(s) of another candidate declined.")
 

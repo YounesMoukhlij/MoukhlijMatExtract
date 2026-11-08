@@ -439,8 +439,10 @@ class Abbreviations:
             # unless what is glued on only says how it was made ("BM-LYC").
             if (re.search(r'[\w-]$', before) and not _POLYMORPH_PREFIX.search(before)) or _SAMPLE_SUFFIX.match(text, m.end()):
                 continue
-            found.append({**self.definitions[m.group()], "raw": m.group(), "is_known_alias": True,
-                          "start": m.start(), "end": m.end()})
+            definition = self.definitions[m.group()]
+            found.append({**definition, "raw": m.group(), "is_known_alias": True, "start": m.start(), "end": m.end(),
+                          # the series a label names ("LLBZT" for Li6.5+xLa3-xBaxZr1.5Ta0.5O12), as written
+                          **({"written": definition["raw"]} if "representative" in definition else {})})
         return found
 
 
@@ -632,7 +634,7 @@ class ChemistryEngine:
         variables; None when they do not fix its composition."""
         if "representative" not in mention:
             return None
-        resolved = ChemistryEngine._resolve_token(mention["raw"], values)
+        resolved = ChemistryEngine._resolve_token(mention.get("written", mention["raw"]), values)
         if not resolved or "representative" in resolved or not resolved["elements"]:
             return None
         del resolved["matched"]
@@ -715,6 +717,14 @@ class ChemistryEngine:
 
         # 4. The paper's own names for formulas.
         named = abbreviations.mentions(text) if abbreviations else []
+        # "LLBZT with x = 0.1": the label of a series, at the value its sentence fixes, is that member.
+        for k, mention in enumerate(named):
+            if values and mention.get("written"):
+                member = ChemistryEngine._resolve_token(mention["written"], values)
+                if member and "representative" not in member and member["elements"]:
+                    member.pop("matched", None)
+                    named[k] = {**member, "raw": mention["raw"], "series": mention["formula"], "is_known_alias": True,
+                                "start": mention["start"], "end": mention["end"]}
         if named:
             results = [r for r in results
                        if not any(n["start"] < r["end"] and r["start"] < n["end"] for n in named)] + named

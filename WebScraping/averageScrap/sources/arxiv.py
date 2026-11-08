@@ -1,6 +1,12 @@
 # WebScraping/sources/arxiv.py
 """arXiv: the preprints. Its API is free and open (one request every three seconds); every paper on
-arXiv can be read, so nothing found here is ever "closed"."""
+arXiv can be read, so nothing found here is ever "closed".
+
+arXiv's search answers "too many requests" (HTTP 429) when one network address asks too much — a
+connection many people share runs into it. The search then goes on through OpenAlex's copy of the
+arXiv catalogue (every arXiv paper, with its arXiv link) for the rest of the run, instead of stopping:
+the same papers, found by OpenAlex's search engine rather than arXiv's, without arXiv's subject
+categories (the screening words keep the papers on topic). arXiv's own search is used again next run."""
 
 import logging
 import re
@@ -12,6 +18,7 @@ from WebScraping.averageScrap.ids import arxiv_id, candidate_key, normalize_doi
 from WebScraping.averageScrap.ledger import Candidate
 
 API = "https://export.arxiv.org/api/query"
+ARXIV_IN_OPENALEX = "S4306400194"  # arXiv's id among OpenAlex's sources
 _ATOM, _ARXIV = "{http://www.w3.org/2005/Atom}", "{http://arxiv.org/schemas/atom}"
 _TERM = re.compile(r'"([^"]+)"|(\S+)')
 
@@ -55,12 +62,15 @@ def parse_feed(xml_text: str, found_by: str) -> List[Candidate]:
 class ArXiv:
     name, label = "arxiv", "arXiv"
 
-    def __init__(self, client: PoliteClient, categories: Optional[List[str]] = None):
+    def __init__(self, client: PoliteClient, categories: Optional[List[str]] = None, contact: str = ""):
         self.client = client
         self.categories = categories or []
+        self.contact = contact
+        self.limited = False  # arXiv said "too many requests": OpenAlex's copy is searched for the rest of the run
 
     def _fetch(self, params: dict) -> str:
-        response = self.client.get(API, params=params)
+        # A 429 comes straight back (no pauses): the search switches to OpenAlex's copy instead of insisting.
+        response = self.client.get(API, params=params, no_retry={429})
         if response.status_code != 200:
             raise HttpError(API, response.status_code, response.text[:200].replace("\n", " "))
         return response.text
@@ -72,6 +82,21 @@ class ArXiv:
                include_preprints: bool = True) -> Iterator[Candidate]:
         """The preprints matching a query. (Everything on arXiv is a preprint, or the arXiv copy of a
         paper: `include_preprints` does not apply.)"""
+        if not self.limited:
+            try:
+                yield from self._search_arxiv(query, years, limit)
+                return
+            except HttpError as error:
+                if error.status != 429:
+                    raise
+                self.limited = True
+                logging.warning("arXiv: its search answers \"too many requests\" (HTTP 429) to this network. For the "
+                                "rest of this run, arXiv's papers are found through OpenAlex's copy of the arXiv "
+                                "catalogue (the same papers, each with its arXiv PDF); arXiv's own search is used "
+                                "again next run.")
+        yield from self._search_openalex(query, years, limit)
+
+    def _search_arxiv(self, query: str, years: Optional[Tuple[int, int]], limit: int) -> Iterator[Candidate]:
         search_query = build_query(query, self.categories, years)
         start = 0
         while start < limit:
@@ -81,6 +106,16 @@ class ArXiv:
             if len(page) < min(100, limit - start):
                 return
             start += len(page)
+
+    def _search_openalex(self, query: str, years: Optional[Tuple[int, int]], limit: int) -> Iterator[Candidate]:
+        """The arXiv papers matching the query, from OpenAlex's copy of arXiv's catalogue."""
+        from WebScraping.averageScrap.sources.openalex import OpenAlex
+        for candidate in OpenAlex(self.client, self.contact).search(query, years, limit, within=ARXIV_IN_OPENALEX):
+            if candidate.arxiv_id:
+                if f"https://arxiv.org/pdf/{candidate.arxiv_id}" not in candidate.oa_urls:
+                    candidate.oa_urls = [*candidate.oa_urls, f"https://arxiv.org/pdf/{candidate.arxiv_id}"]
+                candidate.found_by = [f"arxiv: {query} (through OpenAlex)"]
+                yield candidate
 
     def lookup(self, identifier: str) -> Optional[Candidate]:
         try:

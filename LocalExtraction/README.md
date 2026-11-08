@@ -57,8 +57,10 @@ tables — see [Adding papers to a database](#adding-papers-to-a-database). Pape
 database every 50 papers rather than only at the end, so a crash or a Ctrl-C in a long run loses at
 most one batch; the Excel workbook is built once, at the end, from the CSVs.
 (Only the top level of `LocalExtraction/papers/` is read: PDFs fetched by the web project live in `WebScraping/papers/`.)
-A database written by an earlier version of the program is rebuilt by itself: its files are moved
-to `<output>/previous_<date>/` and the PDFs are read again.
+When the folder already holds data and there are new PDFs to read, the window asks what becomes of
+it — **Add the new articles to it**, or **Start a new database** (the present files are moved to
+`<output>/previous_<date>/`, nothing deleted, and every PDF is read again). See
+[A database made by an earlier version](#a-database-made-by-an-earlier-version).
 
 ## Adding papers to a database
 
@@ -195,7 +197,7 @@ Each project fills its own folder — `LocalExtraction/local_output/` for the ar
 | `relations.csv` | Every material ↔ value link, with the method that made it |
 | `tables.csv` | The tables of the papers (caption, headers, rows, the column of material names). What PDF extraction took for a table but is none — figure text, a reference list, an empty grid — is left out; a table printed without a caption is named from its headers (`caption_basis` says so) |
 | `figures.csv` | Figure captions and the materials, properties, tables, equations and methods they name |
-| `equations.csv` | The equations, with their type (Arrhenius, Nernst-Einstein, MSD/Diffusion, Einstein relation, NEB, Butler-Volmer, Fick's law, Vegard's law, a chemical reaction, a linear fit or another expression), variables and context sentence. A value written with an "=" (`x = 0`, `Ea = 0.3 eV`) and a substitution note (`M = Dy, Ho, Y`) are not equations and are left out |
+| `equations.csv` | The equations, with their type (Arrhenius, Nernst-Einstein, MSD/Diffusion, Einstein relation, NEB, Butler-Volmer, Fick's law, Vegard's law, a chemical reaction, a linear fit or another expression), variables and context sentence. `equation_basis` says whether the equation is `written in the paper` or — for a sentence that only names the law ("the Arrhenius plots show …") — its standard form, the sentence being kept in `context_sentence`. A value written with an "=" (`x = 0`, `Ea = 0.3 eV`) and a substitution note (`M = Dy, Ho, Y`) are not equations and are left out |
 | `workflow.csv` | Ordered experimental/computational workflow steps per paper |
 | `summary.csv` | One line per paper: its title and year, its materials, how many values of each transport quantity it gave and the lowest activation energy / highest conductivities (`highlights`) |
 | `database.xlsx` | All of the above as sheets in one workbook |
@@ -267,8 +269,10 @@ matching sheets and JSON records) describe each value with the same columns.
 | `pressure` | In GPa (`0.005 GPa` for a 5 MPa stack pressure) or `ambient pressure`. Only a pressure of the measurement counts — a bare "10 GPa" is usually a modulus, and "cold-pressed at 300 MPa" is how the pellet was made |
 | `data_origin` | `experimental` or `simulation` (DFT, AIMD/MD, NEB, ML predictions, …) |
 | `transport_component` | In the tables of the four transport quantities: `bulk`, `grain_boundary`, `surface` or `total`. "The total and bulk conductivities are 0.4 and 2.5 mS/cm" gives each value its own, in that order |
+| `mobile_ion` | In the tables of the four transport quantities: the species that moves — `Li+`, `Na+`, `K+`, `Ag+`, `Cu+`, `Mg2+`, `Zn2+`, `Ca2+`, `Al3+`, `H+`, `O2-`, `F-`, `electron`, or another element the sentence says moves (`Co` of a cathode's cross-diffusion). Read off the value's sentence ("Co diffusion", "electron transfer", "Na+ migration"), else from the material's composition and the ion the paper is about — `basis` says which |
+| `plausibility` | `in range`, or `check: …` for a value outside the range known for ion conductors (0.05–1.5 eV; 1e-12–0.1 S/cm ionic, 1e-14–1e4 S/cm electronic; 1e-16–1e-3 cm²/s) or carried by electrons or another element than a conducting ion. The ranking leaves `check` values out unless asked (`mme-rank --include-flagged`) |
 | `attribution` | `this work` for a result of the paper itself, `cited` for one it quotes from another source ("Kamaya et al. reported …", "… 12 mS/cm [5]", every value of a review) |
-| `n_assumed` | How many of the answers (structure, temperature, pressure, origin and — for a transport quantity — component) are defaults rather than read from the paper: sort by it to see the best-documented rows first |
+| `n_assumed` | How many of the answers (structure, temperature, pressure, origin and — for a transport quantity — component and ion) are defaults rather than read from the paper: sort by it to see the best-documented rows first |
 | `basis` | Where each of those answers comes from — see next |
 
 ## Where each answer comes from: `basis`
@@ -404,12 +408,19 @@ set, are sent along.
 
 ## A database made by an earlier version
 
-The tables of this version have other columns than before (the tables of the transport
-quantities, the `metadata_basis` of the papers, `summary.csv` in place of the wide
-`database_summary.csv`, …). New papers cannot be added to an older database, so it is rebuilt by
-itself the next time the command runs: its files are moved to a `previous_<date>/` folder inside
-the results folder — nothing is deleted, nothing is downloaded again — and the PDFs are read again.
-To rebuild a database of this version (after the PDFs changed, say), add `--rebuild`:
+A new version may write columns an earlier one did not (the moving ion and the plausibility of each
+value, the version that read each paper, the standard form of each equation). Such a database can
+take new articles in two ways — the window asks; the command asks too when run in a terminal (a
+script keeps the data and adds to it):
+
+| Choice | What happens |
+|---|---|
+| **Add the new articles to it** | its tables are brought up to date in place: the columns it lacks are worked out for its rows from the rows themselves (the moving ion and the plausibility from each value's sentence, material and number, as for a new value; `extracted_with` says an earlier version read the paper) — nothing is extracted again — then the new PDFs are added. A copy of the files as they were is kept in `previous_<date>/`. |
+| **Start a new database** (`--rebuild`) | the present files are moved to `previous_<date>/` — nothing is deleted, nothing downloaded again — and every PDF is read again by this version; articles whose PDF is no longer there are carried over as they were. |
+
+A database too different to be brought up to date (a table missing altogether, or columns of a much
+older layout) can only be started anew. To read every PDF again with this version — after an
+update, for values the new version reads better — choose the new database, or:
 
 ```bash
 python -m LocalExtraction --rebuild                    # your own PDFs

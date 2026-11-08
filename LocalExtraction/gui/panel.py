@@ -11,25 +11,36 @@ from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING, List, Optional
 
 from .. import outputs
-from ..cli import run_extraction
+from .. import runcontrol
+from ..runcontrol import RunControl
 from ..models import PaperData
 from .delete_outputs import delete_outputs_button
 from .outcomes import extraction_outcome, snapshot
 from .result_card import ResultCard
 from .results import EnergiesView, pending_pdfs
 from .summary import final_summary, summarize_paper
-from .widgets import LogPane, Stopped, WrapLabel, open_path
+from . import theme
+from .widgets import LogPane, Pausable, Stopped, WrapLabel, open_path
+
+
+def run_extraction(*args, **kwargs) -> int:
+    """LocalExtraction.cli.run_extraction, imported on the run's own thread: the PDF reader and the language
+    model take seconds to load, and the window must open (and stay responsive) at once."""
+    from ..cli import run_extraction as run
+    return run(*args, **kwargs)
+
 
 if TYPE_CHECKING:
     from .window import Window
 
 
-class LocalPanel(ttk.LabelFrame):
+class LocalPanel(Pausable, ttk.LabelFrame):
     def __init__(self, parent: tk.Misc, app: "Window", input_dir: str, output_dir: str):
         super().__init__(parent, text=" Local articles — the PDFs on this computer ", padding=10)
         self.app = app
-        self.stop_event = threading.Event()
+        self.stop_event = RunControl()  # Stop, and Pause / Resume
         self._thread: Optional[threading.Thread] = None
+        self._working = False  # the extraction is under way (set when it starts, cleared by it when it ends)
         self._papers: List[PaperData] = []
         self._done = self._total = 0
 
@@ -51,6 +62,7 @@ class LocalPanel(ttk.LabelFrame):
         self.start_button.pack(side="left")
         self.stop_button = ttk.Button(buttons, text="Stop", command=self.stop, state="disabled")
         self.stop_button.pack(side="left", padx=6)
+        self.pause_button(buttons).pack(side="left", padx=(0, 6))
         self.delete_button = delete_outputs_button(buttons, "local", after=self._outputs_deleted)
         self.delete_button.pack(side="left")
         outputs.register("local", self.running, "an extraction is running")
@@ -65,11 +77,13 @@ class LocalPanel(ttk.LabelFrame):
         self.book.pack(fill="both", expand=True)
         self.energies = EnergiesView(self.book, app, lambda: self.output_dir)
         self.book.add(self.energies, text="Activation energies")
-        self.activity = LogPane(self.book, height=14)
+        self.activity = LogPane(self.book, height=14, clearable=True, also_clear=lambda: self.app.log.clear())
         self.book.add(self.activity, text="Activity")
 
     def running(self) -> bool:
-        return self._thread is not None and self._thread.is_alive()
+        """Whether the extraction is under way — said by it when it ends (its thread is still alive for a
+        moment after it posted that it finished)."""
+        return self._working
 
     def show_results(self) -> None:
         self.energies.show()
@@ -84,12 +98,13 @@ class LocalPanel(ttk.LabelFrame):
         if not os.path.isdir(folder):
             messagebox.showerror("MoukhlijMatExtract", f"This folder does not exist:\n{folder}", parent=self)
             return
-        if not self.app.ready_to_extract(output):
+        if not self.app.ready_to_extract(output, new_pdfs=pending_pdfs(folder, output)):
             return
         self._total, self._done, self._papers = pending_pdfs(folder, output), 0, []
         self._failed, self._started, self._before = 0, time.time(), snapshot(output)
         self.card.hide()
         self.stop_event.clear()
+        theme.mark(self.start_button)  # the step that runs: its button stays blue
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
         self.delete_button.configure(state="disabled")
@@ -97,28 +112,34 @@ class LocalPanel(ttk.LabelFrame):
         self.status.set(f"Reading {self._total} new PDF(s) …" if self._total else "Nothing new in this folder.")
         self.activity.write(f"--- Extraction of {folder} into {output}: {self._total} new PDF(s)")
         self.book.select(self.activity)
+        self._working = True
         self._thread = threading.Thread(target=self._work, args=(folder, output, self.app.workers()), daemon=True)
         self._thread.start()
+        self.set_pause_button(True)
 
     def _work(self, folder: str, output: str, workers: int) -> None:
         """On its own thread: everything it wants shown goes through app.post."""
         try:
-            with self.app.writing("Local extraction", output, self.stop_event):
+            with self.app.writing("Local extraction", output, self.stop_event), runcontrol.bound(self.stop_event):
                 code = run_extraction(folder, output, max_workers=workers, stop_event=self.stop_event,
+                                      lookup=getattr(self.app, "lookup", True),
                                       progress_callback=lambda name, paper: self.app.post(self._paper_done, name, paper))
             self.app.post(self._summed_up, code)
         except Stopped:
             self.app.post(self.activity.write, "Stopped before it started.")
+        except runcontrol.StepStopped:
+            self.app.post(self.activity.write, "Stopped — what was finished is saved.")
         except Exception as error:  # the window must survive a failed run
             logging.getLogger(__name__).exception("The local extraction failed")
             self.app.post(self.activity.write, f"The extraction failed: {type(error).__name__}: {error}")
         finally:
+            self._working = False
             self.app.post(self._finished)
 
     def _paper_done(self, filename: str, paper: Optional[PaperData]) -> None:
         self._done += 1
         self.progress.configure(value=self._done)
-        self.status.set(f"{self._done} / {self._total} — {filename}")
+        self.show_status(f"{self._done} / {self._total} — {filename}")
         if paper is None:
             self._failed += 1
             self.activity.write(f"[FAILED] {filename}")
@@ -137,8 +158,10 @@ class LocalPanel(ttk.LabelFrame):
             self.app.database_changed()
 
     def _finished(self) -> None:
+        theme.unmark(self.start_button)
         self.start_button.configure(state="normal")
         self.stop_button.configure(state="disabled")
+        self.set_pause_button(False)
         self.delete_button.configure(state="normal")
         self.status.set("Stopped." if self.stop_event.is_set() else "Idle.")
         self.app.database_changed()
@@ -170,3 +193,4 @@ class LocalPanel(ttk.LabelFrame):
             self.stop_event.set()
             self.status.set("Stopping — the PDFs being read are finished first …")
             self.stop_button.configure(state="disabled")
+            self._pause.configure(text="Pause", state="disabled", style="TButton")

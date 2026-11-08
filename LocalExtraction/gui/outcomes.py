@@ -1,7 +1,7 @@
 # LocalExtraction/gui/outcomes.py
-"""What an extraction added to a database, as a result card — the same for the local PDFs, the
-web method 1 and the web method 2 (whose extraction runs as a command of its own). The database is
-looked at before the run (`snapshot`) and after it: what is new is what the run did."""
+"""What an extraction added to a database, as a result card — the same for the local PDFs and the
+papers from the web. The database is looked at before the run (`snapshot`) and after it: what is new
+is what the run did."""
 
 from __future__ import annotations
 

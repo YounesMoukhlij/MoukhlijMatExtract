@@ -5,7 +5,7 @@ WebScraping/gui/dialogs.py.)"""
 
 import tkinter as tk
 from tkinter import ttk
-from typing import Callable, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 
 class Dialog(tk.Toplevel):
@@ -45,3 +45,38 @@ class DetailsDialog(Dialog):
         ttk.Button(buttons, text="Close", command=self.destroy).pack(side="left", padx=4)
         self.body.rowconfigure(0, weight=1)
         self.body.columnconfigure(0, weight=1)
+
+
+def ask_choice(parent: tk.Misc, title: str, message: str,
+               choices: Sequence[Tuple[str, str, str]]) -> "Optional[str]":
+    """A question with one button per answer, a line beside each saying what it does, and Cancel.
+    `choices`: (key, button text, what it does). Returns the key chosen; None for Cancel, Escape or
+    the window closed. It waits for the answer (the main window stays drawn meanwhile)."""
+    dialog = Dialog(parent, title)
+    dialog.resizable(False, False)
+    chosen: list = [None]
+
+    def choose(key: str) -> None:
+        chosen[0] = key
+        dialog.destroy()
+
+    ttk.Label(dialog.body, text=message, wraplength=560, justify="left").pack(anchor="w", pady=(0, 12))
+    first = None
+    for key, label, detail in choices:
+        row = ttk.Frame(dialog.body)
+        row.pack(fill="x", pady=5)
+        button = ttk.Button(row, text=label, width=30, command=lambda k=key: choose(k))
+        button.pack(side="left", anchor="n")
+        first = first or button
+        ttk.Label(row, text=detail, wraplength=360, justify="left", foreground="#8c8c8c").pack(
+            side="left", padx=(12, 0), fill="x", expand=True)
+    ttk.Button(dialog.body, text="Cancel", command=dialog.destroy).pack(anchor="e", pady=(12, 0))
+    dialog.update_idletasks()
+    try:
+        dialog.grab_set()  # answered before anything else of the program
+    except tk.TclError:
+        pass
+    if first is not None:
+        first.focus_set()
+    dialog.wait_window()
+    return chosen[0]

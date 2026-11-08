@@ -5,21 +5,26 @@ threads to touch the widgets, one extraction at a time per folder of results, an
 database of an earlier version. The window of Project 1 (gui/app.py) and that of Project 2
 (WebScraping/gui/app.py) are this frame around their own panel."""
 
+import csv
 import logging
 import os
 import queue
 import threading
+import time
 import tkinter as tk
 from contextlib import contextmanager
 from tkinter import messagebox, ttk
-from typing import Any, Callable, Dict, Iterator
+from typing import Any, Callable, Dict, Iterator, Optional
 
+from .. import runcontrol
 from ..about import CREDIT_TEXT
-from ..exporter import StrictExporter
+from ..exporter import StrictExporter, UnreadableTable
+from . import dialogs, theme
 from .widgets import LogPane, Stopped
 
 _TICK_MS = 80          # how often the window looks at what the working threads sent it
 _EVENTS_PER_TICK = 300
+_DRAIN_SECONDS = 0.04  # the time the window gives to those messages at each tick
 
 
 class _ToWindow(logging.Handler):
@@ -53,6 +58,7 @@ class Window:
     def __init__(self, root: tk.Tk, title: str, subtitle: str, workers: int = 4,
                  size: str = "1100x820", minsize: tuple = (900, 620)):
         self.root = root
+        theme.apply(root)  # buttons that light up under the mouse and show the step that runs
         root.title(title)
         root.geometry(fit_to_screen(root, size))
         root.minsize(*fit_to_screen(root, minsize))
@@ -66,6 +72,10 @@ class Window:
         logging.getLogger().setLevel(logging.INFO)
         logging.getLogger().addHandler(handler)
         self._handler = handler
+
+        # The web requests that wait for the internet say so in the panel's status line.
+        self._connection = lambda online: self.post(self._connection_changed, online)
+        runcontrol.on_connection(self._connection)
 
         root.protocol("WM_DELETE_WINDOW", self.close)
         self._closing = False
@@ -125,7 +135,12 @@ class Window:
         self._events.put((function, arguments))
 
     def _drain(self) -> None:
-        for _ in range(_EVENTS_PER_TICK):
+        # As many as fit in _DRAIN_SECONDS (at least _EVENTS_PER_TICK): a step that sent thousands of
+        # messages is caught up with in moments, and the window still answers the mouse between ticks.
+        start = time.monotonic()
+        handled = 0
+        while handled < _EVENTS_PER_TICK or time.monotonic() - start < _DRAIN_SECONDS:
+            handled += 1
             try:
                 function, arguments = self._events.get_nowait()
             except queue.Empty:
@@ -157,27 +172,71 @@ class Window:
         finally:
             lock.release()
 
-    def ready_to_extract(self, folder: str) -> bool:
-        """Asked when an extraction is about to start: is there a folder for its results, and if it
-        holds a database of an earlier version, may it be rebuilt? (Its files are moved aside, not deleted.)"""
+    def ready_to_extract(self, folder: str, new_pdfs: Optional[int] = None) -> bool:
+        """Asked when an extraction is about to start: is there a folder for its results, and what becomes of
+        the data already in it — the new articles added to it, or a new database (the present one moved
+        into "previous_<date>", nothing deleted)? `new_pdfs`: how many PDFs are about to be read; given, the
+        question is asked whenever the folder holds data and there is something new to add; None, only
+        when that data was written by an earlier version (the web part: its database grows run by run)."""
         if not folder:
             messagebox.showerror("MoukhlijMatExtract", "Choose a folder for the results first.", parent=self.root)
             return False
-        if not StrictExporter.is_outdated(folder):
+        articles = self._articles_in(folder)
+        if not articles:
+            return True
+        outdated = StrictExporter.is_outdated(folder)
+        if not outdated and not new_pdfs:
             return True
         if self._lock(folder).locked():
             messagebox.showinfo("MoukhlijMatExtract", "An extraction is writing this folder: try again when it has finished.",
                                 parent=self.root)
             return False
-        if not messagebox.askyesno(
-                "MoukhlijMatExtract",
-                f"The database in “{folder}” was written by an earlier version: its tables have other columns, so "
-                "new articles cannot be added to it.\n\nRebuild it now? Its files are moved to a "
-                "“previous_<date>” folder inside it — nothing is deleted — and its articles are extracted again "
-                "(those whose PDF is no longer there are carried over as they were).",
-                parent=self.root):
-            return False
-        return self._archive(folder)
+        can_add = not outdated or StrictExporter.can_upgrade(folder)
+        about = (f"“{folder}” already holds the data of {articles:,} article{'s' if articles != 1 else ''}"
+                 + (", written by an earlier version of the program" if outdated else "") + "."
+                 + (f" {new_pdfs:,} new PDF{'s are' if new_pdfs != 1 else ' is'} about to be extracted." if new_pdfs else "")
+                 + "\n\nWhat should happen to the data already there?")
+        add = ("add", "Add the new articles to it",
+               "Keep it as it is and add the new articles to it."
+               + (" Its tables are brought up to date first — the columns this version added (moving ion, "
+                  "plausibility, …) are worked out for its rows, nothing is extracted again — and a copy of them "
+                  "as they were is kept in “previous_<date>”." if outdated else ""))
+        fresh = ("new", "Start a new database",
+                 "Move it into a “previous_<date>” folder inside — nothing is deleted — and build a new database: "
+                 "every PDF is extracted again by this version (articles whose PDF is no longer there are carried "
+                 "over as they were).")
+        if not can_add:
+            about += ("\n\nIts tables are too different from this version's for new articles to be added to "
+                      "them: only a new database is possible.")
+        answer = dialogs.ask_choice(self.root, "There is already data here", about,
+                                    [add, fresh] if can_add else [fresh])
+        if answer == "new":
+            return self._archive(folder)
+        if answer == "add":
+            if not outdated:
+                return True
+            try:
+                kept = StrictExporter.upgrade(folder)
+            except (OSError, ValueError, UnreadableTable) as error:
+                messagebox.showerror("MoukhlijMatExtract", f"The database could not be brought up to date:\n{error}\n\n"
+                                     "Choose “Start a new database” instead.", parent=self.root)
+                return False
+            logging.info(f"The database was brought up to date; its files as they were are in {kept}.")
+            self.database_changed()
+            return True
+        return False
+
+    @staticmethod
+    def _articles_in(folder: str) -> int:
+        """How many articles the database of a folder holds (0 when there is none)."""
+        path = os.path.join(folder, "papers.csv")
+        if not os.path.exists(path) or os.path.getsize(path) == 0:
+            return 0
+        try:
+            with open(path, encoding="utf-8-sig", newline="") as f:
+                return max(0, sum(1 for _ in csv.reader(f)) - 1)
+        except (OSError, csv.Error, UnicodeDecodeError):
+            return 1  # there is something: the question is asked
 
     def rebuild(self, folder: str) -> None:
         """Moves the database of a folder aside so that its articles are extracted again."""
@@ -211,7 +270,13 @@ class Window:
         """Lets the panel show what its folder holds now."""
         self.panel.show_results()
 
+    def _connection_changed(self, online: bool) -> None:
+        changed = getattr(self.panel, "connection_changed", None)
+        if changed is not None:
+            changed(online)
+
     def close(self) -> None:
+        runcontrol.off_connection(self._connection)
         self.panel.stop()
         self.panel.close()
         logging.getLogger().removeHandler(self._handler)
