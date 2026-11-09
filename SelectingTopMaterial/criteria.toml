@@ -1,0 +1,37 @@
+# criteria.toml
+# The classes a material is sorted into by its activation energy (Ea, in eV), best first.
+# A material belongs to the first class whose `below` its Ea is strictly under; a material that
+# is under none of them is rejected. Change the numbers here, not in the code — or keep this file
+# and point the program at another one:  python -m SelectingTopMaterial --criteria my_criteria.toml
+#
+# Decimals are written with a point (0.25), as in the database.
+
+[[class]]
+name = "Superionic"
+below = 0.25
+
+[[class]]
+name = "Performant"
+below = 0.30
+
+[[class]]
+name = "Acceptable"
+below = 0.40
+
+[rejected]
+name = "Rejected"
+
+[material]
+# A material often has several activation energies (several papers, phases, methods). Which one
+# stands for it:
+#   consensus     the confidence-weighted median of its values — one outlier does not decide
+#   optimistic    its lowest reported value
+#   conservative  its highest reported value
+policy = "consensus"
+
+[checks]
+# A material whose Ea lies this close to a limit (eV) is marked "borderline": the usual
+# uncertainty of a fitted activation energy is of that order.
+borderline_margin = 0.01
+# A material whose values have a mean extraction confidence below this is marked "low confidence".
+low_confidence = 0.5

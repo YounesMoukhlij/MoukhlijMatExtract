@@ -1,0 +1,495 @@
+<!doctype html>
+<!-- SelectingTopMaterial/report_template.html
+     The page of the ranking. html_report.py writes the data into the selection-data block below; the
+     page needs nothing else — no network, no library — and can be sent to someone as one file. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Top materials by activation energy</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --page: #f9f9f7; --surface: #fcfcfb; --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11, 11, 11, .10); --wash: rgba(11, 11, 11, .045);
+    --rejected: #898781; --focus: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #0d0d0d; --surface: #1a1a19; --text: #ffffff; --text-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, .10); --wash: rgba(255, 255, 255, .07);
+      --focus: #3987e5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 28px 16px 48px; }
+  h1 { font-size: 24px; line-height: 1.2; margin: 0 0 6px; font-weight: 650; }
+  h2 { font-size: 15px; margin: 0; font-weight: 650; }
+  p { margin: 0; }
+  .lede { color: var(--text-2); max-width: 78ch; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 22px 0 18px; }
+  .tile { padding: 14px 16px; }
+  .tile-label { display: flex; align-items: center; gap: 8px; color: var(--text-2); font-weight: 600; }
+  .tile-value { font-size: 32px; line-height: 1.15; font-weight: 650; margin-top: 4px; }
+  .tile-value small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+  .tile-rule { color: var(--muted); font-size: 13px; }
+
+  .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; cursor: pointer;
+          border: 1px solid var(--border); background: transparent; color: var(--muted); font: inherit; }
+  .chip[aria-pressed="true"] { background: var(--surface); color: var(--text); border-color: var(--axis); }
+  .chip[aria-pressed="false"] .swatch { opacity: .35; }
+  .chip:hover { background: var(--wash); }
+  .search { flex: 1 1 200px; max-width: 320px; padding: 6px 11px; border-radius: 8px; border: 1px solid var(--axis);
+            background: var(--surface); color: var(--text); font: inherit; }
+  .shown { color: var(--muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+  button:focus-visible, input:focus-visible, .row:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  figure { margin: 0 0 18px; padding: 16px 16px 12px; }
+  .figure-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 18px; margin-bottom: 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--text-2); font-size: 13px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .chart { width: 100%; }
+  .chart svg { display: block; }
+  .chart text { font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--text-2); }
+  .chart .tick, .chart .zone, .chart .unit { fill: var(--muted); font-size: 11px; }
+  .chart .tick, .chart .value { font-variant-numeric: tabular-nums; }
+  .chart .value { fill: var(--text); }
+  .chart .grid { stroke: var(--grid); stroke-width: 1; }
+  .chart .limit { stroke: var(--axis); stroke-width: 1; }
+  .chart .range { stroke: var(--axis); stroke-width: 2; stroke-linecap: round; }
+  .chart .reported { fill: var(--surface); stroke: var(--text-2); stroke-width: 1.5; }
+  .chart .ring { stroke: var(--surface); stroke-width: 2; }
+  .chart .hit { fill: transparent; }
+  .chart .row { outline-offset: -2px; }
+  .chart .row:hover .hit, .chart .row:focus .hit { fill: var(--wash); }
+  .note { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .empty { color: var(--muted); padding: 28px 0; text-align: center; }
+
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { padding: 8px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--grid); }
+  thead th { white-space: nowrap; color: var(--text-2); font-weight: 600; border-bottom-color: var(--axis); padding: 0; }
+  thead button { all: unset; cursor: pointer; padding: 9px 12px; display: block; width: 100%; box-sizing: border-box; }
+  thead button:hover { color: var(--text); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  thead .num button { text-align: right; }
+  tbody tr.material:hover { background: var(--wash); }
+  .name { all: unset; cursor: pointer; font-weight: 600; display: inline-flex; gap: 6px; align-items: baseline; }
+  .name .caret { color: var(--muted); width: 10px; display: inline-block; }
+  .class-cell { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .soft { color: var(--text-2); }
+  tr.detail > td { background: var(--page); padding: 12px 12px 16px 34px; }
+  .values { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; max-width: 105ch; }
+  .values li { display: grid; gap: 3px; }
+  .value-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+  .value-head b { font-variant-numeric: tabular-nums; }
+  .value-source { color: var(--text-2); font-size: 13px; overflow-wrap: anywhere; }
+  .values blockquote { margin: 2px 0 0; padding-left: 10px; border-left: 2px solid var(--axis); color: var(--text-2); font-size: 13px; }
+  a { color: inherit; text-underline-offset: 2px; }
+
+  .about { margin-top: 18px; padding: 16px; }
+  .about dl { display: grid; grid-template-columns: minmax(130px, max-content) 1fr; gap: 6px 18px; margin: 10px 0 0; }
+  .about dt { color: var(--text-2); font-weight: 600; display: flex; align-items: center; gap: 7px; }
+  .about dd { margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
+
+  #tooltip { position: fixed; z-index: 10; pointer-events: none; max-width: 340px; padding: 10px 12px; border-radius: 8px;
+             background: var(--surface); border: 1px solid var(--axis); box-shadow: 0 6px 24px rgba(0, 0, 0, .16); font-size: 13px; }
+  #tooltip[hidden] { display: none; }
+  .tip-name { color: var(--text-2); }
+  .tip-value { font-size: 18px; font-weight: 650; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tip-value span { font-size: 13px; font-weight: 400; color: var(--text-2); display: inline-flex; align-items: center; gap: 6px; }
+  .tip-line { color: var(--text-2); margin-top: 2px; }
+  .tip-values { margin: 7px 0 0; padding: 7px 0 0; border-top: 1px solid var(--grid); list-style: none; }
+  .tip-values li { display: flex; gap: 8px; align-items: baseline; }
+  .tip-values b { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .tip-values span { color: var(--text-2); }
+
+  @media (max-width: 560px) { .about dl { grid-template-columns: 1fr; } .shown { margin-left: 0; width: 100%; } }
+  @media print { .filters, #tooltip { display: none; } body { background: #fff; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Top materials by activation energy</h1>
+  <p class="lede" id="lede"></p>
+
+  <h2 class="visually-hidden">Materials in each class</h2>
+  <section class="tiles" id="tiles"></section>
+
+  <div class="filters" role="group" aria-label="Which materials are shown">
+    <span id="chips" style="display: contents"></span>
+    <input class="search" id="search" type="search" placeholder="Search a material, a structure, a paper" aria-label="Search">
+    <span class="shown" id="shown" aria-live="polite"></span>
+  </div>
+
+  <figure class="card">
+    <div class="figure-head">
+      <h2>Activation energy of each material</h2>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="chart" id="chart"></div>
+    <p class="note" id="chart-note"></p>
+  </figure>
+
+  <section class="card">
+    <div class="table-wrap">
+      <table id="table">
+        <caption class="visually-hidden">The materials shown, with the values behind each</caption>
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card about">
+    <h2>How this ranking was made</h2>
+    <dl id="about"></dl>
+  </section>
+</main>
+<div id="tooltip" role="status" hidden></div>
+
+<script id="selection-data" type="application/json">__SELECTION_DATA__</script>
+<script>
+(() => {
+  'use strict';
+  const D = JSON.parse(document.getElementById('selection-data').textContent);
+  const classes = D.criteria.classes;
+  const classIndex = new Map(classes.map((c, i) => [c.name, i]));
+  const limits = classes.filter(c => c.below_eV != null).map(c => c.below_eV);
+  const $ = id => document.getElementById(id);
+  const fmt = v => Number(v).toFixed(3);
+  const count = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
+  const clip = (text, room) => text.length <= room ? text : text.slice(0, Math.max(room - 1, 1)) + '…';
+  const said = text => text !== 'not reported';  // what the database does not answer
+
+  // Everything that comes from the database is put in the page as text, never as markup.
+  function el(tag, attrs, ...children) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs || {})) {
+      if (key === 'class') node.className = value; else node.setAttribute(key, value);
+    }
+    node.append(...children);
+    return node;
+  }
+  function svg(tag, attrs, text) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [key, value] of Object.entries(attrs || {})) node.setAttribute(key, value);
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  const colourOf = name => `var(--class-${classIndex.get(name)})`;
+  const swatch = name => el('span', {class: 'swatch', style: `background: ${colourOf(name)}`, 'aria-hidden': 'true'});
+
+  // The classes are steps of one hue: the best one darkest on a light page, lightest on a dark one.
+  const dark = matchMedia('(prefers-color-scheme: dark)');
+  const paint = () => classes.forEach((c, i) =>
+    document.documentElement.style.setProperty(`--class-${i}`, dark.matches ? c.colour_dark : c.colour));
+  paint();
+  dark.addEventListener('change', paint);
+
+  const state = {
+    on: new Set(classes.filter(c => c.accepted).map(c => c.name)),  // the rejected class is one click away
+    query: '', sort: {key: 'rank', direction: 1}, open: new Set(),
+  };
+  if (!D.materials.some(m => m.accepted)) classes.forEach(c => state.on.add(c.name));
+
+  // ---- what stays as it is ---------------------------------------------------------------------
+  const S = D.summary;
+  $('lede').textContent =
+    `${count(S.materials, 'material')} ranked from ${count(S.values_used, 'activation energy', 'activation energies')} ` +
+    `of ${count(S.papers, 'paper')}. The Ea of a material is the ${D.criteria.policy_meaning} (${D.criteria.policy}). ` +
+    `Values taking part: ${D.filters.description}.`;
+
+  for (const c of classes) {
+    $('tiles').append(el('div', {class: 'card tile'},
+      el('div', {class: 'tile-label'}, swatch(c.name), c.name),
+      el('div', {class: 'tile-value'}, String(c.materials), el('small', null, c.materials === 1 ? 'material' : 'materials')),
+      el('div', {class: 'tile-rule'}, c.rule)));
+  }
+
+  for (const c of classes) {
+    const chip = el('button', {class: 'chip', type: 'button', 'aria-pressed': String(state.on.has(c.name))}, swatch(c.name), c.name);
+    chip.addEventListener('click', () => {
+      state.on.has(c.name) ? state.on.delete(c.name) : state.on.add(c.name);
+      chip.setAttribute('aria-pressed', String(state.on.has(c.name)));
+      render();
+    });
+    $('chips').append(chip);
+  }
+  $('search').addEventListener('input', event => { state.query = event.target.value; render(); });
+
+  const key = (shape, label) => {
+    const mark = svg('svg', {width: 22, height: 12, 'aria-hidden': 'true'});
+    mark.append(...shape);
+    return el('span', null, mark, label);
+  };
+  $('legend').append(
+    key([svg('rect', {x: 6.5, y: 1.5, width: 9, height: 9, transform: 'rotate(45 11 6)', fill: 'var(--class-0)'})],
+        'Ea of the material, in the colour of its class'),
+    key([svg('line', {x1: 2, y1: 6, x2: 20, y2: 6, class: 'range', style: 'stroke: var(--axis); stroke-width: 2'}),
+         svg('circle', {cx: 11, cy: 6, r: 4, style: 'fill: var(--surface); stroke: var(--text-2); stroke-width: 1.5'})],
+        'each reported value, and their range'));
+
+  for (const [what, answer] of D.about) {
+    const term = el('dt', null, what);
+    if (classIndex.has(what)) term.prepend(swatch(what));
+    $('about').append(term, el('dd', null, answer));
+  }
+
+  // ---- what follows the filters ----------------------------------------------------------------
+  function visible() {
+    const query = state.query.trim().toLowerCase();
+    return D.materials.filter(m => state.on.has(m.class) && (!query ||
+      [m.material, m.structure, m.class, m.papers.join(' '), m.values.map(v => v.title).join(' ')]
+        .join(' ').toLowerCase().includes(query)));
+  }
+
+  function render() {
+    const shown = visible();
+    $('shown').textContent = `${shown.length} of ${count(D.materials.length, 'material')} shown`;
+    drawChart(shown);
+    drawTable(shown);
+  }
+
+  // ---- the chart: one line per material, the limits of the classes across ----------------------
+  const MAX_ROWS = 30, ROW = 26, TOP = 46, BOTTOM = 34;
+  const tooltip = $('tooltip');
+
+  function drawChart(shown) {
+    const box = $('chart');
+    const rows = shown.slice().sort((a, b) => a.rank - b.rank).slice(0, MAX_ROWS);
+    box.replaceChildren();
+    if (!rows.length) {
+      box.append(el('p', {class: 'empty'}, 'No material matches what is asked for.'));
+      $('chart-note').textContent = '';
+      return;
+    }
+    const width = Math.max(box.clientWidth, 300);
+    const longest = Math.max(...rows.map(m => m.material.length));
+    const gutter = Math.round(Math.min(Math.max(longest * 7 + 18, 90), width * 0.36));
+    const right = 56;
+    const plot = width - gutter - right;
+    const height = TOP + rows.length * ROW + BOTTOM;
+    const bottom = height - BOTTOM;
+
+    // The axis ends at the highest value shown, but no further than well past the last limit: one
+    // barrier of several eV must not squeeze every material that matters against the left edge.
+    const lastLimit = limits[limits.length - 1];
+    const cap = Math.max(1, Math.ceil(lastLimit * 25) / 10);
+    const highest = Math.max(...rows.map(m => m.Ea_max_eV));
+    const xmax = Math.min(cap, Math.max(Math.ceil(highest * 10 - 1e-9) / 10, Math.ceil(lastLimit * 12.5 - 1e-9) / 10));
+    const x = value => gutter + Math.min(value, xmax) / xmax * plot;
+    const beyond = value => value > xmax + 1e-9;
+
+    const chart = svg('svg', {width, height, role: 'group',
+      'aria-label': 'Activation energy of each material against the limits of the classes. The table below gives the same values.'});
+
+    // The classes along the top, each over the energies it holds.
+    classes.forEach((c, i) => {
+      const from = x(c.from_eV), to = x(c.below_eV == null ? xmax : c.below_eV);
+      if (to - from < 3) return;
+      const band = svg('rect', {x: from + 1, y: 18, width: to - from - 2, height: 6, rx: 2, fill: `var(--class-${i})`});
+      band.append(svg('title', null, `${c.name}: ${c.rule}`));
+      chart.append(band);
+      if (c.name.length * 6.3 <= to - from - 8) {
+        chart.append(svg('text', {x: (from + to) / 2, y: 12, 'text-anchor': 'middle', class: 'zone'}, c.name));
+      }
+    });
+
+    const step = plot / (xmax / 0.1) < 38 ? (plot / (xmax / 0.2) < 38 ? 0.5 : 0.2) : 0.1;
+    for (let tick = 0; tick <= xmax + 1e-9; tick += step) {
+      chart.append(svg('line', {x1: x(tick), x2: x(tick), y1: TOP - 4, y2: bottom, class: 'grid'}));
+      chart.append(svg('text', {x: x(tick), y: bottom + 16, 'text-anchor': 'middle', class: 'tick'}, String(+tick.toFixed(2))));
+    }
+    let lastLabel = -Infinity;
+    for (const limit of limits) {
+      if (beyond(limit)) continue;
+      chart.append(svg('line', {x1: x(limit), x2: x(limit), y1: TOP - 4, y2: bottom, class: 'limit'}));
+      if (x(limit) - lastLabel >= 34) {
+        chart.append(svg('text', {x: x(limit), y: 38, 'text-anchor': 'middle', class: 'tick'}, limit.toFixed(2)));
+        lastLabel = x(limit);
+      }
+    }
+    chart.append(svg('text', {x: gutter + plot, y: height - 2, 'text-anchor': 'end', class: 'unit'}, 'activation energy (eV)'));
+
+    let offAxis = false;
+    rows.forEach((m, i) => {
+      const y = TOP + i * ROW + ROW / 2;
+      const row = svg('g', {class: 'row', tabindex: 0, role: 'img', 'aria-label': describe(m)});
+      row.append(svg('rect', {x: 0, y: y - ROW / 2, width, height: ROW, class: 'hit'}));
+      row.append(svg('text', {x: gutter - 12, y: y + 4, 'text-anchor': 'end'}, clip(m.material, Math.floor((gutter - 18) / 6.6))));
+      if (m.n_values > 1) {
+        row.append(svg('line', {x1: x(m.Ea_min_eV), x2: x(m.Ea_max_eV), y1: y, y2: y, class: 'range'}));
+        for (const value of new Set(m.values.map(v => v.activation_energy_eV))) {
+          if (beyond(value)) {
+            offAxis = true;
+            if (!beyond(m.activation_energy_eV)) {
+              row.append(svg('path', {d: `M${gutter + plot + 3} ${y - 4}l4 4l-4 4`, fill: 'none', stroke: 'var(--text-2)', 'stroke-width': 1.5}));
+            }
+          } else {
+            row.append(svg('circle', {cx: x(value), cy: y, r: 4, class: 'reported'}));
+          }
+        }
+      }
+      const at = x(m.activation_energy_eV);
+      if (beyond(m.activation_energy_eV)) {  // its own energy is past the axis: an arrow at the edge, the number beside it
+        offAxis = true;
+        row.append(svg('path', {d: `M${at - 5} ${y - 6}L${at + 5} ${y}L${at - 5} ${y + 6}Z`, fill: colourOf(m.class), class: 'ring'}));
+      } else {
+        row.append(svg('rect', {x: at - 5, y: y - 5, width: 10, height: 10, transform: `rotate(45 ${at} ${y})`,
+                                fill: colourOf(m.class), class: 'ring'}));
+      }
+      row.append(svg('text', {x: width - 2, y: y + 4, 'text-anchor': 'end', class: 'value'}, fmt(m.activation_energy_eV)));
+
+      row.addEventListener('pointermove', event => showTip(m, event.clientX + 14, event.clientY + 14));
+      row.addEventListener('pointerleave', hideTip);
+      row.addEventListener('focus', () => {
+        const place = row.getBoundingClientRect();
+        showTip(m, place.left + gutter, place.bottom + 4);
+      });
+      row.addEventListener('blur', hideTip);
+      chart.append(row);
+    });
+    box.append(chart);
+
+    const notes = [];
+    if (shown.length > rows.length) notes.push(`The first ${rows.length} of ${shown.length} materials are drawn; the table lists them all.`);
+    if (offAxis) notes.push(`Energies above ${xmax.toFixed(1)} eV are past the end of the axis: an arrow marks them at its edge.`);
+    $('chart-note').textContent = notes.join(' ');
+  }
+
+  function describe(m) {
+    const spread = m.n_values > 1 ? `, reported values from ${fmt(m.Ea_min_eV)} to ${fmt(m.Ea_max_eV)} eV` : '';
+    return `${m.material}: ${m.class}, ${fmt(m.activation_energy_eV)} eV${spread}, ${count(m.n_values, 'value')} in ${count(m.n_papers, 'paper')}`;
+  }
+
+  function showTip(m, left, top) {
+    const shownValues = m.values.slice(0, 6);
+    const list = el('ul', {class: 'tip-values'});
+    for (const v of shownValues) {
+      list.append(el('li', null, swatch(v.value_class), el('b', null, fmt(v.activation_energy_eV)),
+        el('span', null, [v.data_origin, v.transport_component, v.temperature].filter(said).join(' · ') || v.reported_as)));
+    }
+    if (m.values.length > shownValues.length) list.append(el('li', null, el('span', null, `and ${m.values.length - shownValues.length} more in the table`)));
+    tooltip.replaceChildren(
+      el('div', {class: 'tip-name'}, m.material),
+      el('div', {class: 'tip-value'}, `${fmt(m.activation_energy_eV)} eV`, el('span', null, swatch(m.class), m.class)),
+      el('div', {class: 'tip-line'}, `${count(m.n_values, 'value')} in ${count(m.n_papers, 'paper')}` +
+        (m.n_values > 1 ? `, from ${fmt(m.Ea_min_eV)} to ${fmt(m.Ea_max_eV)} eV` : '')),
+      ...(m.checks.length ? [el('div', {class: 'tip-line'}, `Check: ${m.checks.join(' · ')}`)] : []),
+      list);
+    tooltip.hidden = false;
+    const size = tooltip.getBoundingClientRect();
+    tooltip.style.left = `${Math.max(8, Math.min(left, innerWidth - size.width - 8))}px`;
+    tooltip.style.top = `${top + size.height > innerHeight - 8 ? Math.max(8, top - size.height - 28) : top}px`;
+  }
+  function hideTip() { tooltip.hidden = true; }
+
+  // ---- the table: the same materials, and under each the values it stands on --------------------
+  const columns = [
+    {key: 'rank', label: '#', number: true},
+    {key: 'material', label: 'Material', by: m => m.material.toLowerCase()},
+    {key: 'class', label: 'Class', by: m => classIndex.get(m.class)},
+    {key: 'activation_energy_eV', label: 'Ea (eV)', number: true, text: m => fmt(m.activation_energy_eV)},
+    {key: 'range', label: 'Range (eV)', number: true, by: m => m.Ea_max_eV - m.Ea_min_eV,
+     text: m => m.n_values > 1 ? `${fmt(m.Ea_min_eV)} – ${fmt(m.Ea_max_eV)}` : 'single value'},
+    {key: 'n_values', label: 'Values', number: true},
+    {key: 'n_papers', label: 'Papers', number: true},
+    {key: 'structure', label: 'Structure', soft: true},
+    {key: 'data_origin', label: 'Origin', soft: true},
+    {key: 'checks', label: 'Checks', soft: true, by: m => m.checks.length, text: m => m.checks.join(' · ') || 'ok'},
+  ];
+
+  function drawTable(shown) {
+    const table = $('table'), head = table.tHead, body = table.tBodies[0];
+    const column = columns.find(c => c.key === state.sort.key);
+    const by = column.by || (m => m[column.key]);
+    const rows = shown.slice().sort((a, b) => {
+      const left = by(a), right = by(b);
+      return (left < right ? -1 : left > right ? 1 : a.rank - b.rank) * state.sort.direction;
+    });
+
+    const headRow = el('tr');
+    for (const c of columns) {
+      const sorted = c.key === state.sort.key;
+      const button = el('button', {type: 'button'}, c.label + (sorted ? (state.sort.direction > 0 ? ' ↑' : ' ↓') : ''));
+      button.addEventListener('click', () => {
+        state.sort = {key: c.key, direction: sorted ? -state.sort.direction : 1};
+        drawTable(visible());
+      });
+      const cell = el('th', {scope: 'col', class: c.number ? 'num' : ''}, button);
+      if (sorted) cell.setAttribute('aria-sort', state.sort.direction > 0 ? 'ascending' : 'descending');
+      headRow.append(cell);
+    }
+    head.replaceChildren(headRow);
+
+    body.replaceChildren();
+    if (!rows.length) {
+      body.append(el('tr', null, el('td', {colspan: columns.length, class: 'empty'}, 'No material matches what is asked for.')));
+      return;
+    }
+    for (const m of rows) {
+      const open = state.open.has(m.rank);
+      const line = el('tr', {class: 'material'});
+      for (const c of columns) {
+        const text = c.text ? c.text(m) : String(m[c.key]);
+        const cell = el('td', {class: (c.number ? 'num ' : '') + (c.soft ? 'soft' : '')});
+        if (c.key === 'material') {
+          const toggle = el('button', {class: 'name', type: 'button', 'aria-expanded': String(open),
+            title: 'Show the values behind this material'}, el('span', {class: 'caret', 'aria-hidden': 'true'}, open ? '▾' : '▸'), text);
+          toggle.addEventListener('click', () => {
+            open ? state.open.delete(m.rank) : state.open.add(m.rank);
+            drawTable(visible());
+          });
+          cell.append(toggle);
+        } else if (c.key === 'class') {
+          cell.append(el('span', {class: 'class-cell'}, swatch(m.class), text));
+        } else {
+          cell.append(text);
+        }
+        line.append(cell);
+      }
+      body.append(line);
+      if (open) body.append(el('tr', {class: 'detail'}, el('td', {colspan: columns.length}, valuesOf(m))));
+    }
+  }
+
+  // Each value with what it holds for, where it was read, and the sentence it was read in.
+  function valuesOf(m) {
+    const list = el('ul', {class: 'values'});
+    for (const v of m.values) {
+      const facts = [v.reported_as, v.data_origin, v.transport_component, v.temperature, v.structure, v.attribution].filter(said);
+      facts.push(`confidence ${Number(v.confidence).toFixed(2)}`);
+      const source = el('div', {class: 'value-source'}, clip(v.title, 110));
+      if (/^10\.\d{4,9}\/\S+$/.test(v.doi)) {
+        source.append(' · ', el('a', {href: 'https://doi.org/' + encodeURI(v.doi), target: '_blank', rel: 'noopener noreferrer'}, v.doi));
+      }
+      source.append(` · ${said(v.source) ? v.source : v.extracted_from}${said(v.page) ? ', p. ' + v.page : ''}`);
+      list.append(el('li', null,
+        el('div', {class: 'value-head'}, el('b', null, `${fmt(v.activation_energy_eV)} eV`),
+           el('span', {class: 'class-cell'}, swatch(v.value_class), v.value_class), el('span', {class: 'soft'}, facts.join(' · '))),
+        source, el('blockquote', null, v.sentence)));
+    }
+    return list;
+  }
+
+  render();
+  // The chart is drawn for the width it has: drawn again when that width changes, and only then.
+  let drawnFor = $('chart').clientWidth, pending = 0;
+  new ResizeObserver(() => {
+    if ($('chart').clientWidth === drawnFor) return;
+    drawnFor = $('chart').clientWidth;
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => drawChart(visible()));
+  }).observe($('chart'));
+})();
+</script>
+</body>
+</html>

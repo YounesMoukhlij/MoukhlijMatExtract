@@ -1,0 +1,18 @@
+PyMuPDF>=1.28
+pdfplumber>=0.11
+pytesseract>=0.3.13
+pandas>=2.2
+openpyxl>=3.1
+spacy>=3.8
+preshed!=3.0.14   # spaCy dependency; 3.0.14 was yanked from PyPI (crashes on model load)
+pymatgen>=2024.1
+opencv-python-headless>=4.9
+Pillow
+numpy
+pint>=0.23
+requests>=2.31
+pyyaml>=6
+Send2Trash>=1.8   # "Delete outputs…" moves files to the Trash, not deleted for good
+
+# make test
+pytest
