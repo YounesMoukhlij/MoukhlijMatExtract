@@ -511,8 +511,8 @@ def save(rows, path, unlooked=()):
 
 
 def save_doi_list(rows, path):
-    """Write the bare DOIs, one per line (e.g. 10.1088/1361-6463/aad926), next to the CSV. This is
-    the file the moukhlij4scraping scraper reads (run.py -i dois.txt --txt); kept in step with the CSV."""
+    """Write the bare DOIs, one per line (e.g. 10.1088/1361-6463/aad926), next to the CSV; kept in
+    step with the CSV."""
     temporary = path.with_name(path.name + ".tmp")
     with temporary.open("w", encoding="utf-8") as file:
         for row in rows.values():

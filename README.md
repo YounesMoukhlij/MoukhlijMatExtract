@@ -488,6 +488,7 @@ by mistake. The commands run in the project's venv (`.venv/`) when it exists.
   (Zenodo gives it a DOI). The software itself is described for Zenodo in `.zenodo.json`.
 - **Only legally obtained papers are released.** A web paper is released when the record of the legal
   source it was downloaded from is kept with it; your own PDFs (part 1) are released as yours. A paper
+  the log of an earlier downloader records as coming from a shadow library (Sci-Hub, LibGen …), or a
   downloaded PDF with no record of its source, is left out — of the databases, and of the ranking and the
   classification, which are made again without it — and listed by DOI in `excluded.csv`. To replace such
   copies, run **3 · Download**: a PDF already in the folder without a legal record is no longer taken as

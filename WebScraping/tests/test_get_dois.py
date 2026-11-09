@@ -1,5 +1,5 @@
 # WebScraping/tests/test_get_dois.py
-"""Fetch_DOIs (web method 2, step 1), offline: how many DOIs a run adds, where they come from, and
+"""Fetch_DOIs (step 1 of the web window), offline: how many DOIs a run adds, where they come from, and
 what is kept when a run is stopped. The sources are stand-ins; nothing goes on the network."""
 
 import argparse

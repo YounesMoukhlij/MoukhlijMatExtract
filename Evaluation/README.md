@@ -76,14 +76,14 @@ reference set against the other — the numbers a journal asks for to trust the 
 
 ## 5 · Other tools on the same papers — `mme-eval score --predictions`
 
-Run another extractor (ChemDataExtractor, an LLM, …) on the PDFs of the annotated papers, write its values
+Run another extractor (ChemDataExtractor, …) on the PDFs of the annotated papers, write its values
 as a CSV with the columns `paper_id` (the PDF file name, as in the workbook), `property`
 (`activation_energy`, `ionic_conductivity`, `electronic_conductivity`, `diffusion_coefficient`),
 `material`, `value` and — optional — `unit` (as written: meV, mS/cm, …), `component`, `origin`,
 `confidence`; then:
 
 ```bash
-mme-eval score --predictions chemdataextractor.csv llm.csv
+mme-eval score --predictions chemdataextractor.csv
 ```
 
 Each is scored exactly as MoukhlijMatExtract is, and `Evaluation/scores/comparison.md` puts them side by

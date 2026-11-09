@@ -87,7 +87,7 @@ jobs:
             "$RUNNER_TEMP/clean/bin/$command" --version
             "$RUNNER_TEMP/clean/bin/$command" --help > /dev/null
           done
-          for sub in sheet score agree reference llm; do "$RUNNER_TEMP/clean/bin/mme-eval" $sub --help > /dev/null; done
+          for sub in sheet score agree reference; do "$RUNNER_TEMP/clean/bin/mme-eval" $sub --help > /dev/null; done
           "$RUNNER_TEMP/clean/bin/mme-local" extract --help > /dev/null
           "$RUNNER_TEMP/clean/bin/mme-web" run --help > /dev/null
           test ! -e "$HOME/MoukhlijMatExtract"  # asking for help makes no folder

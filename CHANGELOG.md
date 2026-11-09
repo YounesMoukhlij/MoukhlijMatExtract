@@ -6,14 +6,6 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ## [Unreleased] — to be released as 1.1.0
 
-### Removed
-  window, the "Fetched DOIs" list, the `[scrape]` extra (selenium, scholarly, …) and the need for Google
-  Chrome. Web scraping is now the open sources only: search, review, download the legal open-access copies,
-  extract. The **2 · Web scraping** button opens that window directly (no more two-method chooser). The
-  PDFs already in `WebScraping/papers/` stay and are extracted as before. The DOI collector (Fetch DOIs,
-  `mme-dois`, `make doi`), which asks only open indexes (OpenAlex, Crossref, Semantic Scholar, arXiv), is
-  kept: it is **1 · Fetch DOIs** of the web window, and its DOI list is searched with by **2 · Search**.
-
 ### Added
 
 - **The computer stays awake while a long step runs.** A download of thousands of papers, or an
@@ -44,7 +36,7 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
   legal open copies are fetched into `Evaluation/reference/papers/` (PDFs added by hand are read too),
   extracted apart from the user's databases, and each curated entry is looked for among the extracted
   ionic conductivities (composition, value within 0.1 decade / 2 %, temperature). Report and every entry.
-- **mme-eval score --predictions** (`PREDICTIONS=`): other tools' values (ChemDataExtractor, an LLM, …) for
+- **mme-eval score --predictions** (`PREDICTIONS=`): other tools' values (ChemDataExtractor, …) for
   the annotated papers, scored the same way, side by side in `comparison.md`, with the F1 difference, its
   interval and a p-value from a paired bootstrap.
 - **Reproducibility.** `requirements.lock`: the exact versions the results were made with (`make lock`,
@@ -223,10 +215,13 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Changed
 
+- **Web scraping uses open sources only.** The web window searches, reviews, downloads the legal
+  open-access copies and extracts them; the **2 · Web scraping** button opens it directly. The DOI collector
+  (Fetch DOIs, `mme-dois`, `make doi`), which asks only open indexes (OpenAlex, Crossref, Semantic Scholar,
+  arXiv), is its **1 · Fetch DOIs** step. The `[scrape]` extra and the need for Google Chrome are gone.
 - **License: GNU AGPL-3.0-or-later** (was MIT). MoukhlijMatExtract reads PDFs with PyMuPDF, which is
   licensed under the AGPL-3.0; a program built on it must be shared under the same terms, so the MIT label
   did not hold. `LICENSE`, `pyproject.toml`, `CITATION.cff`, `.zenodo.json`, the README and the windows say so.
-  what came with it); it is written from the cleaned environment.
 
 - `mme-eval sheet` draws only the papers `mme-release` would publish (a recorded legal copy, or the authors'
   own PDFs), so precision and recall describe the deposited dataset; `--all-papers` draws from every paper.
@@ -431,8 +426,8 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 - Each time the Web scraping window opens, it asks for the user's academic e-mail (required, saved
-  for next time), points to the optional **API keys**, and says that method 2 needs Google Chrome.
-  Its two methods open only once an e-mail is given.
+  for next time), and points to the optional **API keys**.
+  Its steps open only once an e-mail is given.
 
 ### Fixed
 - The job file shipped with the package carried the author's e-mail, which was sent to OpenAlex,
@@ -442,8 +437,6 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
   100 results of each search, and the API keys window says what a free OpenAlex key adds.
 - The Classification window no longer shows a message box when it is opened before any database
   exists; it says to run part 1 or 2 first.
-- The moukhlij4scraping window ran its steps by file paths that only existed in a clone of the
-  repository, so they failed for an installed package.
 
 ## [1.0.0] — 2026-10-25
 
@@ -453,10 +446,8 @@ First public release.
 - **Part 1 · LocalExtraction** — extract structured data from your own PDFs (text, tables, figures,
   equations, OCR) into a database of linked CSVs, an Excel workbook and JSON. No data cell is left
   empty: every value carries a `basis` saying whether it was stated, inferred or assumed.
-- **Part 2 · WebScraping** — two methods that build one database:
-  - *averageScrap* — search 14 open sources (OpenAlex, arXiv, Crossref, Semantic Scholar, …),
-    screen, fetch the legal copies and extract them.
-  - *Fetch_DOIs + moukhlij4scraping* — collect a topic's DOIs, fetch a PDF for each, extract.
+- **Part 2 · WebScraping** — search 14 open sources (OpenAlex, arXiv, Crossref, Semantic Scholar, …),
+  screen, fetch the legal copies and extract them; *Fetch_DOIs* collects a topic's DOIs.
 - **Part 3 · SelectingTopMaterial** — rank the materials by activation energy into Superionic /
   Performant / Acceptable / Rejected classes.
 - **Part 4 · Classification** — sort the materials by crystal family and structure family, one

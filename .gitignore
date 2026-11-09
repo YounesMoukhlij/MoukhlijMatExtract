@@ -40,3 +40,5 @@ __pycache__/
 
 # The worked example's results (make demo)
 examples/output/
+# ... except the worked example's two CC BY papers (examples/README.md)
+!examples/papers/*.pdf

@@ -52,7 +52,6 @@ EVAL_SCORE_OPTS = $(call opt,GOLD,--gold) $(call list,SOURCE,--source) $(call op
               $(call list,PREDICTIONS,--predictions)
 EVAL_REF_OPTS = $(call list,DB,--db) $(call switch,NO_FETCH,--no-fetch) $(call opt,LIMIT,--limit) \
               $(call switch,REFRESH,--refresh) $(call opt,WORKERS,--workers) $(call list,PREDICTIONS,--predictions)
-EVAL_LLM_OPTS = $(call opt,GOLD,--gold) $(call list,PDFS,--pdfs) $(call opt,OUT,--out) $(call switch,ESTIMATE,--estimate)
 RELEASE_OPTS = $(call list,SOURCE,--source) $(call list,WITH,--with) $(call switch,NO_RESULTS,--no-results) \
               $(call opt,OUT,--out) $(call switch,KEEP_TEXT,--keep-text) $(call opt,FINISH,--finish) \
               $(call switch,KEEP_UNRECORDED,--keep-unrecorded)
@@ -231,7 +230,6 @@ eval-score:
 
 eval-reference:
 	$(PYTHON) -m Evaluation reference $(EVAL_REF_OPTS)
-
 
 eval-agree:
 	@test -n "$(FIRST)" -a -n "$(SECOND)" || { echo "make eval-agree FIRST=<a.xlsx> SECOND=<b.xlsx>"; exit 2; }

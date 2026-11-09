@@ -394,4 +394,3 @@ class ReferenceTests(unittest.TestCase):
         self.assertEqual(dois_of(_doi("10.1/A|https://doi.org/10.2/b")), ["10.1/a", "10.2/b"])
         self.assertEqual(_doi("n/a"), "")
 
-

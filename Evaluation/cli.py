@@ -78,7 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Folder of the report (default: Evaluation/scores)")
     score.add_argument("--seed", type=int, default=7, help="Seed of the bootstrap (default: 7)")
     score.add_argument("--predictions", "-p", nargs="+", action="extend", type=Path, metavar="CSV",
-                       help="Other tools' values for the same papers (ChemDataExtractor, an LLM, …), each a CSV with "
+                       help="Other tools' values for the same papers (ChemDataExtractor, …), each a CSV with "
                             "paper_id, property, material, value [, unit, component, origin, confidence]: scored the "
                             "same way and compared with MoukhlijMatExtract (comparison.md, paired bootstrap)")
 
@@ -292,7 +292,6 @@ def run_reference(args) -> int:
                   f"{share(r.record_loose)} (within 2 %: {share(r.record_strict)})")
     print(f"Report: {base / 'reference_report.md'}\nEvery entry: {base / 'reference_comparison.csv'}")
     return 0
-
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
