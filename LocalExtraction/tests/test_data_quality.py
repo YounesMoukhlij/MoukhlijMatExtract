@@ -274,6 +274,18 @@ class SeriesTests(unittest.TestCase):
                                                   ("Li1.4Al0.4Ge1.6(PO4)3", "0.00032 S/cm")])
         self.assertEqual({f.transport_component for f in found["ELECTROCHEMICAL"]["Ionic_Conductivity"]}, {"total"})
 
+    def test_a_column_that_names_the_variable_in_brackets(self):
+        # Table 1 of doi:10.1007/s11581-025-06639-w: "Content of Sr (x)" gives each row its member of the series.
+        table = {"type": "Table", "page": 13, "section": "Results", "table_number": "1",
+                 "caption": "Table 1: Values of Ionic conductivity and activation energy of Li6.75+xLa3-xSrxZr1.75Ta0.25O12",
+                 "headers": ["Content of Sr (x)", "Ionic conductivity (S/cm)"], "material_column": "NONE",
+                 "rows": [{"Content of Sr (x)": "0", "Ionic conductivity (S/cm)": "3.02 x 10-5"},
+                          {"Content of Sr (x)": "0.05", "Ionic conductivity (S/cm)": "3.50 x 10-4"}],
+                 "text": "Content of Sr (x) Ionic conductivity (S/cm) 0 3.02 x 10-5 0.05 3.50 x 10-4"}
+        found = ExtractorEngine.extract_all([table])
+        self.assertEqual(_conductivities(found), [("Li6.75La3Zr1.75Ta0.25O12", "3.02e-05 S/cm"),
+                                                  ("Sr0.05Li6.8La2.95Zr1.75Ta0.25O12", "0.00035 S/cm")])
+
 
 class SigmaSubscriptTests(unittest.TestCase):
     def test_the_component_of_a_conductivity_column(self):

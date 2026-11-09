@@ -8,6 +8,12 @@ import tempfile
 
 import pytest
 
+try:
+    import tkinter  # noqa: F401
+except ImportError:  # a Python built without Tk: the tests of the windows cannot run, the others do
+    collect_ignore = ["LocalExtraction/tests/test_browser.py", "LocalExtraction/tests/test_result_card.py",
+                      "SelectingTopMaterial/tests/test_gui.py", "Classification/tests/test_window.py"]
+
 
 def pytest_configure(config):
     config.mme_home = tempfile.mkdtemp(prefix="mme-home-")

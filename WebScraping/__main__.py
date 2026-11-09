@@ -11,6 +11,8 @@ if not __package__:  # started as "python WebScraping": make the project root im
 
 argv = sys.argv[1:]
 if argv and argv[0] == "gui":  # the window, with its options (--job, --output, --workers, --verbose)
+    from LocalExtraction.about import require_tk
+    require_tk("mme-web gui")
     from WebScraping.webgui import main as gui_main
     gui_main(argv[1:])
     sys.exit(0)

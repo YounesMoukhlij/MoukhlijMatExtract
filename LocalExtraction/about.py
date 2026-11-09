@@ -81,6 +81,20 @@ DEFAULT_INPUT = os.path.join("LocalExtraction", "papers")
 DEFAULT_OUTPUT = os.path.join("LocalExtraction", "local_output")
 
 
+def require_tk(command: str) -> None:
+    """Stops with how to install Tk, the window toolkit, when this Python was built without it (Homebrew's
+    Python, some Linux ones), in place of a traceback. The terminal commands do not need it."""
+    try:
+        import tkinter  # noqa: F401
+    except ImportError:
+        version = f"{sys.version_info.major}.{sys.version_info.minor}"
+        raise SystemExit(
+            f"{command} needs Tk, the window toolkit, which this Python does not have. Install it, then try again:\n"
+            f"  macOS (Homebrew Python): brew install python-tk@{version}\n"
+            "  Ubuntu/Debian:           sudo apt install python3-tk\n"
+            "The terminal commands (mme-local extract, mme-web run, mme-rank, mme-classify, …) work without it.")
+
+
 def enter_project_home(*parts: str) -> Path:
     """Makes ~/MoukhlijMatExtract and the folders of these parts (keys of PART_FOLDERS) when they are
     missing, then works from there, so every relative path of the project lands inside it."""

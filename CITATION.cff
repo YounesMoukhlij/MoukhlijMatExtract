@@ -21,7 +21,7 @@ authors:
   - family-names: Moukhlij
     given-names: Younes
     email: younes.moukhlij@usms.ac.ma
-    affiliation: "Faculté Polydisciplinaire de Khouribga (FPK), Université Sultan Moulay Slimane (USMS)"
-    # orcid: "https://orcid.org/0000-0000-0000-0000"   # TODO: add your ORCID
+    affiliation: "Multidisciplinary Faculty of Khouribga (FPK), Sultan Moulay Slimane University (USMS)"
+    orcid: "https://orcid.org/0009-0005-7348-7942"
 # TODO (optional): mint a release DOI (e.g. on Zenodo) and add it here, so the tool is citable by DOI:
 # doi: "10.5281/zenodo.XXXXXXX"

@@ -5,6 +5,7 @@ replaced by a stand-in; what is checked is which folders it is given and when it
     python -m unittest discover -s LocalExtraction/tests -t . -v   (or: pytest LocalExtraction)
 """
 
+import importlib.util
 import io
 import os
 import shutil
@@ -43,6 +44,7 @@ class GateTests(unittest.TestCase):
         self.assertEqual(seen[0][0][:2], ("pdfs", "out"))
         self.assertEqual(seen[1][0][:2], (DEFAULT_INPUT, DEFAULT_OUTPUT))
 
+    @unittest.skipUnless(importlib.util.find_spec("_tkinter"), "this Python has no Tk")
     def test_the_window_is_given_the_folders(self):
         opened = []
         with mock.patch("LocalExtraction.gui.main", side_effect=lambda **k: opened.append(k)), \

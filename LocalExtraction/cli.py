@@ -79,7 +79,11 @@ def run_extraction(input_dir: str, output_dir: str, max_workers: int = 4,
 	`properties`, `require_material`, `origin` and `lookup` are described in NaLiXPipeline.
 	"""
 	if not os.path.isdir(input_dir):
-		logging.error(f"Input directory not found: {input_dir}")
+		# A relative path is read from the project folder (the command works from there), not from the
+		# folder the command was typed in: say where it looked.
+		logging.error(f"Input directory not found: {os.path.abspath(input_dir)}"
+					  + ("" if os.path.isabs(input_dir) else f" (a relative path is read from {PROJECT_HOME}; "
+											  "give the full path of a folder elsewhere)"))
 		return 1
 	if is_outdated(output_dir):
 		return 1
@@ -122,6 +126,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 	print_banner(f"{FULL_NAME} · Local extraction", DESCRIPTION)
 
 	if args.command == "gui":
+		from .about import require_tk
+		require_tk("mme-local gui")
 		from .gui import main as gui_main
 		gui_main(input_dir=args.input, output_dir=args.output, workers=args.workers, lookup=not args.offline)
 		return 0

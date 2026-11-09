@@ -4,7 +4,6 @@ matching, the scores on a small database whose right answers are known, the work
 way twice, never overwritten), the annotations checked, and the agreement of two annotators."""
 
 import io
-import json
 import shutil
 import tempfile
 import unittest

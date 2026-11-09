@@ -55,7 +55,8 @@ A value given for several temperatures is one value per temperature.
 
 Double annotation (agreement): give a copy of the workbook to a second person, and compare with
 mme-eval agree first.xlsx second.xlsx — journals expect agreement on at least 20 % of the papers.
-Then: mme-eval score (the report lands in Evaluation/scores/)."""
+Then: save this file, and press Compute the scores in the Evaluate window (or run mme-eval score in a
+terminal)."""
 
 
 @dataclass

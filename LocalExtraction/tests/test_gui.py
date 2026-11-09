@@ -351,6 +351,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
+@unittest.skipUnless(has_screen(), "the window needs a screen")
 class WorkerThreadTests(unittest.TestCase):
     """A Tk variable freed on a worker thread is released by the main thread, without an error."""
 

@@ -101,6 +101,7 @@ The activation energies (migration barriers, Ea, …), one numeric column in eV.
 | `extracted_from` | Text | Table | Figure | The part of the paper the value was read from (a figure: its caption; plotted points are not read). |
 | `page` | integer | The page of the PDF. |
 | `plausibility` | text | “in range”, or “check: …” for a value outside the range known for ion conductors or carried by another species than a conducting ion (left out of the ranking by default). |
+| `needs_check` | text | “no”, or “yes: …” with why a person should look at the value: out of range, unusual formula, doped sample, material from another sentence, table text, low confidence. A pointer to the values most worth checking, not a verdict (see docs/LIMITATIONS.md). |
 | `composition` | JSON | Element amounts of the material, elements in alphabetical order. |
 | `structure` | text | Crystal system, structure family, polymorph, space group (cubic \| garnet \| Ia-3d); else the kind of compound (thiophosphate, oxide, …). |
 | `ionic_radii` | JSON | Shannon ionic radius (Å) of each ion, from the composition (charge-balanced, six-fold coordination): {"Li+": 0.76, …}. |
@@ -134,6 +135,7 @@ The ionic conductivities, one numeric column in S/cm.
 | `extracted_from` | Text | Table | Figure | The part of the paper the value was read from (a figure: its caption; plotted points are not read). |
 | `page` | integer | The page of the PDF. |
 | `plausibility` | text | “in range”, or “check: …” for a value outside the range known for ion conductors or carried by another species than a conducting ion (left out of the ranking by default). |
+| `needs_check` | text | “no”, or “yes: …” with why a person should look at the value: out of range, unusual formula, doped sample, material from another sentence, table text, low confidence. A pointer to the values most worth checking, not a verdict (see docs/LIMITATIONS.md). |
 | `composition` | JSON | Element amounts of the material, elements in alphabetical order. |
 | `structure` | text | Crystal system, structure family, polymorph, space group (cubic \| garnet \| Ia-3d); else the kind of compound (thiophosphate, oxide, …). |
 | `ionic_radii` | JSON | Shannon ionic radius (Å) of each ion, from the composition (charge-balanced, six-fold coordination): {"Li+": 0.76, …}. |
@@ -167,6 +169,7 @@ The electronic conductivities, one numeric column in S/cm.
 | `extracted_from` | Text | Table | Figure | The part of the paper the value was read from (a figure: its caption; plotted points are not read). |
 | `page` | integer | The page of the PDF. |
 | `plausibility` | text | “in range”, or “check: …” for a value outside the range known for ion conductors or carried by another species than a conducting ion (left out of the ranking by default). |
+| `needs_check` | text | “no”, or “yes: …” with why a person should look at the value: out of range, unusual formula, doped sample, material from another sentence, table text, low confidence. A pointer to the values most worth checking, not a verdict (see docs/LIMITATIONS.md). |
 | `composition` | JSON | Element amounts of the material, elements in alphabetical order. |
 | `structure` | text | Crystal system, structure family, polymorph, space group (cubic \| garnet \| Ia-3d); else the kind of compound (thiophosphate, oxide, …). |
 | `ionic_radii` | JSON | Shannon ionic radius (Å) of each ion, from the composition (charge-balanced, six-fold coordination): {"Li+": 0.76, …}. |
@@ -200,6 +203,7 @@ The diffusion coefficients, one numeric column in cm²/s.
 | `extracted_from` | Text | Table | Figure | The part of the paper the value was read from (a figure: its caption; plotted points are not read). |
 | `page` | integer | The page of the PDF. |
 | `plausibility` | text | “in range”, or “check: …” for a value outside the range known for ion conductors or carried by another species than a conducting ion (left out of the ranking by default). |
+| `needs_check` | text | “no”, or “yes: …” with why a person should look at the value: out of range, unusual formula, doped sample, material from another sentence, table text, low confidence. A pointer to the values most worth checking, not a verdict (see docs/LIMITATIONS.md). |
 | `composition` | JSON | Element amounts of the material, elements in alphabetical order. |
 | `structure` | text | Crystal system, structure family, polymorph, space group (cubic \| garnet \| Ia-3d); else the kind of compound (thiophosphate, oxide, …). |
 | `ionic_radii` | JSON | Shannon ionic radius (Å) of each ion, from the composition (charge-balanced, six-fold coordination): {"Li+": 0.76, …}. |

@@ -66,7 +66,8 @@ Each part has its own README with every detail: [LocalExtraction](LocalExtractio
 | Requirement | Why | How to get it |
 |-------------|-----|---------------|
 | **Python 3.11 or newer** | runs MME | [python.org](https://www.python.org/downloads/) |
-| **Tesseract OCR** | reads scanned or image-only PDFs | macOS: `brew install tesseract` · Ubuntu/Debian: `sudo apt install tesseract-ocr python3-tk` · Windows: [installer](https://github.com/UB-Mannheim/tesseract/wiki) |
+| **Tesseract OCR** | reads scanned or image-only PDFs | macOS: `brew install tesseract` · Ubuntu/Debian: `sudo apt install tesseract-ocr` · Windows: [installer](https://github.com/UB-Mannheim/tesseract/wiki) |
+| **Tk** | draws the windows (`mme-gui`); the terminal commands work without it | included with the python.org installers · macOS with Homebrew's Python: `brew install python-tk@3.13` (your Python version) · Ubuntu/Debian: `sudo apt install python3-tk` |
 
 ### Option A — from PyPI
 
@@ -320,10 +321,16 @@ database of the same form as parts 1 and 2, so you can rank one class alone:
 mme-rank --source ~/MoukhlijMatExtract/Classification/crystal_structure/garnet
 ```
 
-### Measuring the accuracy — mme-eval
+### Measuring the accuracy — Evaluate… and mme-eval
 
-How accurate is the extracted data? `mme-eval` measures it against values checked by a person, as a
-publication needs:
+How accurate is the extracted data? It is measured against values checked by a person, as a publication
+needs. In a window: press **Evaluate…** next to **Start extraction** (Local extraction) or **4 · Extract**
+(Web scraping). It takes three steps on that window's results — **1 · Make the workbook** (papers drawn at
+random: 10 for a quick idea, 50–60 for an article), **2 · Check the values** (yours: open the workbook and
+mark each value), **3 · Compute the scores** (precision, recall and F1) — and keeps its own workbook and report
+(`Evaluation/annotation_local.xlsx`, `Evaluation/scores_local/`; `_web` for the web window). After the program
+changed and the papers were extracted again, tick *Score the values now in the results folder* and compute
+again: your checks are reused. In a terminal:
 
 ```bash
 mme-eval sheet            # 60 papers drawn at random -> Evaluation/annotation.xlsx
@@ -358,6 +365,20 @@ every cell of the selected row below, with a button to open the paper at doi.org
 | 4 · Classification | every material and its classes, the crystal families and the structure families, each with its Ea by component |
 
 The files are only read: nothing in the window changes them.
+
+### Which values to check — needs_check and confidence
+
+Every value of the four quantity tables (activation energy, ionic and electronic conductivity, diffusion
+coefficient — CSV, and a sheet of `database.xlsx`) carries:
+
+- `needs_check` — **no**, or **yes:** and why a person should look at it: *out of range*, *unusual formula*
+  (a formula cut short, or a fragment of a name), *doped sample* (given its parent's formula), *material from
+  another sentence*, *table text*, *low confidence*. In Excel, filter the column on "yes" to see them.
+- `plausibility` — *in range*, or *check:* for a number outside what ion conductors show.
+- `confidence` — a 0–1 score of the extraction; sort on it to see the least sure first.
+
+A flag points at a value worth a look; it removes nothing, and an unflagged value can still be wrong
+([docs/LIMITATIONS.md](docs/LIMITATIONS.md)). How often the values are right is measured with **Evaluate…**.
 
 ### When a step ends — the results card
 
@@ -435,6 +456,7 @@ Add `--help` to any command for all its options.
 | scanned PDFs give no values | install Tesseract (see *What you need first*) |
 | `Can't find model 'en_core_web_sm'` | `python -m spacy download en_core_web_sm` inside the venv |
 | `mme-…: command not found` | enter the venv: `source .venv/bin/activate` |
+| `mme-gui needs Tk` / `No module named '_tkinter'` | install Tk (see *What you need first*), then create the venv again |
 | the web search finds few papers | add free API keys (**API keys…**), or run `mme-web run --check` |
 | few papers have a free copy | the download's message says why. *Your e-mail was refused*: set your own academic or professional address in **API keys…** (Unpaywall refuses made-up ones such as `@example.com`). Otherwise add the Elsevier and Wiley keys, or download from your university's network or VPN |
 

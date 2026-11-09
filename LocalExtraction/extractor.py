@@ -77,7 +77,21 @@ _ARRHENIUS_FORM = re.compile(r'exp.*(?:E_?a|E\s?a\b|k_?B|RT|kT)')
 _CELL_UNIT = r'\s*([A-Za-zΩ°μ%][A-Za-zΩ°μ%/\.\d⁻¹²³⁰⁴⁵⁶⁷⁸⁹\^-]*)?'
 _CELL_NUM_UNIT = re.compile(rf'[~≈∼]?\s*{NUM}{_CELL_UNIT}')
 _CELL_MAGNITUDE_UNIT = re.compile(rf'[~≈∼]?\s*{NUM_MAGNITUDE}{_CELL_UNIT}')
-_HEADER_UNIT = re.compile(r'\(([^)]+)\)')
+# The unit of a column: in round or square brackets, "Ea (eV)", "σ [S cm−1]", or after a slash, "σ / S cm−1".
+_HEADER_UNIT = re.compile(r'\(([^)]+)\)|\[([^\]]+)\]|(?<![A-Za-z0-9])/\s*([A-Za-zµμΩ°Å][^/()\[\]]*?)\s*$')
+_FILLER_CAPTION = re.compile(r'(?i)\b(?:fillers?|additives?|plasticizers?)\b')
+
+
+def _compact_formula(cell: str) -> str:
+    """A formula a table cell spaces out — "(Li 0.375 Sr 0.4375 )(Ta0.75Zr0.25 )O 3-δ" — written together: only a
+    cell of element symbols, numbers, brackets and a composition variable is."""
+    if " " in cell and _SPACED_CELL_FORMULA.fullmatch(cell.strip()):
+        return re.sub(r"\s+", "", cell)
+    return cell
+
+
+_SPACED_CELL_FORMULA = re.compile(r'(?:[A-Z][a-z]?|\d+(?:\.\d+)?|[()\[\]]|[-−–+]|[xyzδ]|\s)+')
+_DISPLACED_SUBSCRIPT = re.compile(r'^\s*([A-Za-zσ])\s*(\([^)]*\)|\[[^\]]*\])\s*([a-z]{1,3})\s*$')
 _EQ_REF_REGEX = re.compile(r'(?i)\bEq(?:uation)?s?\.?\s*(\d+)')
 _TABLE_REF_REGEX = re.compile(r'(?i)\bTables?\.?\s*(\d+)')
 # A figure/table a sentence points to: "Fig. 4b", "Figure S5", "Table II".
@@ -117,6 +131,13 @@ _COPULA = re.compile(r'(?i)^\s+(?:(?:is|was|are|were|being|reaches|reached)\s+)?
 _ADDED_AFTER = re.compile(r'(?i)^[\s-]*(?:additives?|addition|added|dopants?|doping|doped|coatings?|coated|modified|'
                           r'containing|fillers?|precursors?|sintering\s+aids?|flux|contents?|amounts?|concentrations?|'
                           r'incorporation|(?:nano)?particles|cathodes?|anodes?|electrodes?)(?![a-z])')
+# A material named in a role that is never the sample a value was measured on — the electrode of a battery
+# ("NCA//Li", "a LiFePO4 full cell", "LiCoO2-based batteries"), a reagent ("NaH2PO4 as a new phosphate
+# source", "LiTFSI as the salt") — takes no value, not even one standing right next to it.
+_ROLE_AFTER = re.compile(r'^[\s-]*(?://|‖|∥|\|\|)'
+                         r'|(?i:^[\s-]*(?:(?:based\s+)?batter(?:y|ies)|(?:based\s+)?(?:full|coin|pouch|half)[\s-]+cells?'
+                         r'|as\s+(?:an?\s+|the\s+)?(?:new\s+|lithium\s+|sodium\s+)?(?:[a-z]+\s+)?(?:sources?|precursors?|salts?|'
+                         r'fillers?|additives?|dopants?|templates?|binders?|reagents?|starting\s+materials?))(?![a-z]))')
 _ADDED_BEFORE = re.compile(
     r'(?i)(?:\b(?:addition|incorporation|introduction|amounts?|contents?|doping|coating|layers?)\s+of'
     r'|\b(?:coated|doped|mixed|modified|treated|composited|blended)\s+with|\b(?:wt|mol|at|vol)\.?\s?%'
@@ -124,7 +145,11 @@ _ADDED_BEFORE = re.compile(
     r'|\b(?:containing|comprising|consisting\s+of|composed\s+of))'
     r'\s+(?:\d+(?:\.\d+)?\s*(?:wt|mol|at|vol)\.?\s?%\s+)?(?:of\s+)?(?:[A-Za-z()]{3,}[-–/])?$'
     # The salt of a polymer electrolyte: "PEO-LiClO4", "poly(ethylene oxide)/LiTFSI".
-    r'|(?:\b(?:PEO|PAN|PVDF|PVDF-HFP|PMMA|PVA|PPC|PEG|PEGDA|PVC|PVP|PTFE|PPO)|(?i:\bpoly(?!cryst|morph|anion|hedr|type)[\w()\s-]{3,40}?))\s?[-–/:]\s?$')
+    r'|(?:\b(?:PEO|PAN|PVDF|PVDF-HFP|PMMA|PVA|PPC|PEG|PEGDA|PVC|PVP|PTFE|PPO|CMC|PCL|PAA|PAM|PVB|PEGDME)'
+    r'|(?i:\b(?:chitosan|starch|cellulose|gelatin|agarose)|\bpoly(?!cryst|morph|anion|hedr|type)[\w()\s-]{3,40}?))\s?[-–/:]\s?$')
+# ... the other electrode of a cell: "Li//LiFePO4", "Li‖NCM811"; and a group of a larger name run on with a
+# hyphen: "TpPa-SO3Li COF", "PIL-SO3Na".
+_ROLE_BEFORE = re.compile(r'(?://|‖|∥|\|\|)\s?$|(?<![\w.])[A-Za-z]{3,}[-–]$')
 # What a neighbouring sentence must speak of for its temperature range to be that of a fit.
 _OF_TRANSPORT = re.compile(
     r'(?i:\b(?:conductivit\w+|impedance|arrhenius|diffusi\w+|simulat\w+|molecular[\s-]dynamics|'
@@ -1042,11 +1067,13 @@ class ExtractorEngine:
         # sentence itself pairs its lists off ("..., respectively").
         paired = pairs_off(sent)
         sharing = {item.group for item in found if item.span[1] != item.anchor[1]}
+        roles = {j for j, m in enumerate(materials)
+                 if _ROLE_AFTER.match(sent[m["end"]:]) or _ROLE_BEFORE.search(sent[:m["start"]])}
         apposed: Dict[int, int] = {}
         for i, item in enumerate(found):
             if cls._has_context(item.cat, item.prop) and item.group not in sharing:
                 j = cls._apposed(sent, materials, item.span, after=not (paired and item.size > 1))
-                if j is not None:
+                if j is not None and not (j in roles and item.prop in QUANTITY_PROPERTIES):
                     apposed[i] = j
 
         # A material that a bound or an assumed value is given for ("... not higher than 10−3 S/cm for
@@ -1063,8 +1090,8 @@ class ExtractorEngine:
             if is_compared_with(sent, m["start"]) or (
                     (j - 1) in compared_with and (_COORDINATED.fullmatch(between) or re.fullmatch(r'\s*\(\s*', between))):
                 compared_with.add(j)
-        added = {j for j, m in enumerate(materials)
-                 if _ADDED_AFTER.match(sent[m["end"]:]) or _ADDED_BEFORE.search(sent[:m["start"]])}
+        added = roles | {j for j, m in enumerate(materials)
+                         if _ADDED_AFTER.match(sent[m["end"]:]) or _ADDED_BEFORE.search(sent[:m["start"]])}
 
         # "A and B, with σ = 82 mS/cm (Ea = 0.17 eV) and σ = 177 mS/cm (Ea = 0.11 eV)": materials named
         # together, then as many values of a property, each in its own clause — in the same order.
@@ -1377,6 +1404,13 @@ class ExtractorEngine:
         # A table of a series, one row per value of its variable: the column headed "x" ("x (Ga)",
         # "x Ga") under a caption naming "Li4-xZn1-xGax(PO4)2" gives each row's member.
         variable_column = cls._variable_column(block, caption_material)
+        # Rows told apart by a composition variable whose formula cannot be worked out ("LATP-xSn (x = 0–0.4)")
+        # are different materials: none of them is the one formula the caption names.
+        if not variable_column and material_column == "NONE" and cls._varies_by_variable(block):
+            caption_material = None
+        # The rows of a table of fillers or additives ("Influence of inorganic fillers on ionic conductivity")
+        # name what was added to a polymer electrolyte, not what the conductivity was measured on.
+        fillers = bool(_FILLER_CAPTION.search(caption))
 
         for row in rows:
             row_text = " ".join(str(v) for h, v in row.items() if not header_props.get(h))
@@ -1390,8 +1424,8 @@ class ExtractorEngine:
                 if member:
                     results["series"][member["formula"]] = member["series"]
                     row_material = get_or_create_material(member, 0.85, page, section, caption, "Table")
-            if material_column != "NONE":
-                cell_materials = ChemistryEngine.find_materials(row.get(material_column, ""), abbreviations)
+            if material_column != "NONE" and not fillers:
+                cell_materials = ChemistryEngine.find_materials(_compact_formula(row.get(material_column, "")), abbreviations)
                 if cell_materials:
                     row_material = get_or_create_material(cell_materials[0], 0.85, page, section, caption, "Table")
                     results["structure_votes"][row_material.normalized_formula].update(row_structure)
@@ -1437,6 +1471,17 @@ class ExtractorEngine:
                     cls._link(results, field, material, "table_caption", 0.75)
 
     @staticmethod
+    def _varies_by_variable(block: Dict[str, Any]) -> bool:
+        """Whether a column headed by a composition variable ("x", "x (pfu)", "Content of Sr (x)") gives its rows
+        two or more different values."""
+        for header in block.get("headers", []):
+            if re.match(r"^\s*[xyzδ](?:\s*(?:\(|=|$))", str(header)) or re.search(r"\(\s*[xyzδ]\s*\)\s*$", str(header)):
+                values = {str(row.get(header, "")).strip() for row in block.get("rows", [])} - {""}
+                if len(values) >= 2:
+                    return True
+        return False
+
+    @staticmethod
     def _variable_column(block: Dict[str, Any], series: Optional[Dict[str, Any]]) -> Optional[Tuple[str, str]]:
         """(header, variable) of the column that gives each row the value of the caption's series
         variable — a header that is the variable ("x", "x (Ga)", "x Ga", "x in Li7-xLa3Zr2-xTaxO12") of a
@@ -1446,8 +1491,12 @@ class ExtractorEngine:
         written = re.sub(r"[A-Z][a-z]?", "", series.get("written", series["raw"]))
         for header in block.get("headers", []):
             m = re.match(r"^\s*([xyzδ])(?:\s*(?:\(|\b[A-Z][a-z]?\b|in\b|=|value)|\s*$)", str(header))
-            if m and m.group(1) in written:
-                return header, m.group(1)
+            # ... or a short header that names it in brackets or after "of": "Content of Sr (x)", "Value of x".
+            m = m or (re.search(r"\(\s*([xyzδ])\s*\)\s*$|\b(?:value|content|amount) of\s+([xyzδ])\s*$", str(header))
+                      if len(str(header)) <= 40 else None)
+            variable = m and next(g for g in m.groups() if g)
+            if variable and variable in written:
+                return header, variable
         return None
 
     @staticmethod
@@ -1494,6 +1543,10 @@ class ExtractorEngine:
 
     @staticmethod
     def _match_header_property(header: str) -> Optional[Tuple[str, str]]:
+        # A subscript the PDF put after the unit: "E (eV) a" is "Ea (eV)".
+        moved = _DISPLACED_SUBSCRIPT.sub(r"\1\3 \2", header)
+        if moved != header:
+            return ExtractorEngine._match_header_property(moved)
         if _EA_HEADER_REGEX.match(header):
             return "ELECTROCHEMICAL", "Activation_Energy"
         # PDF tables often lose the spaces of a header ("Migrationenergybarrier(eV)").
@@ -1516,7 +1569,7 @@ class ExtractorEngine:
         value_str, unit_str = m.group(1), (m.group(2) or "").strip()
         if not unit_str:
             # Last bracketed group: "Ea (GB) (eV)" has a qualifier before the unit.
-            header_units = _HEADER_UNIT.findall(header)
+            header_units = [next(g for g in u.groups() if g) for u in _HEADER_UNIT.finditer(header)]
             unit_str = header_units[-1].strip() if header_units else ""
         normalized = DataNormalizer.normalize((value_str, unit_str), norm_type)
         if normalized == "NONE" or (prop in EA_PROPERTIES and not float(normalized.split(" ", 1)[0]) > 0):
