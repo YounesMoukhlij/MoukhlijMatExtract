@@ -396,13 +396,14 @@ def warm_up() -> "threading.Thread":
 
 def main(argv=None) -> None:
     import argparse
-    import tkinter as tk
 
-    from LocalExtraction.about import PROJECT_HOME, version_text
+    from LocalExtraction.about import PROJECT_HOME, require_tk, version_text
     parser = argparse.ArgumentParser(
         prog="mme-gui", description="Open the MoukhlijMatExtract window: one button per part.")
     parser.add_argument("--version", action="version", version=version_text("mme-gui"))
     parser.parse_args(argv)
+    require_tk("mme-gui")
+    import tkinter as tk
     # The main results folder is not made here: "Create the main results folder" makes it, or the
     # first part opened. When it is there, the hub works from it.
     if PROJECT_HOME.is_dir():

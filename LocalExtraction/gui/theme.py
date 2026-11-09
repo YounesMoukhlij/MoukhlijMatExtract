@@ -7,24 +7,26 @@
   - disabled     faded
   - current      the button of the step that is running stays blue until the step ends (and Pause stays
                  blue while paused), so the window always shows which button was pressed
+  - next         the button of the step to take next, where a window guides through steps (Evaluate…): blue
 
 Only the buttons change: the native look of every other widget stays. The native macOS button cannot
 take a colour, so the buttons are drawn with the "default" theme's elements (which can), whatever theme
 the rest uses. The colours follow the system's light or dark appearance when the window opens.
 
 `apply(root)` once per Tk interpreter (every window frame calls it; calling again does nothing);
-`mark(button)` / `unmark(button)` for the current step."""
+`mark(button)` / `unmark(button)` for the current step; `suggest(button, yes)` for the next one."""
 
 import tkinter as tk
 from tkinter import ttk
 from typing import Iterable, Optional
 
 CURRENT = "Current.TButton"
+NEXT = "Next.TButton"
 _ELEMENT = "Mme.Button.fill"
 
 # (at rest, text, hover, pressed, current, current hovered, disabled, disabled text)
 _LIGHT = ("#ffffff", "#1f2328", "#cfe0ff", "#1e40af", "#2563eb", "#1d4ed8", "#e4e6e9", "#a0a6ad")
-_DARK = ("#3a3d42", "#e8eaed", "#34507a", "#1e40af", "#2563eb", "#3b6fe0", "#2c2e31", "#6b7075")
+_DARK = ("#50555d", "#f1f3f4", "#34507a", "#1e40af", "#2563eb", "#3b6fe0", "#383b40", "#8a9097")
 
 
 def is_dark(root: tk.Misc) -> bool:
@@ -53,6 +55,9 @@ def apply(root: tk.Misc) -> None:
     style.configure(CURRENT, background=current, foreground="white")
     style.map(CURRENT, background=[("pressed", pressed), ("active", current_hover)],
               foreground=[("disabled", "white"), ("pressed", "white")])
+    style.configure(NEXT, background=current, foreground="white")
+    style.map(NEXT, background=[("disabled", disabled), ("pressed", pressed), ("active", current_hover)],
+              foreground=[("disabled", disabled_text), ("pressed", "white")])
     # A hand over a button that can be pressed (added to the class's own bindings, which do the hover colour).
     root.bind_class("TButton", "<Enter>", _hand, add="+")
     root.bind_class("TButton", "<Leave>", _arrow, add="+")
@@ -88,6 +93,15 @@ def unmark(button: Optional[ttk.Button]) -> None:
     if button is not None:
         try:
             button.configure(style="TButton")
+        except tk.TclError:
+            pass
+
+
+def suggest(button: Optional[ttk.Button], yes: bool = True) -> None:
+    """`button` is (or is no longer) the one to press next: blue, like a step under way."""
+    if button is not None:
+        try:
+            button.configure(style=NEXT if yes else "TButton")
         except tk.TclError:
             pass
 

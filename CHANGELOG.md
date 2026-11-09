@@ -8,6 +8,22 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **Tables printed without ruling lines** — most journals' — are read: found under their "Table N" caption,
+  their columns from the alignment of the text (`LocalExtraction/tables.py`), a header on two lines joined.
+  On 120 random papers of the web database the values read from tables went from 13 to 62. The text of a
+  table is no longer read again as sentences, where its cells ran together. Units in square brackets or
+  after a slash ("σ [S cm−1]", "Ea / eV"), a subscript put after the unit ("E (eV) a"), and a column of
+  materials headed "Samples", "Nominal composition", "Chemical formula" … are read; a formula a cell spaces
+  out ("(Li 0.375 Sr 0.4375)(Ta0.75Zr0.25)O 3-δ") is put together.
+- **`needs_check`** in every quantity table: "no", or "yes: <reasons>" — out of range, unusual formula,
+  doped sample, material from another sentence, table text, low confidence — for the values most worth a
+  person's look (`LocalExtraction/review.py`). A database of an earlier version gets the column when it is
+  brought up to date; nothing is extracted again.
+- **Evaluate…** in the Local extraction and Web scraping windows, next to the extraction: the three steps of
+  `mme-eval` on that window's results — make the workbook (papers drawn at random), check the values (the
+  user's part), compute precision, recall and F1 — with the last scores shown when it opens, and a re-score of
+  a newer extraction against the same checks. `mme-eval sheet` / `score` and the window share
+  `Evaluation/steps.py`, so they give the same numbers.
 - **The computer stays awake while a long step runs.** A download of thousands of papers, or an
   extraction, stopped each time the computer went to sleep while idle (a run of one day took several).
   Downloading, extracting and the web search now keep it from sleeping (macOS: caffeinate; Windows:
@@ -253,6 +269,22 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
   (`mme-eval reference`) always re-extracts what an earlier version read.
 
 ### Fixed
+
+- **A material named in a role that is never the measured sample took the value next to it**: the electrode
+  of a battery ("NCA//Li", "a LiFePO4 full cell"), a reagent ("NaH2PO4 as a new phosphate source"), the salt
+  of a CMC or chitosan electrolyte, a group of a longer name ("TpPa-SO3Li" read as LiSO3). Such a value is
+  now kept without a material.
+- **Rows of a series table whose formula could not be worked out** ("LATP-xSn (x = 0–0.4)") all took the one
+  formula of the caption, and the rows of a table of fillers took the filler's: they are left without one.
+- **The hydrogen count of a hydride** ("Li3BN2H8", "Li4BN3H10") was cut off as if it were a citation number.
+- **A multiplication sign lost by the PDF made a value up to 9 times too small.** Some publishers' fonts give
+  "×" as an invisible control character, or as nothing at all: "1.15 × 10−4 S/cm" was read as 10−4 S/cm. The
+  sign is put back between a number and its power of ten (70 conductivities of the web database were
+  affected; extract again to correct them).
+- **Formulas with fractions of two digits** ("Li3/8Sr7/16Ta3/4Hf1/4O3") were cut short ("Sr7Li0.375"); they are
+  read whole.
+- **A table column that names the series variable in brackets** ("Content of Sr (x)") now gives each row its
+  member of the caption's series (Li6.8La2.95Sr0.05Zr1.75Ta0.25O12 for x = 0.05), not the general formula.
 
 - A lone "xLiBH4" (a part of a mixture whose other parts were not read) was taken for a series, and its
   x = 50 member for LiBH4.

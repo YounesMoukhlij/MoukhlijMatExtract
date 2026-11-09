@@ -59,11 +59,22 @@ depend on the annotation and are not in this document**: report them from `Evalu
   with several x, in a table with a column of x values, and when a sentence fixes x pages after the paper
   named the series, if the paper named only one series that this x fits. Otherwise the series is kept as
   written and never cut down to a compound it is not.
+- **Tables.** Tables drawn with ruling lines, and those printed without (most journals'), found under their
+  "Table N" caption by the alignment of their columns; a header on two lines ("σbulk" over "(S cm⁻¹)") and a
+  unit in brackets, square brackets or after a slash are read. A row gets its material from a column of
+  formulas or, in a table of a series, from its value of x. Rows of a series whose formula cannot be worked
+  out ("LATP-xSn"), and the rows of a table of fillers or additives, are not given a material. A table that
+  loses its layout in the PDF (rows merged into one cell) is not read, and a table printed as an image
+  is not read at all.
 - **The material of a value.** A value is tied to the material its sentence names, or to the one the
   sentences before name. When the sentence names other materials too, the nearest formula wins: in
   "the sample with x = 50 exhibits 1.8 mS cm⁻¹ … than the 75Li2S·25P2S5 glass and the LiBH4 crystal" the
-  value goes to LiBH4. A doped sample a paper calls by its parent's name ("the samples" of Fe-substituted
-  LLZO) is given to the parent compound. The worked example (`examples/`) shows both cases.
+  value goes to LiBH4. A material named in a role that is never the sample takes no value — an electrode of
+  a battery ("NCA//Li", "a LiFePO4 full cell"), a reagent ("NaH2PO4 as a phosphate source"), a filler, the
+  salt of a polymer electrolyte, a group of a longer name ("TpPa-SO3Li"); such a value is kept without a
+  material (`unassigned_values.csv`). A doped sample a paper calls by its parent's name ("the Ta-doped
+  LLZO") is given to the parent compound, and flagged (`needs_check`: doped sample). The worked example
+  (`examples/`) shows the first case.
 - **Transport component.** Bulk / grain boundary / total / surface is taken from the paper's words and from
   table headers (Ea,bulk, σ gb, σ tot); without them it is assumed (total for a conductivity) and the basis
   column says so. Filter on `n_assumed` before drawing conclusions from a component.
@@ -80,12 +91,17 @@ extracted, but `mme-release` leaves it out of a published dataset unless it is o
 (part 1), and leaves out any paper the log of an earlier downloader records as coming from a shadow
 library (`excluded.csv` lists them). A curated benchmark therefore covers only the papers with an open copy.
 
-## 5 · Confidence
+## 5 · Confidence and the values to check
 
 The `confidence` column is a heuristic score, not a calibrated probability; `mme-eval score` reports its
-calibration (expected calibration error, Brier score) on the annotated papers. The `plausibility` column
-flags values outside the range known for ion conductors, or carried by electrons rather than an ion; a
-flagged value is kept, not removed.
+calibration (expected calibration error, Brier score) on the annotated papers. On 60 values read by hand
+(2026-11-09) it separated right from wrong values only weakly (mean 0.66 for right values, 0.56 for wrong
+ones). The `plausibility` column flags values outside the range known for ion conductors, or carried by
+electrons rather than an ion. The `needs_check` column says "yes", with the reasons, for a value worth a
+look: out of range, unusual formula, doped sample, material from another sentence, table text, low
+confidence. On those 60 values it flagged 4 of 12 wrong ones and 11 of 39 right ones; on the web database,
+about a third of the values. It points at the values most worth checking, not a verdict: no value is
+removed for a flag, and an unflagged value can be wrong.
 
 ## 6 · Platforms
 

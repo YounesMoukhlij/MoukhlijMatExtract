@@ -25,6 +25,9 @@ _SOFT_HYPHEN = chr(0xAD)  # invisible; PDFs leave it where a line was hyphenated
 # after a unit symbol and before its exponent, or between a bare "10" and its exponent.
 _LOST_MINUS = re.compile(r'(?:(?<=[A-Za-zΩ])[\x00-\x08\x0b\x0c\x0e-\x1f](?=[1-3](?!\d))'
                          r'|(?<=(?<![\d.])10)[\x00-\x08\x0b\x0c\x0e-\x1f](?=\d))')
+# The same fonts give their multiplication sign as a control character too: "1.15 \x03 10\x024 S cm\x021" is
+# 1.15 × 10−4 S/cm. One standing alone between a number and a power of ten is that sign.
+_CONTROL_TIMES = re.compile(r'(?<=\d)\s?[\x00-\x08\x0b\x0c\x0e-\x1f]\s?(?=10\s?[-−–]\s?\d)')
 
 
 # NFKC turns the macron of an overlined digit ("Fm¯3m", "P¯3m1") into a space and a combining
@@ -37,6 +40,11 @@ _SOFT_HYPHEN_AT_BREAK = re.compile(chr(0xAD) + r'(?=\s)')
 
 # Some fonts print their multiplication sign as a "9": "1.6 9 10–3 S cm-1" is 1.6 × 10−3 S/cm.
 _LOST_TIMES = re.compile(r'(?<=\d)\s9\s(?=10\s?[-−–]\s?\d)')
+# ... and others lose it altogether, leaving only a space: "7.0  10−9 S cm−1" is 7.0 × 10−9 S/cm, not 10−9.
+# Only before the unit of a conductivity, a resistivity or a diffusion coefficient, and only after a number
+# that stands on its own (not the subscript of a formula: "Li7La3Zr2O12 10−4" is no product).
+_VANISHED_TIMES = re.compile(r'(?<![\w.,/^×·−–-])(\d+(?:\.\d+)?)\s{1,3}(?=10\s?[-−–]\s?\d{1,2}(?!\d)\s?'
+                             r'(?:[mμµ]?S\b|Ω|ohm|cm\s?2|cm²|m\s?2\b|m²))')
 
 
 # Subscripts that a PDF's text layer gives as separate words: "Na 3 PSe 4", "Li 6.4 La 3 Zr 1.4 Ta 0.6 O 12",
@@ -134,13 +142,15 @@ def mend_units(text: str) -> str:
 def normalize_scientific_text(text: str) -> str:
     """NFKC-normalizes text while preserving Greek letters, sub/superscripts, and symbols, and
     restores a minus sign the PDF's font lost (see _LOST_MINUS) or hid (_OVERLINE), a
-    multiplication sign it misprinted (_LOST_TIMES) and the formulas whose subscripts it set apart
+    multiplication sign it misprinted (_LOST_TIMES, _CONTROL_TIMES) or lost (_VANISHED_TIMES) and the formulas whose subscripts it set apart
     (_SPACED_FORMULA)."""
     if not text:
         return text
     text = _LOST_MINUS.sub(_UNICODE_MINUS, unicodedata.normalize("NFKC", text))
+    text = _CONTROL_TIMES.sub(" × ", text)
     text = _OVERLINE.sub("-", _SOFT_HYPHEN_AT_BREAK.sub("-", text)).replace(_SOFT_HYPHEN, "")
-    return join_spaced_formulas(mend_units(_LOST_TIMES.sub(" × ", text)))
+    text = _VANISHED_TIMES.sub(r"\1 × ", _LOST_TIMES.sub(" × ", text))
+    return join_spaced_formulas(mend_units(text))
 
 
 # A word a line break split in two, as the parser's joined lines show it: "activa- tion",

@@ -354,6 +354,9 @@ class FormulaTests(unittest.TestCase):
         self.assertEqual(materials("Li10GeP2S12, Li5PS4Cl2, Na3V2(PO4)3, Li1.3Al0.3Ti1.7(PO4)3 and Li2Sc2/3Cl4"),
                          ["Li10GeP2S12", "Li5PS4Cl2", "Na3V2(PO4)3", "Li1.3Ti1.7Al0.3(PO4)3", "Li2Sc0.6667Cl4"])
 
+    def test_fractions_with_two_digit_denominators(self):
+        self.assertEqual(materials("a perovskite Li3/8Sr7/16Ta3/4Hf1/4O3 was made"), ["Sr0.4375Li0.375Hf0.25Ta0.75O3"])
+
     def test_a_series_is_kept_whole(self):
         self.assertEqual(materials("Li3−xY1−xZrxCl6 was prepared"), ["Li3-xY1-xZrxCl6"])
         self.assertEqual(materials("Li3−xY1−xZrxCl6 (x = 0.5) was prepared"), ["Li2.5Y0.5Zr0.5Cl6"])
@@ -556,6 +559,17 @@ class TextRepairTests(unittest.TestCase):
     def test_glyphs_a_font_lost(self):
         self.assertEqual(normalize_scientific_text("1.6 9 10–3 S cm-1, P¯3m1 and tetragonal ­Li7La3Zr2O12"),
                          "1.6 × 10–3 S cm-1, P-3m1 and tetragonal Li7La3Zr2O12")
+
+    def test_a_multiplication_sign_a_font_lost(self):
+        # as a control character (the minus too), or as nothing at all: the value is 1.15 × 10−4, not 10−4
+        self.assertEqual(normalize_scientific_text("of 1.15 \x03 10\x024 S cm\x021"), "of 1.15 × 10−4 S cm−1")
+        self.assertEqual(normalize_scientific_text("of 7.0  10−9 S cm−1 and D = 3 10−12 cm2 s−1"),
+                         "of 7.0 × 10−9 S cm−1 and D = 3 × 10−12 cm2 s−1")
+        self.assertEqual(found(normalize_scientific_text("The conductivity of Li3InCl6 is 1.15 \x03 10\x024 S cm\x021.")),
+                         [("Ionic_Conductivity", "0.000115 S/cm", "conductivity")])
+        # a formula before a power of ten is no product, nor a number without a unit after it
+        for text in ("Li7La3Zr2O12 10−4 S cm−1", "between 25 10−3 and 40"):
+            self.assertEqual(normalize_scientific_text(text), text)
 
 
 class ExportTests(unittest.TestCase):

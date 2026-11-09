@@ -15,6 +15,12 @@ from unittest import mock
 from LocalExtraction.tests.test_gui import has_screen
 from mme_gui import manual
 
+try:
+    import tkinter  # noqa: F401
+    _HAS_TK = True
+except ImportError:  # a Python built without Tk: the windows cannot be opened
+    _HAS_TK = False
+
 
 class ContentTests(unittest.TestCase):
     def test_every_installed_command_is_in_the_manual(self):
@@ -87,12 +93,14 @@ class HelpMakesNoFolderTests(unittest.TestCase):
     def test_ranking(self):
         from SelectingTopMaterial.cli import main
         self._help(main, ["--help"])
-        self._help(main, ["gui", "--help"])
+        if _HAS_TK:  # the window's own options are read by the window, which needs Tk
+            self._help(main, ["gui", "--help"])
 
     def test_classification(self):
         from Classification.cli import main
         self._help(main, ["--help"])
-        self._help(main, ["gui", "--help"])
+        if _HAS_TK:
+            self._help(main, ["gui", "--help"])
 
     def test_fetch_dois(self):
         from WebScraping.Fetch_DOIs.get_dois import main

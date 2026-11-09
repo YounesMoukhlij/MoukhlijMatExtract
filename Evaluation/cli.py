@@ -11,13 +11,11 @@ Folders and files are relative to ~/MoukhlijMatExtract, like every part."""
 from __future__ import annotations
 
 import argparse
-import shutil
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Optional, Sequence
 
-from LocalExtraction.about import PROJECT_HOME, command_name, enter_project_home, version, version_text
+from LocalExtraction.about import command_name, enter_project_home, version, version_text
 from LocalExtraction.provenance import Run
 
 from .about import DEFAULT_SCORES, DEFAULT_SHEET, DEFAULT_SOURCES, NAME
@@ -110,18 +108,10 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _keep_old(path: Path) -> Path:
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    kept = path.with_name(f"{path.stem}.{stamp}{path.suffix}")
-    shutil.move(str(path), kept)
-    return kept
-
-
 def run_sheet(args) -> int:
-    from .sheet import make
+    from .steps import NoDatabase, keep_old, make_sheet
     sources = [Path(s).expanduser() for s in args.source] if args.source else list(DEFAULT_SOURCES)
-    present = [s for s in sources if (s / "papers.csv").exists()]
-    if not present:
+    if not any((s / "papers.csv").exists() for s in sources):
         print("There is no database to draw from: extract papers first (mme-local or mme-web).\nLooked in: "
               + ", ".join(str(s) for s in sources), file=sys.stderr)
         return 1
@@ -132,9 +122,12 @@ def run_sheet(args) -> int:
                   f"Score it (mme-eval score), write elsewhere (--out), or replace it (--force: the old one is kept).",
                   file=sys.stderr)
             return 1
-        print(f"The old workbook is kept as {_keep_old(out)}")
-    log = None if args.all_papers else PROJECT_HOME / "WebScraping" / "papers" / "scrape_log.csv"
-    counts = make(present, out, args.papers, args.seed, version(), legal_only=not args.all_papers, log=log)
+        print(f"The old workbook is kept as {keep_old(out)}")
+    try:
+        counts = make_sheet(sources, out, args.papers, args.seed, legal_only=not args.all_papers)
+    except NoDatabase as error:
+        print(error, file=sys.stderr)
+        return 1
     print(f"Wrote {out}\n  {counts['papers']} papers drawn (seed {args.seed}), {counts['without_values']} of them "
           f"without any extracted value; {counts['values']} extracted values to check.\n"
           f"  Next: open it, read its Guide sheet, annotate, then: {command_name('mme-eval', NAME)} score")
@@ -146,32 +139,17 @@ def run_sheet(args) -> int:
 
 
 def run_score(args) -> int:
-    from .score import AnnotationError, evaluate, extracted_from_databases, read_annotation, write_report
+    from .score import AnnotationError, evaluate
+    from .steps import score_sheet
+    sources = [Path(s).expanduser() for s in args.source] if args.source else None
     try:
-        annotation = read_annotation(args.gold.expanduser())
+        metrics, paths, annotation, ours, _ = score_sheet(args.gold.expanduser(), args.out.expanduser(), sources,
+                                                         seed=args.seed)
     except AnnotationError as error:
         print(error, file=sys.stderr)
         return 1
-    if not annotation.done:
-        print(f"No paper of {annotation.path} is marked done yet (Papers sheet, column done = yes).", file=sys.stderr)
-        return 1
-    extracted, label = None, "the values in the workbook (the run it was made from)"
-    if args.source:
-        folders = [Path(s).expanduser() for s in args.source]
-        missing = [str(f) for f in folders if not (f / "papers.csv").exists()]
-        if missing:
-            print("Not a results folder: " + ", ".join(missing), file=sys.stderr)
-            return 1
-        extracted = extracted_from_databases(annotation, folders)
-        label = "now in " + ", ".join(str(f) for f in folders)
-    run = Run("evaluation", args.out.expanduser(), settings={"workbook": str(annotation.path.resolve()),
-                                                              "scored": label, "bootstrap_seed": args.seed})
-    metrics = evaluate(annotation, extracted, seed=args.seed)
-    about = {"software": f"MoukhlijMatExtract {version()}".strip(), "bootstrap seed": str(args.seed)}
-    paths = write_report(args.out.expanduser(), metrics, annotation, label, about)
     if args.predictions:
         from .score import comparison_text, paired_difference, predictions_from_csv
-        ours = annotation.extracted if extracted is None else extracted
         systems, differences = {"MoukhlijMatExtract": metrics}, {}
         for path in args.predictions:
             try:
@@ -184,9 +162,6 @@ def run_score(args) -> int:
         paths["comparison"] = args.out.expanduser() / "comparison.md"
         paths["comparison"].write_text(comparison_text(systems, differences), encoding="utf-8")
         print(f"Systems compared: {paths['comparison']}")
-    run.finish({"papers": metrics["papers"], "reference_values": metrics["gold"], "extracted_values": metrics["extracted"],
-                "record_f1": metrics["levels"]["record"]["all"]["f1"], "value_f1": metrics["levels"]["value"]["all"]["f1"]},
-               files=[p.name for p in paths.values()])
     for warning in annotation.warnings[:10]:
         print("warning:", warning)
     if len(annotation.warnings) > 10:
@@ -197,16 +172,17 @@ def run_score(args) -> int:
 
 
 def _print_summary(metrics) -> None:
+    from .steps import summary_rows
+
     def pct(x):
         return "  –  " if x is None else f"{100 * x:5.1f}"
 
     print(f"{metrics['papers']} papers, {metrics['gold']} reference values, {metrics['extracted']} extracted.")
-    rows = [(f"{level} · {'all' if scope == 'all' else scope.replace('_', ' ')}", s)
-            for level in ("record", "value") for scope, s in metrics["levels"][level].items()]
-    width = max([24] + [len(name) for name, _ in rows]) + 2  # the longest name sets the column
+    rows = summary_rows(metrics)
+    width = max([24] + [len(row[0]) for row in rows]) + 2  # the longest name sets the column
     print(f"  {'':{width}}{'precision':>10}{'recall':>9}{'F1':>8}")
-    for name, s in rows:
-        print(f"  {name:{width}}{pct(s['precision']):>10}{pct(s['recall']):>9}{pct(s['f1']):>8}")
+    for name, precision, recall, f1 in rows:
+        print(f"  {name:{width}}{pct(precision):>10}{pct(recall):>9}{pct(f1):>8}")
 
 
 def run_agree(args) -> int:

@@ -8,13 +8,16 @@ materials and classifies them:
 make demo        # from the source folder; the results go to examples/output/
 ```
 
-or, step by step, from any folder:
+or, step by step, from the source folder:
 
 ```bash
-mme-local extract -i examples/papers -o examples/output/database --offline
-mme-rank     --source examples/output/database --out examples/output/ranking
-mme-classify --source examples/output/database --out examples/output/classes
+mme-local extract -i "$PWD/examples/papers" -o "$PWD/examples/output/database" --offline
+mme-rank     --source "$PWD/examples/output/database" --out "$PWD/examples/output/ranking"
+mme-classify --source "$PWD/examples/output/database" --out "$PWD/examples/output/classes"
 ```
+
+The commands work from the project folder `~/MoukhlijMatExtract`, so a relative path is read from there;
+`$PWD/` gives the full path of the source folder (in PowerShell too).
 
 It takes about a minute. `--offline` leaves out the OpenAlex lookup of each paper's title, authors and
 journal, so the run needs no network and gives the same result on every computer.
@@ -41,10 +44,13 @@ real papers.
   1.9 mS cm⁻¹ of the x = 50 member of the series (100−x)(0.75Li₂S·0.25P₂S₅)·xLiBH₄. The sentences say
   only "the x = 50 samples"; the program finds the series the paper named pages before, and computes the
   composition of that member.
+- **A table without ruling lines.** Table 3 of the garnet paper gives σbulk and Ea for x = 0.18 and 0.25
+  of Li₇₋₃ₓFeₓLa₃Zr₂O₁₂; each row is given its own composition, Li₆.₄₆La₃Zr₂Fe₀.₁₈O₁₂ and
+  Li₆.₂₅La₃Zr₂Fe₀.₂₅O₁₂.
 - **Cited values.** The values of other works quoted in the introductions are marked `cited`, not `this
   work`.
 - **Wrong material.** In "The crystalline sample with x = 50 exhibits a higher conductivity (1.8 × 10⁻³
   S cm⁻¹) … than those of the 75Li₂S·25P₂S₅ glass … and the LiBH₄ crystal", the value goes to LiBH₄,
-  the formula nearest to it, not to the x = 50 sample. In the garnet paper, the values of the
-  Fe-substituted samples go to Li₇La₃Zr₂O₁₂ (LLZO), the parent compound the paper names, not to
-  Li₇₋₃ₓFeₓLa₃Zr₂O₁₂. See [docs/LIMITATIONS.md](../docs/LIMITATIONS.md).
+  the formula nearest to it, not to the x = 50 sample. In the garnet paper, "the activation energy is
+  ∼0.29 eV for the samples" (page 6) goes to Li₇La₃Zr₂O₁₂ (LLZO), the parent compound the paper names,
+  not to the Fe-substituted samples. See [docs/LIMITATIONS.md](../docs/LIMITATIONS.md).

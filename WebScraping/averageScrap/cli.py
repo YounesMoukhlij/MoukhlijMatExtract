@@ -151,6 +151,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     load_env()  # ELSEVIER_API_KEY, MME_EMAIL, ... from WebScraping/averageScrap/.env
 
     if args.command == "gui":
+        from LocalExtraction.about import require_tk
+        require_tk("mme-web gui")
         from WebScraping.webgui import main as gui_main  # the same window as `python -m WebScraping gui`
         gui_main(job_path=args.job, output_dir=args.output, workers=args.workers)
         return 0

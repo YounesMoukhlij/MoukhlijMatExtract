@@ -65,6 +65,9 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         self.pause_button(buttons).pack(side="left", padx=(0, 6))
         self.delete_button = delete_outputs_button(buttons, "local", after=self._outputs_deleted)
         self.delete_button.pack(side="left")
+        from Evaluation.gui import evaluate_button  # how accurate the extraction in the results folder is
+        self.evaluate_button = evaluate_button(buttons, lambda: self.output_dir, "local", "local articles")
+        self.evaluate_button.pack(side="left", padx=(6, 0), after=self.start_button)  # next to the extraction
         outputs.register("local", self.running, "an extraction is running")
         self.progress = ttk.Progressbar(buttons, mode="determinate", length=150)
         self.progress.pack(side="right", padx=(8, 0))
@@ -108,6 +111,7 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
         self.delete_button.configure(state="disabled")
+        self.evaluate_button.configure(state="disabled")
         self.progress.configure(maximum=max(self._total, 1), value=0)
         self.status.set(f"Reading {self._total} new PDF(s) …" if self._total else "Nothing new in this folder.")
         self.activity.write(f"--- Extraction of {folder} into {output}: {self._total} new PDF(s)")
@@ -163,6 +167,7 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         self.stop_button.configure(state="disabled")
         self.set_pause_button(False)
         self.delete_button.configure(state="normal")
+        self.evaluate_button.configure(state="normal")
         self.status.set("Stopped." if self.stop_event.is_set() else "Idle.")
         self.app.database_changed()
         if self._papers:

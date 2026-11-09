@@ -67,6 +67,8 @@ def _count(n: int, word: str) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv[:1] == ["gui"]:  # the window: python -m Classification gui
+        from LocalExtraction.about import require_tk
+        require_tk("mme-classify gui")
         from .gui import main as window
         return window(argv[1:])
     args = build_parser().parse_args(argv)

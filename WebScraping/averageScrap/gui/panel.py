@@ -158,6 +158,9 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.download_button.pack(side="left", padx=(6, 0))
         self.extract_button = ttk.Button(steps, text="4 · Extract", command=self.extract)
         self.extract_button.pack(side="left", padx=(6, 0))
+        from Evaluation.gui import evaluate_button  # how accurate the extraction in the results folder is
+        self.evaluate_button = evaluate_button(steps, self.output.get, "web", "web articles")
+        self.evaluate_button.pack(side="left", padx=(6, 0))
         self.stop_button = ttk.Button(steps, text="Stop", command=self.stop, state="disabled")
         self.stop_button.pack(side="left", padx=(6, 0))
         self.pause_button(steps).pack(side="left", padx=(6, 0))
@@ -437,6 +440,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.set_pause_button(busy)
         self.edit_button.configure(state="disabled" if busy else "normal")
         self.delete_button.configure(state="disabled" if busy else "normal")
+        self.evaluate_button.configure(state="disabled" if busy else "normal")
 
     def holds_ledger(self) -> bool:
         return self.harvest is not None

@@ -105,6 +105,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv[:1] == ["gui"]:
+        from LocalExtraction.about import require_tk
+        require_tk("mme-rank gui")
         from .gui import main as gui_main  # Tk is loaded only when the window is asked for
         return gui_main(argv[1:])
     args = build_parser().parse_args(argv)

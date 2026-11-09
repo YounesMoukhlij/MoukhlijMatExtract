@@ -11,6 +11,7 @@ import pdfplumber
 from .config import SchemaConfig
 from .normalizer import normalize_scientific_text, repair_hyphenation
 from .ocr import run_ocr
+from .tables import caption_tables
 from . import runcontrol
 
 # "Fig. 3", "Figure S5", "TABLE II" — arabic, supplementary (S-prefixed) or roman numbering. A
@@ -40,6 +41,15 @@ def repair_blocks(blocks: List[Dict[str, Any]]) -> None:
     texts = [normalize_scientific_text(block[key]) for block, key in holders]
     for (block, key), text in zip(holders, repair_hyphenation(texts)):
         block[key] = text
+
+
+# The header of a column naming each row's material: "Material", "Samples", "Nominal composition",
+# "Chemical formula", "Electrolyte", "Compound" …
+_MATERIAL_HEADER = re.compile(r"^\s*(?:nominal\s+|chemical\s+|sample\s+)?(?:materials?|samples?|compositions?|compounds?|electrolytes?|formulae?|formulas|systems?|phases?|names?)\b", re.IGNORECASE)
+
+
+_TABLE_NUMBER = re.compile(r"\d+(?:\.\d+)?")
+_LONG_WORD = re.compile(r"[A-Za-z]{4,}")
 
 
 class DocumentParser:
@@ -97,6 +107,7 @@ class DocumentParser:
 
         # Dedicated Table Extraction via pdfplumber (needs the Caption blocks above for numbering).
         blocks.extend(self._extract_tables(blocks))
+        self._mark_table_text(blocks)
         repair_blocks(blocks)
 
         references = self._split_references(self._reference_lines)
@@ -349,15 +360,49 @@ class DocumentParser:
             with pdfplumber.open(self.filepath) as pdf:
                 for page_idx, page in enumerate(pdf.pages, 1):
                     runcontrol.check()
-                    extracted = page.extract_tables()
-                    for t_idx, table in enumerate(extracted, 1):
-                        block = self._build_table_block(table, page_idx, t_idx, captions_by_page.get(page_idx, []))
+                    ruled = page.find_tables()
+                    for t_idx, found in enumerate(ruled, 1):
+                        block = self._build_table_block(found.extract(), page_idx, t_idx, captions_by_page.get(page_idx, []))
                         if block:
+                            blocks.append(block)
+                    # The tables printed without ruling lines (most journals'), found under their caption.
+                    captions = {c.get("ref_number"): c for c in captions_by_page.get(page_idx, [])}
+                    try:
+                        unruled = caption_tables(page, skip=[t.bbox for t in ruled])
+                    except Exception as e:  # a page the reader cannot take: its ruled tables are kept
+                        logging.debug(f"Unruled tables of page {page_idx} of {self.filepath}: {e}")
+                        unruled = []
+                    for number, table in unruled:
+                        caption = captions.get(number.upper())
+                        block = self._build_table_block(table, page_idx, 0, [caption] if caption else [])
+                        if block:
+                            block["table_number"] = number.upper()
                             blocks.append(block)
         except Exception as e:
             logging.warning(f"Table extraction failed for {self.filepath} via pdfplumber: {e}")
 
         return blocks
+
+    @staticmethod
+    def _mark_table_text(blocks: List[Dict[str, Any]]) -> None:
+        """The text of a table also comes out of the page as lines of text, its cells run together ("Li6PS5Cl
+        1.2 × 10−3 0.31 Li6PS5Br …"): read as sentences, it puts values with the wrong material. A text block of
+        a page whose numbers are mostly those of a table read on that page is that table's text: it is marked
+        "TableText", and its values come from the table only."""
+        numbers_by_page: Dict[int, set] = {}
+        for b in blocks:
+            if b["type"] == "Table":
+                cells = " ".join(str(v) for row in b.get("rows", []) for v in row.values())
+                numbers_by_page.setdefault(b["page"], set()).update(_TABLE_NUMBER.findall(cells))
+        for b in blocks:
+            table_numbers = numbers_by_page.get(b["page"])
+            if b["type"] != "Text" or not table_numbers:
+                continue
+            numbers = _TABLE_NUMBER.findall(b["text"])
+            words = _LONG_WORD.findall(b["text"])
+            if len(numbers) >= 6 and len(words) < 2 * len(numbers) and \
+                    sum(1 for n in numbers if n in table_numbers) >= 0.7 * len(numbers):
+                b["type"] = "TableText"
 
     @staticmethod
     def _build_table_block(table: List[List[Any]], page_idx: int, t_idx: int,
@@ -399,11 +444,7 @@ class DocumentParser:
             caption_text = match["text"]
             table_number = match.get("ref_number", table_number)
 
-        material_column = "NONE"
-        for h in headers:
-            if h.lower() in ("material", "materials", "sample", "composition", "compound", "electrolyte"):
-                material_column = h
-                break
+        material_column = next((h for h in headers if _MATERIAL_HEADER.match(h)), "NONE")
 
         return {
             "text": "\n".join(raw_lines),

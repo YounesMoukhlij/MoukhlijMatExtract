@@ -45,7 +45,7 @@ _SIGN = r'[−–+-]'  # U+2212, en dash, plus, hyphen
 # element it joins two formulas ("Li2S-P2S5").
 _VARIABLES = "xyzδ"
 _VAR_TERM = rf'(?:{_NUMBER})?[{_VARIABLES}](?![a-z])'
-_FRACTION = r'\d+/[2-9](?!\d)'
+_FRACTION = r'\d{1,2}/(?:[2-9]|[1-9]\d)(?!\d)'  # "2/3", and "7/16" of Li3/8Sr7/16Ta3/4Hf1/4O3
 _VARIABLE = (rf'(?:(?:{_FRACTION}|{_NUMBER})\s?{_SIGN}\s?{_VAR_TERM}(?:\s?{_SIGN}\s?{_VAR_TERM})?'
              rf'|{_VAR_TERM}(?:\s?{_SIGN}\s?{_VAR_TERM})?)')
 _SUBSCRIPT = rf'(?:{_VARIABLE}|{_FRACTION}|{_NUMBER})?'
@@ -180,7 +180,7 @@ def _evaluate(expression: str, values: Dict[str, float]) -> Optional[Amount]:
     text = re.sub(r'\s', '', expression).replace("−", "-").replace("–", "-")
     if not text:
         return 1.0
-    text = re.sub(r'(\d+)/(\d)', lambda m: f"{int(m.group(1)) / int(m.group(2)):.4f}".rstrip("0"), text)
+    text = re.sub(r'(\d+)/(\d{1,2})', lambda m: f"{int(m.group(1)) / int(m.group(2)):.4f}".rstrip("0"), text)
     if not any(v in text for v in _VARIABLES):
         return float(text)
     if any(v in text and v not in values for v in _VARIABLES):
@@ -894,9 +894,10 @@ class ChemistryEngine:
         """PDF text has no superscripts, so a citation number runs into the formula before it:
         "Li6PS5Cl8", "LiCoO223", "Li3PS4.11". When a formula of three or more elements is not
         charge-balanced but is once trailing digits are cut off, they were a citation. (Two-element
-        formulas are left alone: Li2S8 and FeS2 are real and balance under no simple rule.)"""
+        formulas are left alone: Li2S8 and FeS2 are real and balance under no simple rule; so is the count
+        of a last H, "Li3BN2H8", "Li4BN3H10": hydrogen is −1 in BH4 and +1 in NH2, which no single rule balances.)"""
         tail = re.search(r'(\d+)(?:\.(\d+))?$', body)
-        if not tail or len(amounts) < 3 or body[:tail.start()].endswith(")") or _net_charge(amounts) <= _BALANCED:
+        if not tail or len(amounts) < 3 or body[:tail.start()].endswith((")", "H")) or _net_charge(amounts) <= _BALANCED:
             return None
         whole, decimals = tail.group(1), tail.group(2)
         kept = [whole] if decimals else [whole[:-n] for n in range(1, min(3, len(whole)) + 1)]

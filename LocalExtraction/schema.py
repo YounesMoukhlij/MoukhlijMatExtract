@@ -101,6 +101,9 @@ COLUMN: Dict[str, Tuple[str, str]] = {
     "plausibility": ("text", "“in range”, or “check: …” for a value outside the range known for ion "
                              "conductors or carried by another species than a conducting ion (left out of the "
                              "ranking by default)."),
+    "needs_check": ("text", "“no”, or “yes: …” with why a person should look at the value: out of range, "
+                            "unusual formula, doped sample, material from another sentence, table text, low confidence. A pointer "
+                            "to the values most worth checking, not a verdict (see docs/LIMITATIONS.md)."),
     "reported_as": ("text", "The paper's own word for the quantity (activation energy, Ea, migration barrier, …)."),
     "n_assumed": ("integer", "How many of the context answers (structure, temperature, pressure, origin, "
                              "component, ion) are defaults rather than read from the paper."),

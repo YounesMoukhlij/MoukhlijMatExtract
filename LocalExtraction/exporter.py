@@ -17,6 +17,7 @@ import pandas as pd
 from .chemistry import ChemistryEngine, common_radii
 from .models import ExtractedField, Material, PaperData, TableRecord, as_written
 from .provenance import extracted_with
+from .review import needs_check
 from .species import mobile_species, paper_ion, plausibility
 
 # Characters XML (and therefore .xlsx) cannot store.
@@ -45,7 +46,7 @@ TABLE_NAMES = ["papers", "materials", "properties", *(table for _, table, _, _ i
 NOT_RECORDED = "not recorded (written by an earlier version of MoukhlijMatExtract)"
 ADDED_BY_HAND = "not filled (a column added by hand)"
 # Columns a later version added that `upgrade` can work out for the rows an earlier version wrote.
-UPGRADABLE = {"extracted_with", "mobile_ion", "plausibility", "equation_basis"}
+UPGRADABLE = {"extracted_with", "mobile_ion", "plausibility", "needs_check", "equation_basis"}
 EARLIER_VERSION = "an earlier version of MoukhlijMatExtract (before the version was recorded with each paper)"
 # The rebuilds of a folder whose papers have not all been brought back yet (see `archive`).
 _PENDING_REBUILDS = "rebuild_pending.json"
@@ -54,6 +55,7 @@ _EXCEL_CELL_LIMIT = 32767  # the characters one cell of a workbook can hold
 
 _VALUE_CONTEXT = ["temperature", "pressure", "data_origin", "attribution", "n_assumed", "basis"]
 _QUANTITY_COLUMNS = ["paper_id", "material_formula", "{value}", "reported_as", "extracted_from", "page", "plausibility",
+                     "needs_check",
                      "composition", "structure", "ionic_radii", "temperature", "pressure", "data_origin",
                      "transport_component", "mobile_ion", "attribution", "n_assumed", "basis", "confidence", "source", "section", "sentence", "raw_value",
                      "material_id", "material_link"]
@@ -377,6 +379,10 @@ class StrictExporter:
                 if "plausibility" in missing:
                     frame["plausibility"] = [plausibility(prop, number, ion)
                                              for number, ion in zip(frame.get(value, [""] * len(frame)), frame["mobile_ion"])]
+                if "needs_check" in missing:
+                    frame["needs_check"] = [needs_check(row.get("plausibility", ""), row.get("confidence", ""),
+                                                        row.get("material_link", ""), row.get("sentence", ""),
+                                                        row.get("material_formula", "")) for _, row in frame.iterrows()]
             order = [c for c in COLUMNS[name] if c in frame.columns] + [c for c in frame.columns if c not in COLUMNS[name]]
             frame = cls._strict_none(frame[order])
             path = os.path.join(output_dir, f"{name}.csv")
@@ -660,10 +666,13 @@ class StrictExporter:
                         table, number = quantity[prop]
                         columns = cls._material_columns(c, materials)
                         counts[table] = counts.get(table, 0) + 1
+                        plausible = plausibility(prop, c.normalized_value, cls.species_of(c))
                         tables[table].append({
                             "paper_id": pid, "material_formula": columns["material_formula"],
                             number: float(c.normalized_value.split(" ", 1)[0]),
-                            "plausibility": plausibility(prop, c.normalized_value, cls.species_of(c)),
+                            "plausibility": plausible,
+                            "needs_check": needs_check(plausible, c.confidence, c.material_link, cls.sentence_of(c),
+                                                       columns["material_formula"]),
                             "reported_as": c.reported_as if c.reported_as != "NONE" else prop.replace("_", " ").lower(),
                             **cls._part_columns(c),
                             "composition": columns["composition"], "structure": columns["structure"],
