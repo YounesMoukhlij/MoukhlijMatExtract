@@ -253,7 +253,8 @@ class JobTests(unittest.TestCase):
         self.assertEqual(text.splitlines()[:3], ["# my keys", "ELSEVIER_API_KEY=new-key", "OTHER=kept"])
         self.assertEqual(read_env(path), {"ELSEVIER_API_KEY": "new-key", "OTHER": "kept", "WILEY_TDM_TOKEN": "token",
                                           "MME_EMAIL": ""})
-        self.assertEqual(os.stat(path).st_mode & 0o077, 0)  # the keys are the owner's alone
+        if os.name != "nt":  # Windows has no owner/group/other permission bits to check
+            self.assertEqual(os.stat(path).st_mode & 0o077, 0)  # the keys are the owner's alone
         with self.assertRaisesRegex(ValueError, "one line"):
             save_env({"ELSEVIER_API_KEY": "two\nlines"}, path)
 

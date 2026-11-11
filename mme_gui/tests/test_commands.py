@@ -93,8 +93,11 @@ class MmeTests(unittest.TestCase):
         for part in commands.PARTS:
             with self.subTest(part=part):
                 import subprocess, sys
+                # UTF-8, as the manual reads a help: on Windows a pipe is cp1252, which has no "β" or "→"
+                env = dict(__import__("os").environ, PYTHONIOENCODING="utf-8")
                 result = subprocess.run([sys.executable, "-m", "mme_gui.commands", part, "--help"],
-                                        capture_output=True, text=True, cwd=str(ROOT), timeout=120)
+                                        capture_output=True, text=True, encoding="utf-8", cwd=str(ROOT), timeout=120,
+                                        env=env)
                 self.assertEqual(result.returncode, 0, result.stderr[-400:])
                 self.assertIn("usage:", result.stdout)
 

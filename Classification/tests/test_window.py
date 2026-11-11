@@ -187,6 +187,22 @@ class WindowTests(unittest.TestCase):
             self.root.update()
             time.sleep(0.02)
 
+    def settle(self, seconds: float = 0.3) -> None:
+        """Lets the window finish what it was doing (a refresh, a redraw) before the test acts."""
+        deadline = time.time() + seconds
+        while time.time() < deadline:
+            self.root.update()
+            time.sleep(0.01)
+
+    def select(self, table, row: str, axis: str) -> None:
+        """Selects a row as a click does, and lists its materials. A click makes Tk send <<TreeviewSelect>>; a
+        selection made in code is not sent the same way by every Tk build (python.org's for macOS and Windows),
+        so the window's handler is called as the event would call it."""
+        table.tree.selection_set(row)
+        self.settle(0.1)
+        self.assertEqual(list(table.tree.selection()), [row])
+        self.app._fill_materials(axis)
+
     def cells(self, table, row):
         return dict(zip(table.columns, table.tree.item(row, "values")))
 
@@ -203,11 +219,9 @@ class WindowTests(unittest.TestCase):
 
     def test_a_class_lists_its_materials_and_the_filters_recount(self):
         self.app.view.set(SIDE_BY_SIDE)
-        self.root.update()
+        self.settle()
         classes, materials = self.app.classes["crystal_structure"], self.app.materials["crystal_structure"]
-        classes.tree.selection_set("garnet")
-        classes.tree.event_generate("<<TreeviewSelect>>")  # as a click does: some Tk builds send nothing for a selection made in code
-        self.root.update()
+        self.select(classes, "garnet", "crystal_structure")
         self.assertEqual([self.cells(materials, row)["material"] for row in materials.tree.get_children()], ["Li7La3Zr2O12"])
         self.app.stated.set(True)
         self.app.refresh()
@@ -231,14 +245,10 @@ class WindowTests(unittest.TestCase):
         self.assertEqual((overall["n_values"], overall["min"], overall["min_material"]), ("4", "0.24", "Li7La3Zr2O12"))
         empty = self.cells(tree, tree.tree.get_children("argyrodite")[2])  # argyrodite → total: none
         self.assertEqual((empty["n_values"], empty["min"]), ("0", NO_VALUE))
-        tree.tree.selection_set("argyrodite\x1fbulk")
-        tree.tree.event_generate("<<TreeviewSelect>>")  # as a click does: some Tk builds send nothing for a selection made in code
-        self.root.update()
+        self.select(tree, "argyrodite\x1fbulk", "crystal_structure")
         self.assertEqual([self.cells(materials, row)["material"] for row in materials.tree.get_children()], ["Li6PS5Cl"])
         self.assertIn("argyrodite — bulk", self.app.captions["crystal_structure"].cget("text"))
-        tree.tree.selection_set("garnet\x1ftotal")
-        tree.tree.event_generate("<<TreeviewSelect>>")  # as a click does: some Tk builds send nothing for a selection made in code
-        self.root.update()
+        self.select(tree, "garnet\x1ftotal", "crystal_structure")
         self.assertEqual([self.cells(materials, row)["material"] for row in materials.tree.get_children()], ["Li7La3Zr2O12"])
         tree.tree.item("garnet", open=False)
         self.app.refresh()  # a class closed by hand stays closed
