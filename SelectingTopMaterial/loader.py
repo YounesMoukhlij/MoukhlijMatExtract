@@ -182,7 +182,8 @@ def _measurement(row: dict[str, str], papers: dict[str, dict[str, str]], databas
         extracted_from=_cell(row, "extracted_from", "source_type") or NOT_REPORTED,
         page=_cell(row, "page") or NOT_REPORTED, source=_cell(row, "source") or NOT_REPORTED,
         section=_cell(row, "section") or NOT_REPORTED, sentence=_cell(row, "sentence") or NOT_REPORTED,
-        mobile_ion=_cell(row, "mobile_ion") or "Li+", plausibility=_cell(row, "plausibility") or "in range")
+        mobile_ion=_cell(row, "mobile_ion") or "Li+", plausibility=_cell(row, "plausibility") or "in range",
+        energy_kind=_cell(row, "energy_kind") or "")
 
 
 def _papers(folder: Path) -> dict[str, dict[str, str]]:

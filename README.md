@@ -1,6 +1,7 @@
 # MoukhlijMatExtract (MME)
 
-> Extract · Rank · Classify — solid-state electrolyte data from the scientific literature.
+> Extract · Rank · Classify — battery-materials data from the scientific literature: solid electrolytes,
+> cathodes and anodes.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/moukhlijmatextract/)
@@ -8,10 +9,23 @@
 
 ## About the project
 
-**MoukhlijMatExtract (MME)** is an open-source research tool for mining the scientific literature on
-**solid-state electrolytes**. Thousands of papers report how fast ions move through a solid — but each in
-its own words, units and table layout, so comparing materials across the literature by hand takes weeks.
-MME does that work automatically and keeps it traceable.
+**MoukhlijMatExtract (MME)** is an open-source research tool for mining the scientific literature on the
+three main parts of a battery:
+
+| Domain | What it covers | Job file | Ranking |
+|---|---|---|---|
+| **Electrolytes** | solid-state electrolytes: oxides, sulfides, halides, hydrides, … | `configs/sse.yaml` | `mme-rank --domain electrolyte` |
+| **Cathodes** | layered oxides, spinels, olivines and other polyanions, Prussian blues, … | `configs/cathode.yaml` | `mme-rank --domain cathode` |
+| **Anodes** | graphite and hard carbon, Si/Sn/Sb alloys, titanates and niobates, conversion oxides, metal anodes | `configs/anode.yaml` | `mme-rank --domain anode` |
+
+Thousands of papers report how fast ions move through these materials — but each in its own words, units and
+table layout, so comparing materials across the literature by hand takes weeks. MME does that work
+automatically and keeps it traceable.
+
+Each domain has its own search (job file), its own folders and its own database. The `domain` setting
+(`extract.domain` in a job file, `mme-local --domain` for your own PDFs) tells the extraction what the
+database is about. It then flags the values of materials of another kind — an electrode in an electrolyte
+database, a solid electrolyte in a cathode database — so that the ranking leaves them out.
 
 It reads papers — your own PDFs, or articles it finds and retrieves online from open sources — and
 extracts their **ion-transport data** into a structured database:
@@ -22,10 +36,15 @@ extracts their **ion-transport data** into a structured database:
   whether the value is the paper's own result or one it cites;
 - the **source of every value** — paper, page, table, figure or sentence — so any number can be checked.
 
-The materials are then **ranked by activation energy** (Superionic, Performant, Acceptable, Rejected)
-and **classified** by crystal-structure type (NASICON, garnet, argyrodite, LGPS, perovskite, …) and by
-structure family (oxide, sulfide, halide, …), to support the data-driven screening of candidate
-electrolytes.
+The materials are then **ranked by activation energy** and **classified** by crystal-structure type
+(NASICON, garnet, argyrodite, LGPS, perovskite, layered, spinel, olivine, …) and by structure family (oxide,
+sulfide, halide, …), to support data-driven screening.
+- **Electrolytes:** Superionic, Performant, Acceptable, Rejected.
+- **Cathodes and anodes:** low, moderate and high barrier. Their limits are starting points to set for your study.
+
+Every activation energy says what kind of energy it is: a measured or simulated Arrhenius slope, a static
+migration barrier (NEB), a bond-valence barrier, local NMR hops, a VTF pseudo-activation energy, or no ion
+migration at all. Rank one kind at a time (`mme-rank --kind arrhenius`).
 
 MME works from a window (no command line needed) or from the terminal, keeps all your files in one
 folder, never redoes work already done, and never deletes your input PDFs.
@@ -92,10 +111,16 @@ python -m spacy download en_core_web_sm   # the English language model, once
 
 On macOS and Linux, `make install` does all of this in one step.
 
-Both give the same eight commands — `mme-gui`, `mme-local`, `mme-web`, `mme-dois`, `mme-rank`,
-`mme-classify`, `mme-eval`, `mme-release` — with every option (`<command> --help`, or **☰ Manual** in the
-main window, which shows them all). The `make` shortcuts come with the source code only: installed from
-PyPI, use the commands themselves (the manual shows no make section then).
+Both give the same nine commands — `mme-gui`, `mme-local`, `mme-web`, `mme-dois`, `mme-rank`,
+`mme-classify`, `mme-eval`, `mme-release`, and `mme`, which holds them all — with every option.
+- `mme help` lists every command at a glance.
+- `mme commands` prints every option of every command (the same as [docs/COMMANDS.md](docs/COMMANDS.md)).
+- `mme <part> …` runs a part: `mme local`, `mme web run`, `mme rank --domain cathode`, `mme eval score` ….
+- **☰ Manual** in the main window shows the same.
+
+The `make` shortcuts come with the source code only; installed from PyPI, `mme` gives the same commands.
+**Reviewers:** [docs/MANUAL.md](docs/MANUAL.md) is the complete manual: installing, every step for
+electrolytes, cathodes and anodes, the outputs, measuring the accuracy and reproducing a result.
 
 Work **inside the virtual environment**: in each new terminal, enter it again with
 `source .venv/bin/activate` before running MME. Check the installation with:
@@ -144,7 +169,8 @@ parts always find each other's files:
 
 ```
 ~/MoukhlijMatExtract/
-├── configs/sse.yaml                      ← what the web search looks for (the job file)
+├── configs/sse.yaml                      ← what the web search looks for: electrolytes (the job file)
+├── configs/cathode.yaml, anode.yaml      ← … cathodes, anodes (made next to it on the first run)
 ├── LocalExtraction/papers/               ← put your own PDFs here
 ├── LocalExtraction/local_output/         ← database of part 1
 ├── WebScraping/papers/                   ← PDFs downloaded by part 2
@@ -254,6 +280,28 @@ mme-web gui                    # the same, in a window
 | `--refresh` | search again the keywords already searched in the last 30 days |
 | `--rebuild` | extract every downloaded PDF again |
 
+#### Electrolytes, cathodes or anodes
+
+Choose the job file of the domain, in the window (**Job file:**) or with `--job`, and give each domain its own
+database folder:
+
+```bash
+mme-web run --job configs/sse.yaml                                                   # electrolytes
+mme-web run --job configs/cathode.yaml --output WebScraping/web_output_cathode       # cathodes
+mme-web run --job configs/anode.yaml   --output WebScraping/web_output_anode         # anodes
+mme-local --domain cathode --input /path/to/cathode/pdfs --output LocalExtraction/output_cathode   # your own PDFs
+```
+
+**What each job sets:**
+- its own search, its own download folder (`WebScraping/papers_cathode`, `…_anode`) and its own DOI list;
+- `extract.domain`, which flags the values of materials of another kind. An electrolyte database flags electrodes,
+  alloys, interphase salts and composites. A cathode database flags solid electrolytes, interphase salts, alloys
+  and lithiated carbon. An anode database flags solid electrolytes and interphase salts.
+
+**What the electrode jobs extract:** the transport quantities, plus capacity, capacity retention, voltage and rate
+capability, which go to `properties.csv`. The extraction rules were written and measured on electrolyte papers
+(see `docs/LIMITATIONS.md` § 2). Check a sample of an electrode database before relying on it.
+
 ### Step 3 — Rank the materials
 
 Open **3 · Ranking** and press **Rank**, or from the terminal:
@@ -263,6 +311,8 @@ mme-rank                       # rank everything, write the files
 mme-rank --open                # … and open the report in the browser
 mme-rank --element Na          # only the sodium conductors
 mme-rank --origin experimental --top 20
+mme-rank --kind arrhenius      # one kind of energy only (arrhenius, migration_barrier, bvse, local_hop, vtf)
+mme-rank --domain cathode --source ~/MoukhlijMatExtract/WebScraping/web_output_cathode   # a cathode database
 mme-rank gui                   # the window
 ```
 
@@ -278,6 +328,16 @@ confidence-weighted median of its values of that component) and a class from
 | **Performant** | 0.25 – 0.30 eV |
 | **Acceptable** | 0.30 – 0.40 eV |
 | **Rejected** | 0.40 eV and above |
+
+Cathodes and anodes (`--domain cathode`, `--domain anode`) are ranked with
+[`criteria_cathode.toml`](SelectingTopMaterial/criteria_cathode.toml) and
+[`criteria_anode.toml`](SelectingTopMaterial/criteria_anode.toml):
+- **Low barrier:** below 0.30 eV.
+- **Moderate barrier:** 0.30–0.50 eV.
+- **High barrier:** above 0.50 eV.
+
+These limits are starting points, not literature criteria: set them for your study. A low barrier means fast ion
+diffusion in the electrode; it says nothing of its capacity, voltage or stability.
 
 | Option | What it does |
 |--------|--------------|
@@ -435,8 +495,11 @@ cannot be emptied until it is done.
 
 ### All commands
 
+`mme help` lists them, `mme commands` (or [docs/COMMANDS.md](docs/COMMANDS.md)) gives every option of each.
+
 | Command | Does |
 |---------|------|
+| `mme` | every command in one: `mme help`, `mme commands`, `mme <part> …` |
 | `mme-gui` | the main window: every part, one button each |
 | `mme-local` | 1 · extract your PDFs (`mme-local gui`: in a window) |
 | `mme-web` | 2 · search, download and extract (`mme-web gui`: in a window) |
@@ -484,6 +547,10 @@ make web LIMIT=50 YES=1                    # 2 · Web scraping       (web-check,
 make rank COMPONENT="grain boundary" TOP=20 FORMAT="csv html"   # 3 · Ranking   (rank-gui)
 make classify FORCE=1                      # 4 · Classification     (classify-gui NO_WRITE=1)
 make test K="stop" FAST=1                  # the tests              (TESTS= VERBOSE=1 ARGS=)
+make web-cathode LIMIT=50                  # cathodes: configs/cathode.yaml -> WebScraping/web_output_cathode (web-anode)
+make rank-cathode KIND=arrhenius           # rank them with the cathode criteria     (rank-anode, local-cathode, local-anode)
+make rank DOMAIN=anode SOURCE=WebScraping/web_output_anode KIND=migration_barrier
+make commands                              # rewrite docs/COMMANDS.md (every option of every command); make manual
 ```
 
 Only what is written on the make command line counts: a shell variable of the same name is not taken

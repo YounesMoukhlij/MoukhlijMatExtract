@@ -18,7 +18,7 @@ Measured on 2026-11-08 with version 1.1.0:
 Before the fixes of this version (composition series, σ-subscript headers, S/m units) the same papers gave
 28.1 % / 7.8 % / 4.7 % (OBELiX) and 47.9 % / 4.2 % / 0.0 % (Liverpool).
 
-Read these as a lower bound of what any text extractor can reach on these entries, for four reasons:
+These recall figures are low for four reasons, most of them out of reach of any extractor that reads text:
 
 1. **Values that exist only in figures.** About 40 % of the curated entries of the papers read (47 of 112)
    are not printed in the text, tables or captions as numbers: the curators read them off Arrhenius plots
@@ -44,6 +44,45 @@ is not an error. Precision is measured on hand-annotated papers (§ 2).
 partly / wrong) and every value missed; `mme-eval score` gives precision, recall and F1 with 95 % bootstrap
 intervals, by property, and `mme-eval agree` the agreement of two annotators (Cohen's κ). **These numbers
 depend on the annotation and are not in this document**: report them from `Evaluation/scores/report.md`.
+
+### A first measurement of precision (activation energies, November 2026)
+
+**Method.**
+- **Who and how:** one person (an independent audit), judging each value from its stored sentence, and from the
+  PDF when the sentence did not decide.
+- **Which papers:** legal web papers that had not been used to write or check the rules.
+- **Which values:** every activation energy the ranking would use (in range, not flagged) of 40 random papers,
+  done twice on two different sets of 40 papers (rounds F and G).
+- **When correct:** a value is fully correct when all five of these are right:
+  - the number;
+  - the material (a doped sample stored under its parent formula is wrong);
+  - the origin, attribution and component;
+  - the kind of energy;
+  - that it is a candidate electrolyte.
+
+| Round | Values | Fully correct | Correct if the doubtful cases are right |
+|---|---:|---:|---:|
+| F | 76 | 37 % (27–48 %) | 62 % (51–72 %) |
+| G (after fixing what F showed) | 82 | 41 % (31–52 %) | 57 % (47–67 %) |
+
+(95 % Wilson intervals.)
+
+**What the numbers mean.**
+- **The number itself** is read correctly almost always (95 % on an earlier round of 80 values).
+- **Most errors are in what it is a value of:**
+  - a doped sample stored under its parent formula ("Ga–LLZO" as Li7La3Zr2O12);
+  - a composite or polymer electrolyte stored as its ceramic or its salt;
+  - another member of a composition series;
+  - a value the sentence gives for something else.
+
+  The rest are the measured/computed label, the mobile ion, or the kind of energy (local NMR hops vs long-range
+  transport).
+- **The weak link is paragraph context:** values whose material comes from the paragraph rather than the value's
+  own sentence (`material_link` = `paragraph_topic`, `previous_sentence`) are the least reliable.
+- **No simple filter of the columns reached 90 %** on both rounds.
+
+**What to do about it.** The values of a publication should be checked by a person; `mme-eval sheet` makes the
+workbook for that. The judgements behind this table are kept with the audit, not in this repository.
 
 ## 3 · What is read, and what is not
 

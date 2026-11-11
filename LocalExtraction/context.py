@@ -95,22 +95,24 @@ _P_NOT_A_CONDITION = re.compile(
 _SIMULATION = re.compile(
     r'(?i:\b(?:density[\s-]functional|first[\s-]principles?|ab[\s-]initio|molecular[\s-]dynamics|'
     r'nudged[\s-]elastic[\s-]band|simulat\w+|theoretical(?:ly)?|comput(?:ed|ations?|ational(?:ly)?)|calculations?|'
-    # "calculated from the Arrhenius plot" is how experimental papers report E_a: not a cue.
-    r'calculated(?!\s+(?:from|using|by|via|with|according)\b)|predict\w*|force[\s-]fields?|'
+    # "calculated from the Arrhenius plot" is how experimental papers report E_a: not a cue; nor is
+    # "calculated to be" / "calculated as", said of a slope as often as of a computation.
+    r'calculated(?!\s+(?:from|using|by|via|with|according|to\s+be|as)\b)|predict\w*|force[\s-]fields?|'
     r'monte[\s-]carlo|bond[\s-]valence|machine[\s-]learn\w+|supercells?|mean[\s-]squared?[\s-]displacements?|'
     r'energy\s+(?:landscapes?|profiles?))\b)'
     r'|\b(?:DFT|AIMD|MD|NEB|MLIPs?|MLFFs?|kMC|BVSE|MSD)\b')
 _EXPERIMENT = re.compile(
     r'(?i:\b(?:experiment(?:al(?:ly)?|s)?|measur(?:ed|ements?|ing)|impedance|nyquist|synthesi[sz]ed|as[\s-]prepared|'
     r'sintered|pellets?|blocking[\s-]electrodes?|galvanostatic|voltammetry|tracer[\s-]diffusion|'
-    r'nuclear[\s-]magnetic[\s-]resonance|neutron[\s-]scattering)\b)'
-    r'|\b(?:EIS|NMR|PFG|SIMS|XRD|GITT)\b')
+    r'nuclear[\s-]magnetic[\s-]resonance|neutron[\s-]scattering|spin[\s-]lattice|relaxometry|relaxation\s+rates?|'
+    r'quasi[\s-]?elastic)\b)'
+    r'|\b(?:EIS|NMR|PFG|SIMS|XRD|GITT|SLR|NSR|QENS|μSR)\b')
 # Words for a specimen: "the bare sample has an activation energy of 0.31 eV" was measured — but
 # they only describe what a value is for, so they count when nothing in the sentence names a
 # method ("BVSE analysis of the 350 °C-annealed sample" is a calculation). "sample" is a specimen
 # in a laboratory, except the samples a model is trained on.
 _SPECIMEN = re.compile(
-    r'(?i)\b(?:annealed|ball[\s-]milled|(?:hot|cold)[\s-]pressed|'
+    r'(?i)\b(?:annealed|ball[\s-]milled|(?:hot|cold)[\s-]pressed|dis[ck]s?|'
     r'(?<!training\s)(?<!test\s)(?<!data\s)(?<!validation\s)samples?(?!\s+(?:the|space|size|from|of\s+(?:the\s+)?(?:data|configurations))\b))\b')
 # Column-header shorthand ("σ exp.", "Ea (calc.)"); only safe in table headers — in prose "exp" is
 # the exponential.
@@ -121,7 +123,7 @@ _TABLE_ORIGIN = (
 # A comparison clause describes a different value ("... agrees with experiment", "... higher than
 # the DFT value of 0.33 eV"): its cues speak for a value inside the clause, not for one outside it.
 _COMPARED = re.compile(
-    r'(?i)\b(?:agree\w*\s+(?:\w+\s+)?with|consistent\s+with|compar(?:ed|able|ing|ison)\s+(?:to|with)|'
+    r'(?i)\b(?:agree\w*\s+(?:\w+\s+)?with|consistent\s+with|compar(?:ed|able|ing|ison|es?)\s+(?:(?:favou?rably|well|poorly)\s+)?(?:to|with)|'
     r'in\s+contrast\s+(?:to|with)|similar\s+to|close\s+to|match(?:es|ed|ing)?|versus|vs\.?|than|'
     r'exceed(?:s|ed|ing)?|surpass\w*|outperform\w*|relative\s+to|on\s+par\s+with)\s+'
     # To the end of the clause: the point of "0.37 eV" or "et al.10" does not end it, nor does the
@@ -318,8 +320,17 @@ def _pressures(text: str) -> List[Condition]:
 # ---------------------------------------------------------------------------
 # Experiment vs. simulation
 # ---------------------------------------------------------------------------
-def _origin_cues(text: str, value: Optional[Span]) -> List[Cue]:
-    """The origin cues that can speak for the value (see _COMPARED)."""
+def _origin_cues(text: str, value: Optional[Span], number: Optional[Span] = None) -> List[Cue]:
+    """The origin cues that can speak for the value (see _COMPARED). The wording of an E_a may start
+    outside a comparison whose clause holds its `number`: then the clause speaks for it when it names a
+    kind of work ("The calculated E_a of 0.27 eV agrees with the 0.28 eV derived from impedance
+    measurements": 0.28 eV is measured); one that names none ("... lower than that (0.22 eV) of undoped
+    LPS") compares like with like, and the sentence speaks for it as before."""
+    if number is not None and value is not None and number[0] != value[0]:
+        inside = _origin_cues(text, number)
+        clauses = [m.span() for m in _COMPARED.finditer(text)]
+        if inside and any(c[0] <= number[0] < c[1] for c in clauses):
+            return inside
     clauses = [m.span() for m in _COMPARED.finditer(text)]
     own = next((c for c in clauses if value is not None and c[0] <= value[0] < c[1]), None)
 
@@ -334,10 +345,11 @@ def _origin_cues(text: str, value: Optional[Span]) -> List[Cue]:
     return cues or [(m.start(), m.end(), EXPERIMENTAL) for m in _SPECIMEN.finditer(text) if speaks(m.start())]
 
 
-def _origin(text: str, value: Optional[Span] = None, rivals: Sequence[Span] = ()) -> Tuple[str, str]:
+def _origin(text: str, value: Optional[Span] = None, rivals: Sequence[Span] = (),
+            number: Optional[Span] = None) -> Tuple[str, str]:
     """(origin, verbatim cue). With no `value` the text is judged as a whole (a neighbouring
     sentence, a table header) and must speak of one kind of work only."""
-    cues = _origin_cues(text, value)
+    cues = _origin_cues(text, value, number)
     origins = {cue[2] for cue in cues}
     if len(origins) == 1:  # the whole sentence is about one kind of work
         best = min(cues, key=lambda cue: _gap(cue[:2], value) if value else cue[0])
@@ -353,15 +365,23 @@ def _origin(text: str, value: Optional[Span] = None, rivals: Sequence[Span] = ()
 
 
 def value_context(text: str, start: int, end: int, kind: str, previous: str = "",
-                  any_rival: bool = False) -> ValueContext:
+                  any_rival: bool = False, number: Optional[Span] = None) -> ValueContext:
     """Context of the value at text[start:end]; `kind` is its normalizer category and `previous`
     the sentence before it.
 
     Set `any_rival` for activation energies: an E_a is a slope over a temperature range, not a
     value at one temperature, so it only takes a temperature that no other transport value in the
-    sentence sits closer to ("σRT of 1.2 mS/cm and Ea of 0.25 eV" leaves the E_a without one)."""
+    sentence sits closer to ("σRT of 1.2 mS/cm and Ea of 0.25 eV" leaves the E_a without one).
+
+    `number` is where the value's number itself stands, when its wording (start–end) reaches further."""
+    shift = start
     text, start, end, split = own_segment(text, start, end)
+    shift -= start
     value = (start, end)
+    if number is not None:
+        number = (number[0] - shift, number[1] - shift)
+        if not 0 <= number[0] < len(text):
+            number = None
     same_kind, others = _rivals(text, value, kind), _rivals(text, value, None)
     rivals = others if any_rival else same_kind
 
@@ -377,7 +397,7 @@ def value_context(text: str, start: int, end: int, kind: str, previous: str = ""
     if kind != "pressure":
         ctx.pressure = _condition(_pressures(text), value, rivals, others)
 
-    ctx.origin, ctx.origin_evidence = _origin(text, value, same_kind)
+    ctx.origin, ctx.origin_evidence = _origin(text, value, same_kind, number)
     # Nothing in the sentence itself: the method is often named just before it ("AIMD simulations
     # were run at 600-1200 K. The activation energy is 0.25 eV."). Only what precedes counts — the
     # sentence after a measured result routinely moves on to the calculations explaining it.
@@ -423,13 +443,17 @@ def comparison_clauses(text: str) -> List[Span]:
 # What a comparison is made with stands right after the word that makes it: "than that of LATP",
 # "similar to the β-Li3PS4 results", "compared with Li6PS5Cl".
 _COMPARED_WITH = re.compile(
-    r'(?i)\b(?:agree\w*\s+(?:\w+\s+)?with|consistent\s+with|compar(?:ed|able|ing|ison)\s+(?:to|with)|'
+    r'(?i)\b(?:agree\w*\s+(?:\w+\s+)?with|consistent\s+with|compar(?:ed|able|ing|ison|es?)\s+(?:(?:favou?rably|well|poorly)\s+)?(?:to|with)|'
     r'in\s+contrast\s+(?:to|with)|similar\s+to|close\s+to|match(?:es|ed|ing)?|versus|vs\.?|than|unlike|'
     r'exceed(?:s|ed|ing)?|surpass\w*|outperform\w*|relative\s+to|on\s+par\s+with)\s+'
-    r'(?:(?:that|those|the\s+ones?|the\s+(?:[\w-]+\s+){0,2}?(?:values?|case|conductivit(?:y|ies)|barriers?|energ(?:y|ies)))'
-    r'\s+(?:of|for|in)\s+)?'
+    # "compared with the result(s) of Li10SnP2S12", "... the reported data for LATP"; the text layer of a PDF
+    # sometimes doubles such a phrase ("the result of the result of"), hence up to two.
+    # ... and without "the": "lower than typical values reported for undoped LLZO".
+    r'(?:(?:that|those|the\s+ones?|(?:the\s+)?(?:[\w-]+\s+){0,2}?(?:values?|case|conductivit(?:y|ies)|barriers?|energ(?:y|ies)'
+    r'|results?|data|reports?|works?)(?:\s+(?:reported|obtained|measured|calculated|computed|found|given))?)'
+    r'\s+(?:of|for|in)\s+){0,2}'
     # "... comparable to the known superionic conductors such as Li10GeP2S12"
-    r'(?:(?:[\w-]+\s+){0,6}(?:such\s+as|like|including|namely|e\.g\.,?)\s+'
+    r'(?:(?:[\w-]+\s+){0,6}(?:such\s+as|like|including|namely|e\.g\.,?)\s+(?:the\s+)?'
     # ... or at the end of the words that describe it: "surpassing that of the Hf4+-substituted
     # Li2.6Yb0.6Hf0.4Cl6", "comparable to the previously reported ball-milled KB11H14".
     r'|(?:(?!(?:is|are|was|were|has|have|had|and|or|but|which|that|while|whereas|in|on|at|by|with|from|to|as|for|of)\b)'
@@ -622,18 +646,23 @@ _BOUND_BEFORE = {
     True: re.compile(rf'(?i)(?:{_BOUND}|up\s+to)){_APPROXIMATELY}'),
     False: re.compile(rf'(?i)(?:{_BOUND})){_APPROXIMATELY}'),
 }
-_CHANGE_BEFORE = re.compile(rf'(?i)\b(?:by|(?:differences?|changes?|increases?|decreases?|reductions?|drops?|shifts?)\s+of){_APPROXIMATELY}')
+_CHANGE_BEFORE = re.compile(rf'(?i)\b(?:by|(?:differences?|changes?|increases?|decreases?|reductions?|drops?|shifts?|discrepanc(?:y|ies))\s+of){_APPROXIMATELY}')
 # "the difference between the lowest and the highest migration barriers of MgMn2O4 is 662 meV"
 _DIFFERENCE_BEFORE = re.compile(r'(?i)\bdifferences?\s+(?:between|in|of)\b[^.;]{0,90}$')
 _DIFFERENCE_AFTER = re.compile(
     r'(?i)^\s*(?:lower|higher|smaller|larger|less|more|greater|below|above|changes?|differences?|reductions?|'
     r'increases?|decreases?|drops?|shifts?|variations?)\b')
 _THERMAL_BEFORE = re.compile(r'\bk\s*_?\s*(?:B\s*_?\s*)?T\s*[=≈~:]?\s*$')
+# "barrier distributions ... with μ ≈ 0.93 eV and σ ≈ 0.69 eV": σ of an energy is the width of its distribution
+# (a conductivity has its own unit, so this σ is no conductivity).
+_SPREAD_BEFORE = re.compile(r'(?i)(?:\bσ|\bsigma|\bstd\.?|\bstandard\s+deviation(?:\s+of)?|\bFWHM(?:\s+of)?|\bwidth\s+of)\s*[≈=~∼:]?\s*$')
 _ERROR_WORD = re.compile(
     r'(?i)\b(?:RMSE|MAE|MSE|RMSD|MAPE|errors?|deviations?|uncertaint(?:y|ies)|accuracy|residuals?)\b')
 _INPUT_WORD = re.compile(
     r'(?i)\b(?:assum(?:e|es|ed|ing|ption)|typical(?:ly)?|hypothetical(?:ly)?|desired|targets?|'
-    r'criteri(?:on|a)|thresholds?|(?:upper|lower)[\s-]+(?:limit|bound)s?|cut-?offs?)\b')
+    r'criteri(?:on|a)|thresholds?|(?:upper|lower)[\s-]+(?:limit|bound)s?|cut-?offs?|priors?)\b'
+    # "p(Ea) ∼ U(0, 0.5 eV)": the bounds of a uniform prior
+    r'|[∼~]\s?U\s?\(|\bU\s?\(\s?0\s?,')
 _REFERENCE_LINE = re.compile(r'(?i)\b(?:dashed|dotted|dash-dotted|horizontal|vertical)\s+(?:\w+\s+)?lines?\b')
 _NUMERIC_TOKEN = re.compile(r'^[-−]?\d+(?:\.\d+)?[,;]?$')
 _INPUT_REACH = 30  # characters before the keyword in which "assumes ..." / "typical ..." still apply
@@ -656,6 +685,8 @@ def not_a_result(text: str, keyword_start: int, list_start: int, value: Optional
         return "a change or a difference"
     if energy and _THERMAL_BEFORE.search(before):
         return "thermal energy"
+    if energy and _SPREAD_BEFORE.search(before):
+        return "the spread of a distribution"
     between = text[keyword_start:list_start]
     nearby = text[max(0, keyword_start - _INPUT_REACH):list_start]
     if _ERROR_WORD.search(nearby):

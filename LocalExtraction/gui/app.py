@@ -14,9 +14,10 @@ from .window import Window
 
 class App(Window):
     def __init__(self, root: tk.Tk, input_dir: str = DEFAULT_INPUT, output_dir: str = DEFAULT_OUTPUT,
-                 workers: int = 4, lookup: bool = True):
+                 workers: int = 4, lookup: bool = True, domain: str = "electrolyte"):
         self._folders = (input_dir, output_dir)
         self.lookup = lookup  # False (--offline): the papers' details are not completed from OpenAlex
+        self.domain = domain  # electrolyte / cathode / anode (--domain): what the database is about
         super().__init__(root, "MoukhlijMatExtract (MME) · Local extraction",
                          "the PDFs on this computer, read into a folder of results", workers,
                          size="1040x820", minsize=(820, 600))
@@ -30,7 +31,7 @@ class App(Window):
 
 
 def main(input_dir: str = DEFAULT_INPUT, output_dir: str = DEFAULT_OUTPUT, workers: int = 4,
-         lookup: bool = True) -> None:
+         lookup: bool = True, domain: str = "electrolyte") -> None:
     root = tk.Tk()
-    App(root, input_dir, output_dir, workers, lookup)
+    App(root, input_dir, output_dir, workers, lookup, domain)
     root.mainloop()

@@ -525,7 +525,7 @@ class Harvest:
         pipeline = NaLiXPipeline(
             self.folder, self.output_dir, provenance=read_provenance(self.folder),
             properties=self.job.extract.properties or None, require_material=self.job.extract.require_material,
-            origin="web", lookup=True)
+            origin="web", lookup=True, domain=self.job.extract.domain)
         added = pipeline.execute(max_workers=max_workers, stop_event=stop_event, progress_callback=progress_callback)
         self._mark_extracted()
         return added

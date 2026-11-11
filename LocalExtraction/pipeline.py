@@ -67,13 +67,15 @@ class NaLiXPipeline:
     def __init__(self, input_dir: str, output_dir: str,
                  provenance: Optional[Callable[[str], Dict[str, str]]] = None,
                  properties: Optional[Iterable[str]] = None, require_material: bool = False,
-                 origin: str = "local", lookup: bool = False):
+                 origin: str = "local", lookup: bool = False, domain: str = "electrolyte"):
         """`provenance` (optional) gives, for a file name, what is known about it besides its text:
         the metadata a source reported (better than a guess from the PDF) and where it came from.
         `properties` (optional) limits the output to the wished properties; `require_material` drops
         the numeric values that cannot be tied to a material. `origin` is recorded for every paper.
         `lookup` completes each paper's title, authors, journal, DOI, year and license from OpenAlex
-        (metadata.py) — off by default so that nothing goes on the network unless asked."""
+        (metadata.py) — off by default so that nothing goes on the network unless asked. `domain`
+        ("electrolyte", "cathode", "anode") is what the database is about (scope.py): keep one output
+        folder per domain."""
         self.input_dir = input_dir
         self.output_dir = output_dir
         self.provenance = provenance
@@ -81,6 +83,7 @@ class NaLiXPipeline:
         self.require_material = require_material
         self.origin = origin
         self.lookup = lookup
+        self.domain = domain
         # What was found for each paper, kept next to the database so that a rebuild (or a run
         # while OpenAlex is down) keeps what an earlier run found.
         self.cache = metadata.Cache(os.path.join(output_dir, metadata.CACHE_NAME)) if lookup else None
@@ -362,7 +365,7 @@ class NaLiXPipeline:
             "input": os.path.abspath(self.input_dir), "output": os.path.abspath(self.output_dir),
             "workers": max_workers, "origin": self.origin, "metadata_lookup": self.lookup,
             "properties": sorted(self.properties) if self.properties else "all",
-            "require_material": self.require_material})
+            "require_material": self.require_material, "domain": self.domain})
         known = self.known_papers()
         rebuilt_from = StrictExporter.pending_rebuilds(self.output_dir)
         work = self.plan(known, rebuilt_from)
@@ -382,7 +385,7 @@ class NaLiXPipeline:
             logging.info(f"{self.skipped} PDF(s) already extracted were skipped.")
         logging.info(f"Starting extraction for {len(new_pdfs)} new papers...")
 
-        exporter = StrictExporter(self.output_dir)
+        exporter = StrictExporter(self.output_dir, domain=self.domain)
         pending: List[PaperData] = []
         added = 0
         stopped = False
@@ -459,7 +462,7 @@ class NaLiXPipeline:
         """The end of a rebuild: the papers of the archived databases that are still not in the new one
         (their PDF is no longer at hand, so they could not be extracted again) are carried over from
         the archive as they were. Returns how many."""
-        exporter = StrictExporter(self.output_dir)
+        exporter = StrictExporter(self.output_dir, domain=self.domain)
         brought = 0
         for archive in reversed(archives):  # the newest archive's rows of a paper
             known = self.known_papers()

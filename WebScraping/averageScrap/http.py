@@ -8,7 +8,6 @@ import re
 import threading
 import time
 from typing import Any, Callable, Container, Dict, Optional
-from urllib import robotparser
 from urllib.parse import unquote, urlsplit
 
 import requests
@@ -67,13 +66,23 @@ def rule_lines(text: str) -> list:
     return [line for line in text.splitlines() if line.split("#", 1)[0].strip()]
 
 
-class _Robots(robotparser.RobotFileParser):
-    """robots.txt as RFC 9309 reads it. Python's parser takes a rule's path literally and the first
-    rule that matches; a robots.txt also writes "*" (any characters) and "$" (the end of the path) —
-    "Disallow: /*_pdf" keeps programs away from every PDF of J-STAGE — and the longest matching rule
-    wins (an Allow when they are as long)."""
+class _Robots:
+    """robots.txt as RFC 9309 reads it: groups of rules for the user agents named above them (a blank line does
+    not end a group; groups for the same agent are merged), "*" in a rule for any characters and "$" for the end
+    of the path, and the longest matching rule wins (an Allow when they are as long). "Disallow: /*_pdf" keeps
+    programs away from every PDF of J-STAGE.
+
+    Read here rather than with Python's urllib.robotparser: its reading changed between patch releases (3.13.17
+    follows RFC 9309 its own way and has no default entry any more), and this program must obey the same rules
+    whatever Python runs it."""
 
     _cache: Dict[str, "re.Pattern"] = {}
+
+    def __init__(self) -> None:
+        self.disallow_all = False  # no robots.txt could be read for a server error: nothing is fetched
+        self.allow_all = False
+        self._rules: Dict[str, list] = {}     # user agent (lower case) -> [(path, allowed?)]
+        self._delays: Dict[str, float] = {}   # user agent -> crawl delay, in seconds
 
     @classmethod
     def _pattern(cls, path: str) -> "re.Pattern":
@@ -82,26 +91,60 @@ class _Robots(robotparser.RobotFileParser):
             cls._cache[path] = re.compile(body[:-2] + "$" if body.endswith(r"\$") else body)
         return cls._cache[path]
 
+    def parse(self, lines) -> None:
+        agents: list = []
+        in_rules = False  # a user-agent line after rules opens a new group
+        for raw in lines:
+            line = str(raw).split("#", 1)[0].strip()
+            if ":" not in line:
+                continue
+            key, value = (part.strip() for part in line.split(":", 1))
+            key = key.lower()
+            if key == "user-agent":
+                if in_rules:
+                    agents, in_rules = [], False
+                agents.append(value.lower())
+                self._rules.setdefault(value.lower(), [])
+            elif key in ("allow", "disallow"):
+                in_rules = True
+                for agent in agents:
+                    self._rules[agent].append((value, key == "allow"))
+            elif key == "crawl-delay":
+                in_rules = True
+                try:
+                    delay = float(value)
+                except ValueError:
+                    continue
+                for agent in agents:
+                    self._delays[agent] = delay
+
+    def _group(self, useragent: str) -> Optional[str]:
+        """The group this program obeys: the one naming it by its whole name (RFC 9309: "Extract" is another
+        bot, not this one), else the one for every bot ("*")."""
+        name = useragent.split("/")[0].lower()
+        if name in self._rules:
+            return name
+        return "*" if "*" in self._rules else None
+
+    def crawl_delay(self, useragent: str) -> Optional[float]:
+        group = self._group(useragent)
+        return self._delays.get(group) if group else None
+
     def can_fetch(self, useragent: str, url: str) -> bool:
         if self.disallow_all:
             return False
         if self.allow_all:
             return True
-        if not self.last_checked:
-            return False
+        group = self._group(useragent)
+        if group is None:
+            return True
         parts = urlsplit(url)
         path = unquote(parts.path or "/") + (f"?{unquote(parts.query)}" if parts.query else "")
-        # The rules naming this program by its whole name (RFC 9309; Python's applies_to matches a part of
-        # it, so a rule for some bot called "Extract" would be taken for one about this program).
-        name = useragent.split("/")[0].lower()
-        entry = next((e for e in self.entries if any(a.lower() == name for a in e.useragents)), self.default_entry)
-        if entry is None:
-            return True
         best = None  # (length of the rule, allowed?)
-        for line in entry.rulelines:
-            rule = unquote(line.path)
+        for rule, allowance in self._rules[group]:
+            rule = unquote(rule)
             if rule and self._pattern(rule).match(path):
-                best = max(best or (-1, False), (len(rule), line.allowance))
+                best = max(best or (-1, False), (len(rule), allowance))
         return True if best is None else best[1]
 
 
@@ -132,7 +175,7 @@ class PoliteClient:
         self._sleep, self._clock = sleep, clock
         self._lock = threading.Lock()
         self._next: Dict[str, float] = {}
-        self._robots: Dict[str, Optional[robotparser.RobotFileParser]] = {}
+        self._robots: Dict[str, Optional[_Robots]] = {}
         self._crawl_delay: Dict[str, float] = {}
         self._slowed: Dict[str, float] = {}  # host -> the interval a 429 asked for (this run)
 
@@ -152,7 +195,7 @@ class PoliteClient:
     # ------------------------------------------------------------------
     # robots.txt (RFC 9309: no robots.txt or a 4xx = everything allowed; a 5xx or no answer = nothing)
     # ------------------------------------------------------------------
-    def _load_robots(self, base: str) -> Optional[robotparser.RobotFileParser]:
+    def _load_robots(self, base: str) -> Optional[_Robots]:
         parser = _Robots()
         try:
             response = self.session.get(f"{base}/robots.txt", timeout=self.timeout)

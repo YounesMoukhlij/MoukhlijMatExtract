@@ -1,0 +1,218 @@
+# Cathode materials of lithium-, sodium-, potassium-, magnesium- and zinc-ion batteries: ion transport in them
+# (activation energy, diffusion coefficient, ionic and electronic conductivity), with their capacity and voltage.
+#
+#   mme-web run --job configs/cathode.yaml --output WebScraping/web_output_cathode
+#   mme-rank --domain cathode --source WebScraping/web_output_cathode --kind arrhenius
+#
+# Its papers, its search ledger and its DOI list are kept apart from those of the electrolyte job (sse.yaml), so
+# that each database holds one kind of material.
+
+name: cathode
+
+contact_email: "younes.moukhlij@usms.ac.ma"
+
+search:
+  queries:
+    # General cathode transport
+    - "cathode material lithium diffusion coefficient"
+    - "cathode lithium ion diffusion activation energy"
+    - "cathode solid-state diffusion kinetics"
+    - "cathode ionic conductivity electronic conductivity"
+    - "cathode migration barrier first principles"
+    - "cathode lithium migration pathway DFT"
+    - "cathode rate capability lithium diffusion"
+    - "cathode GITT diffusion coefficient"
+    - "cathode electrochemical impedance diffusion coefficient"
+    - "cathode cyclic voltammetry lithium diffusion coefficient"
+    - "cathode PITT diffusion coefficient"
+    - "cathode NMR lithium dynamics"
+    - "cathode muon spin relaxation lithium diffusion"
+
+    # Layered oxides
+    - "layered oxide cathode lithium diffusion"
+    - "LiCoO2 lithium diffusion coefficient"
+    - "LiCoO2 lithium migration barrier"
+    - "LiNiO2 lithium diffusion"
+    - "nickel-rich layered cathode lithium diffusion"
+    - "NMC cathode lithium diffusion coefficient"
+    - "NCM811 lithium diffusion kinetics"
+    - "NCA cathode lithium diffusion"
+    - "lithium-rich layered oxide cathode diffusion"
+    - "Li2MnO3 lithium migration"
+    - "cation mixing layered cathode lithium diffusion"
+
+    # Spinels
+    - "spinel cathode lithium diffusion"
+    - "LiMn2O4 lithium diffusion coefficient"
+    - "LiNi0.5Mn1.5O4 lithium diffusion"
+    - "high-voltage spinel cathode ion transport"
+
+    # Polyanion cathodes
+    - "olivine cathode lithium diffusion"
+    - "LiFePO4 lithium diffusion coefficient"
+    - "LiFePO4 lithium migration barrier"
+    - "LiMnPO4 lithium diffusion"
+    - "LiCoPO4 ion transport"
+    - "Li3V2(PO4)3 lithium diffusion"
+    - "fluorophosphate cathode diffusion"
+    - "silicate cathode Li2FeSiO4 lithium diffusion"
+    - "borate cathode lithium diffusion"
+    - "sulfate cathode ion diffusion"
+
+    # Disordered rock-salt and conversion cathodes
+    - "disordered rock-salt cathode lithium percolation"
+    - "cation-disordered cathode lithium diffusion"
+    - "conversion cathode ion transport"
+    - "fluoride cathode lithium diffusion"
+    - "sulfur cathode lithium polysulfide diffusion"
+
+    # Sodium, potassium and multivalent cathodes
+    - "sodium-ion cathode sodium diffusion coefficient"
+    - "layered sodium oxide cathode Na diffusion"
+    - "P2-type cathode sodium migration barrier"
+    - "O3-type cathode sodium diffusion"
+    - "Na3V2(PO4)3 sodium diffusion"
+    - "NASICON cathode sodium diffusion"
+    - "Prussian blue analogue cathode ion diffusion"
+    - "polyanion sodium cathode activation energy"
+    - "potassium-ion cathode potassium diffusion"
+    - "magnesium-ion cathode Mg diffusion barrier"
+    - "zinc-ion cathode Zn diffusion coefficient"
+    - "vanadium oxide cathode ion diffusion"
+    - "manganese oxide cathode zinc diffusion"
+
+    # Doping, coatings and solid-state cathodes
+    - "doped cathode lithium diffusion enhancement"
+    - "cathode surface coating lithium diffusion"
+    - "cathode particle size diffusion length"
+    - "single-crystal cathode lithium diffusion"
+    - "composite cathode solid-state battery ion transport"
+    - "cathode electrolyte interphase lithium transport"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # The DOI list Fetch DOIs (mme-dois) collects for this job: its own, apart from the electrolyte job's.
+  doi_list: WebScraping/Fetch_DOIs/dois_cathode.csv
+  collect_dois: true
+
+screen:
+  topic_words:
+    # General terminology
+    - "cathode"
+    - "cathode material"
+    - "positive electrode"
+    - "intercalation cathode"
+    - "insertion cathode"
+    - "lithium-ion battery cathode"
+    - "sodium-ion battery cathode"
+    - "potassium-ion battery cathode"
+    - "zinc-ion battery cathode"
+    - "magnesium battery cathode"
+
+    # Structure families
+    - "layered oxide"
+    - "spinel"
+    - "olivine"
+    - "polyanion"
+    - "NASICON-type cathode"
+    - "disordered rock-salt"
+    - "Prussian blue"
+    - "P2-type"
+    - "O3-type"
+    - "lithium-rich"
+    - "nickel-rich"
+
+    # Compositions
+    - "LiCoO2"
+    - "LiNiO2"
+    - "LiMn2O4"
+    - "LiNi0.5Mn1.5O4"
+    - "LiFePO4"
+    - "LiMnPO4"
+    - "Li3V2(PO4)3"
+    - "Na3V2(PO4)3"
+    - "NMC"
+    - "NCM"
+    - "NCA"
+    - "LMFP"
+    - "LNMO"
+    - "LFP"
+
+    # Transport and kinetics
+    - "lithium diffusion"
+    - "sodium diffusion"
+    - "ion diffusion"
+    - "solid-state diffusion"
+    - "diffusion kinetics"
+    - "rate capability"
+    - "migration pathway"
+
+  property_words:
+    - "activation energy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "energy barrier"
+    - "diffusion barrier"
+    - "diffusion coefficient"
+    - "diffusivity"
+    - "chemical diffusion coefficient"
+    - "ionic conductivity"
+    - "electronic conductivity"
+    - "GITT"
+    - "PITT"
+    - "impedance"
+    - "Arrhenius"
+    - "nudged elastic band"
+    - "NEB"
+    - "specific capacity"
+    - "discharge capacity"
+    - "capacity retention"
+    - "rate performance"
+    - "voltage"
+    - "redox potential"
+
+  # Remove papers of other fields. "anode" is not excluded: a cathode paper reports its full cell.
+  exclude_words:
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+    - "electrocatalyst"
+    - "oxygen evolution reaction"
+    - "thermoelectric"
+    - "piezoelectric"
+    - "dielectric capacitor"
+    - "corrosion"
+
+  min_score: 2
+  review: false
+
+fetch:
+  folder: WebScraping/papers_cathode
+  sources: [ elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 3
+  max_pdf_mb: 60
+
+extract:
+  # The transport quantities get their own tables (activation_energy.csv, ...); the capacity and voltage go to
+  # properties.csv.
+  properties: [Activation_Energy, Diffusion_Coefficient, Ionic_Conductivity, Electronic_Conductivity, Ionic_Radius,
+               Specific_Capacity, Capacity_Retention, Voltage, Redox_Potential, Rate_Capability]
+  require_material: true
+  # Values of materials that are no cathode (solid electrolytes, interphase salts, alloys, lithiated carbon) are
+  # flagged, and the ranking leaves them out.
+  domain: cathode

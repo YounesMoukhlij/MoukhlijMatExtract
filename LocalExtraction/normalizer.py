@@ -104,12 +104,24 @@ def _join_single(match: "re.Match") -> str:
     return match.group(0)
 
 
+# A formula broken between two of its groups: "Li1.3 Ga0.3Ti1.7(PO4)3" (two fractional subscripts on either side of
+# the space), "Li1.3Ga0.3Ti1.7 (PO4)3" (a polyanion in brackets after it).
+_SPLIT_FRACTION = re.compile(r'(?<![\w.])((?:[A-Z][a-z]?\d*(?:\.\d+)?)*[A-Z][a-z]?\d+\.\d+) (?=[A-Z][a-z]?\d+\.\d+[A-Z(])')
+_SPLIT_POLYANION = re.compile(r'(?<![\w.])((?:[A-Z][a-z]?\d+(?:\.\d+)?){2,}) (?=\((?:PO4|SO4|SiO4|GeO4|BO3|BH4|NH2|CO3|SeO3|PS4|MoO4|WO4|VO4)\)\d)')
+
+
+def _join_split(match: "re.Match") -> str:
+    head = match.group(1)
+    return head if all(_is_element_group(g) for g in re.findall(r'[A-Za-z]+', head)) else match.group(0)
+
+
 def join_spaced_formulas(text: str) -> str:
-    """"The Na 3 PSe 4 phase" -> "The Na3PSe4 phase", "a LiNbO 3 coating" -> "a LiNbO3 coating"
-    (see _SPACED_FORMULA, _SPACED_SINGLE)."""
+    """"The Na 3 PSe 4 phase" -> "The Na3PSe4 phase", "a LiNbO 3 coating" -> "a LiNbO3 coating",
+    "Li1.3 Ga0.3Ti1.7 (PO4)3" -> "Li1.3Ga0.3Ti1.7(PO4)3" (see _SPACED_FORMULA, _SPACED_SINGLE, _SPLIT_FRACTION)."""
     if not text or " " not in text:
         return text
-    return _SPACED_SINGLE.sub(_join_single, _SPACED_FORMULA.sub(_join_formula, text))
+    text = _SPACED_SINGLE.sub(_join_single, _SPACED_FORMULA.sub(_join_formula, text))
+    return _SPLIT_POLYANION.sub(_join_split, _SPLIT_FRACTION.sub(_join_split, text))
 
 
 # Some publishers' symbol fonts (Wiley-VCH, 1990s–2010s) come out of the PDF as other letters: the

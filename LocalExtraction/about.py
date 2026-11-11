@@ -15,7 +15,7 @@ CREDIT_TEXT = (f"{FULL_NAME} — Created by {AUTHOR} "
                "(Software Engineering student at 1337 Coding School, "
                "PhD researcher at FPK, USMS)")
 DESCRIPTION = (
-    "Turns a folder of battery/materials-science PDFs into a structured, queryable database: "
+    "Turns a folder of battery-materials PDFs (solid electrolytes, cathodes, anodes) into a structured, queryable database: "
     "parses text, tables, figures and equations (with OCR fallback for scanned pages), extracts "
     "materials and their properties, and exports linked CSV, Excel and JSON."
 )

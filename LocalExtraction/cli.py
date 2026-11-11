@@ -40,6 +40,9 @@ def _add_folders(parser: argparse.ArgumentParser) -> None:
 						help="Number of PDFs to process in parallel (default: 4)")
 	parser.add_argument("--verbose", "-v", action="store_true",
 						help="Enable debug-level logging")
+	parser.add_argument("--domain", choices=("electrolyte", "cathode", "anode"), default="electrolyte",
+						help="What the papers are about (default: electrolyte): values of a material of another kind "
+							 "are flagged, and the ranking leaves them out. Keep one output folder per domain")
 	parser.add_argument("--offline", action="store_true",
 						help="Do not complete the papers' title, authors, journal, DOI, year and license from OpenAlex")
 
@@ -70,7 +73,7 @@ def run_extraction(input_dir: str, output_dir: str, max_workers: int = 4,
 					progress_callback: Optional[Callable[[str, Optional[PaperData]], None]] = None,
 					provenance: Optional[Callable[[str], Dict[str, str]]] = None,
 					properties: Optional[Iterable[str]] = None, require_material: bool = False,
-					origin: str = "local", lookup: bool = True) -> int:
+					origin: str = "local", lookup: bool = True, domain: str = "electrolyte") -> int:
 	"""Shared pipeline entry point used by both gates — the terminal (`main()`) and the window
 	(`LocalExtraction/gui/panel.py`) — so the two never drift into two different ways of running the same extraction.
 
@@ -90,7 +93,8 @@ def run_extraction(input_dir: str, output_dir: str, max_workers: int = 4,
 
 	from .pipeline import NaLiXPipeline  # loads the PDF reader and the language model: only to extract
 	pipeline = NaLiXPipeline(input_dir=input_dir, output_dir=output_dir, provenance=provenance,
-							 properties=properties, require_material=require_material, origin=origin, lookup=lookup)
+							 properties=properties, require_material=require_material, origin=origin, lookup=lookup,
+							 domain=domain)
 	pipeline.execute(max_workers=max_workers, stop_event=stop_event, progress_callback=progress_callback)
 	return 0
 
@@ -129,7 +133,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 		from .about import require_tk
 		require_tk("mme-local gui")
 		from .gui import main as gui_main
-		gui_main(input_dir=args.input, output_dir=args.output, workers=args.workers, lookup=not args.offline)
+		gui_main(input_dir=args.input, output_dir=args.output, workers=args.workers, lookup=not args.offline,
+				 domain=args.domain)
 		return 0
 
 	if not rebuild_if_asked(args.output, args.rebuild):
@@ -140,7 +145,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 	try:
 		with runcontrol.ctrl_c_stops() as control:
 			code = run_extraction(args.input, args.output, max_workers=args.workers, stop_event=control,
-								  lookup=not args.offline)
+								  lookup=not args.offline, domain=args.domain)
 		if control.is_set():
 			print(f"\n{runcontrol.STOPPED_BY_CTRL_C}")
 			return 130

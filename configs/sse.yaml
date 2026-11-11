@@ -1,3 +1,11 @@
+# Solid-state electrolytes: ion transport in them (activation energy, ionic and electronic conductivity,
+# diffusion coefficient).
+#
+#   mme-web run --job configs/sse.yaml
+#   mme-rank --domain electrolyte --kind arrhenius
+#
+# The jobs for electrode materials are cathode.yaml and anode.yaml.
+
 
 name: sse
 
@@ -618,3 +626,6 @@ extract:
   properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
                Ionic_Radius]
   require_material: true
+  # Values of materials that are no candidate electrolyte (electrodes, alloys, interphase salts, composites) are
+  # flagged, and the ranking leaves them out. The other jobs: cathode.yaml, anode.yaml.
+  domain: electrolyte

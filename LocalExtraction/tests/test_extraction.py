@@ -400,7 +400,7 @@ class ContextTests(unittest.TestCase):
 
     def test_every_value_says_where_each_answer_comes_from(self):
         value = self.one("Li6PS5Cl has an activation energy of 0.30 eV.")
-        self.assertEqual(sorted(value.basis), ["component", "ion", "origin", "pressure", "structure", "temperature"])
+        self.assertEqual(sorted(value.basis), ["component", "ion", "kind", "origin", "pressure", "structure", "temperature"])
         self.assertEqual(value.mobile_ion, "Li+")
         self.assertTrue(value.basis["ion"].startswith("assumed (the only conducting-ion element of Li6PS5Cl"))
         self.assertEqual(value.structure, "argyrodite")
@@ -719,6 +719,246 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(len(pd.read_csv(os.path.join(out, f"{name}.csv"))), 1, name)
         equations = pd.read_csv(os.path.join(out, "equations.csv"), dtype=str, keep_default_na=False)
         self.assertNotIn("x = 0", " ".join(equations.equation_text))  # a value, not an equation
+
+
+class EnergyKindTests(unittest.TestCase):
+    """An "activation energy" says what kind of energy it is (energy.py), and why."""
+
+    def kind(self, *paragraphs):
+        return {float(f.normalized_value.split()[0]): (f.energy_kind, f.basis.get("kind", ""))
+                for f in extract(*paragraphs)["ELECTROCHEMICAL"]["Activation_Energy"]}
+
+    def test_each_kind_from_the_wording(self):
+        for sentence, value, kind in (
+                ("The activation energy of Li6PS5Cl obtained from the Arrhenius plot of the impedance data is 0.29 eV.",
+                 "0.29 eV", "arrhenius"),
+                ("NEB calculations give a migration barrier of 0.31 eV for Li7P3S11.", "0.31 eV", "migration_barrier"),
+                ("BVSE calculations give a migration barrier of 0.28 eV for Li3YCl6.", "0.28 eV", "bvse"),
+                ("NMR spin-lattice relaxation rates of Li7La3Zr2O12 give an activation energy of 0.18 eV.", "0.18 eV", "local_hop"),
+                ("A VTF fit of the PEO-LiTFSI conductivity gives a pseudo-activation energy of 0.08 eV.", "0.08 eV", "vtf"),
+                ("AIMD simulations of Li10GeP2S12 give an activation energy of 0.21 eV.", "0.21 eV", "arrhenius"),
+                ("The activation energy of the anion reorientation in LiCB11H12 is 0.40 eV.", "0.40 eV", "rotation")):
+            with self.subTest(sentence=sentence):
+                found, why = self.kind(sentence)[float(value.split()[0])]
+                self.assertEqual(found, kind, why)
+                self.assertTrue(why.startswith("stated ("), why)
+
+    def test_each_value_of_a_sentence_reads_its_own_clause(self):
+        found = self.kind("Long-range transport in Li6.5La3Zr1.5Ta0.5O12 is described by an activation energy of 0.45 eV "
+                          "from impedance, whereas localized ion dynamics seen by NMR have a barrier of 0.22 eV.")
+        self.assertEqual(found[0.45][0], "arrhenius")
+        self.assertEqual(found[0.22][0], "local_hop")
+        # ... and a clause that names no method takes nothing from the other side of a "whereas".
+        found = self.kind(EXPERIMENTAL, "Long-range transport in Li6.5La3Zr1.5Ta0.5O12 is consistently described by activation "
+                                        "energies of 0.41 eV, whereas localized ion dynamics are associated with much lower "
+                                        "barriers of approximately 0.22 eV.")
+        self.assertEqual(found[0.41][0], "arrhenius")
+        self.assertEqual(found[0.22][0], "local_hop")
+
+    def test_a_kind_no_wording_names_is_assumed_and_says_so(self):
+        measured, why = self.kind(EXPERIMENTAL, "The activation energy of Li6PS5Cl is 0.30 eV.")[0.3]
+        self.assertEqual(measured, "arrhenius")
+        self.assertTrue(why.startswith("assumed ("), why)
+        computed, why = self.kind(COMPUTATIONAL, "The migration barrier of Li6PS5Cl is 0.25 eV.")[0.25]
+        self.assertEqual(computed, "migration_barrier")
+
+    def test_the_kind_is_a_column_of_the_activation_energy_table_only(self):
+        from LocalExtraction.exporter import COLUMNS
+        self.assertIn("energy_kind", COLUMNS["activation_energy"])
+        self.assertEqual(COLUMNS["activation_energy"].index("energy_kind"), COLUMNS["activation_energy"].index("needs_check") + 1)
+        self.assertNotIn("energy_kind", COLUMNS["ionic_conductivity"])
+
+
+class ScopeTests(unittest.TestCase):
+    """A transport value of something that is no candidate electrolyte is kept, but flagged (scope.py)."""
+
+    def test_what_is_no_candidate_electrolyte(self):
+        from LocalExtraction.scope import material_scope
+        for formula in ("LiF", "Li2CO3", "CaO", "LiCoO2", "Li0.81CoO2", "LiFePO4", "Li3V2(PO4)3", "NaFeO2", "Li4Ti5O12",
+                        "Li15Si4", "H2O"):
+            with self.subTest(formula=formula):
+                self.assertNotEqual(material_scope(formula), "")
+        for formula in ("Li7La3Zr2O12", "Li6.25Fe0.25La3Zr2O12", "Li6PS5Cl", "Li3InCl6", "Li1.3Al0.3Ti1.7(PO4)3",
+                        "Na3Zr2Si2PO12", "Li3N", "LiI", "LiBH4", "Cu2Se", "LiNbCl6", "Li10GeP2S12"):
+            with self.subTest(formula=formula):
+                self.assertEqual(material_scope(formula), "")
+
+    def test_a_composite_in_the_value_s_own_clause(self):
+        from LocalExtraction.scope import material_scope
+        sentence = ("As the NZSP content increases in the composites, the activation energy rises to 0.29 eV for the "
+                    "70–30 sample and 0.27 eV for the 50–50 sample.")
+        self.assertIn("composite", material_scope("Na3Zr2Si2PO12", None, sentence, sentence.find("0.27")))
+        both = "The activation energies are 0.53 eV for PEO-LiTFSI and 0.28 eV for LGPS."
+        self.assertEqual(material_scope("Li10GeP2S12", None, both, both.find("0.28")), "")
+        glued = "The activation energies are as low as 0.19 eV for CaI2@TB-MOF."
+        self.assertIn("composite", material_scope("CaI2", None, glued, glued.find("0.19")))
+
+    def test_a_doped_sample_stored_under_its_parent_formula(self):
+        from LocalExtraction.scope import material_scope
+        doped = "yielding 0.20 and 0.17 eV for the Al-doped LLZO and Al─N co-doped LLZO, respectively."
+        self.assertEqual(material_scope("Li7La3Zr2O12", None, doped, doped.find("0.17")),
+                         "an Al-doped sample stored under a formula without Al")
+        for formula, sentence in (("Li6.4La3Zr1.4Ta0.6O12", "Ta-doped LLZO (Li6.4La3Zr1.4Ta0.6O12) shows 0.35 eV."),
+                                  ("Li7La3Zr2O12", "Ta-doped LLZO shows 0.35 eV, whereas undoped Li7La3Zr2O12 shows 0.5 eV.")):
+            with self.subTest(sentence=sentence):
+                self.assertEqual(material_scope(formula, None, sentence, sentence.rfind("0.")), "")
+
+    def test_lithiated_carbon_and_a_single_value_composite(self):
+        from LocalExtraction.scope import material_scope
+        self.assertIn("carbon", material_scope("LiC6"))
+        single = "The membrane containing 26 wt% and milled 2 h LATP exhibits the lowest activation energy (0.138 eV)."
+        self.assertIn("composite", material_scope("Li1.3Ti1.7Al0.3(PO4)3", None, single, single.find("0.138")))
+
+    def test_a_cathode_or_an_anode_database_keeps_its_own_materials(self):
+        from LocalExtraction.scope import material_scope
+        for formula, cathode, anode in (("LiCoO2", "", ""), ("LiFePO4", "", ""), ("Na3V2(PO4)3", "", ""),
+                                        ("Li4Ti5O12", "", ""), ("LiC6", "anode", ""), ("Li15Si4", "anode", ""),
+                                        ("Li7La3Zr2O12", "solid electrolyte", "solid electrolyte"),
+                                        ("Li6PS5Cl", "solid electrolyte", "solid electrolyte"),
+                                        ("LiF", "interphase", "interphase")):
+            with self.subTest(formula=formula):
+                for domain, expected in (("cathode", cathode), ("anode", anode)):
+                    found = material_scope(formula, domain=domain)
+                    self.assertEqual(found, "") if not expected else self.assertIn(expected, found)
+        self.assertIn("electrode", material_scope("LiCoO2"))  # the electrolyte database, by default
+        with self.assertRaises(ValueError):
+            material_scope("LiCoO2", domain="catalyst")
+
+    def test_the_flag_reaches_the_table(self):
+        from LocalExtraction.species import plausibility
+        self.assertTrue(plausibility("Activation_Energy", "0.22 eV", "Li+", "activation energy",
+                                     "an electrode material (a transition-metal compound), not an electrolyte")
+                        .startswith("check: it is an electrode material"))
+
+
+class NotAResultTests(unittest.TestCase):
+    """Numbers that stand next to an activation energy without being one."""
+
+    def ea(self, *paragraphs):
+        return [f.normalized_value for f in extract(*paragraphs)["ELECTROCHEMICAL"]["Activation_Energy"]]
+
+    def test_a_spread_a_discrepancy_and_a_prior(self):
+        self.assertNotIn("0.69 eV", self.ea("Li3N shows a broad barrier distribution, with μ ≈ 0.93 eV and σ ≈ 0.69 eV."))
+        self.assertEqual(self.ea("CI-NEB gives an Ea of 0.7 eV for γ-Li3PS4, compared to the experimental value of 0.22 eV, "
+                                 "showing a discrepancy of 0.48 eV."), ["0.7 eV", "0.22 eV"])
+        self.assertEqual(self.ea("Parameter priors were uniform: p(Ea) ∼ U(0, 0.5 eV) for Li7La3Zr2O12."), [])
+
+    def test_energies_of_interfaces_and_reactions_are_not_of_migration(self):
+        for sentence, what in (
+                ("The activation energy for interfacial Li+ transfer between Li1.3Al0.3Ti1.7(PO4)3 and the gel was 0.40 eV.",
+                 "an interfacial charge transfer"),
+                ("NEB calculations reveal 0.4 eV migration barriers for Li-ion transfer through the interface of Li3AlN2.",
+                 "an interfacial charge transfer"),
+                ("In contrast, the PEO-LiTFSI|Li1.5Al0.5Ti1.5(PO4)3 (LATP) interface exhibited an activation energy of 0.67 eV.",
+                 "an interfacial charge transfer"),
+                ("The nucleation activation energy of Gd2Ti2O7 is 0.34 eV.", "a reaction"),
+                ("The activation energy of crystallization of the Li3PS4 glass is 1.3 eV.", "a reaction")):
+            with self.subTest(sentence=sentence):
+                value, = extract(sentence)["ELECTROCHEMICAL"]["Activation_Energy"]
+                self.assertTrue(value.reported_as.endswith(f"(of {what})"), value.reported_as)
+
+
+    def test_a_reaction_word_elsewhere_in_the_sentence_says_nothing_of_the_energy(self):
+        value, = extract("Mg3(BH4)4(NH2)2 has a decomposition temperature above 190 °C and a low activation energy "
+                         "(0.84 eV).")["ELECTROCHEMICAL"]["Activation_Energy"]
+        self.assertEqual(value.reported_as, "activation energy")
+
+
+class FormulaFragmentTests(unittest.TestCase):
+    def test_a_formula_split_by_a_space(self):
+        for text in ("the Li1.3 Ga0.3Ti1.7(PO4)3 electrolyte", "the Li1.3Ga0.3Ti1.7 (PO4)3 electrolyte"):
+            with self.subTest(text=text):
+                self.assertEqual(materials(text), ["Li1.3Ti1.7Ga0.3(PO4)3"])
+        self.assertEqual(materials("a Li2S P2S5 glass"), ["Li2S", "P2S5"])
+
+    def test_more_mobile_ions_and_measurements(self):
+        from LocalExtraction.species import mobile_species
+        self.assertEqual(mobile_species("Activation_Energy", "transport dominated by the motion of the Cs+ cations",
+                                        "CsYP2O7")[0], "Cs+")
+        value, = extract("The slope of the SLR rates of Li6PS5Cl gives an activation energy of 0.16 eV.")[
+            "ELECTROCHEMICAL"]["Activation_Energy"]
+        self.assertEqual(value.data_origin, "experimental")
+
+    def test_square_brackets_and_placeholders(self):
+        self.assertEqual(materials("for Li6.5[P0.25Si0.25Ge0.25Sb0.25]S5I"), ["Li6.5Si0.25Ge0.25Sb0.25P0.25S5I"])
+        self.assertEqual(materials("Li1.5[Al0.5Ge1.5](PO4)3"), ["Li1.5Al0.5Ge1.5(PO4)3"])
+        self.assertEqual(materials("Li diffusion in LiM(SeO3)2 (M = Al, Ga, In)"), [])
+        self.assertEqual(materials("the [BH4]− anion of Li3Y(NH2)6"), ["Li3YH12N6"])
+
+    def test_more_comparisons(self):
+        from LocalExtraction.context import is_compared_with
+        for sentence in ("The Arrhenius fit yields 0.184 eV, lower than typical values reported for undoped LLZO.",
+                         "It compares favourably with mature systems such as the LLZO garnet."):
+            with self.subTest(sentence=sentence):
+                self.assertTrue(is_compared_with(sentence, sentence.find("LLZO")))
+
+
+class SampledMistakeTests(unittest.TestCase):
+    """Mistakes found by checking a random sample of extracted activation energies against their sentences
+    (November 2026): each sentence below is written after one of them."""
+
+    def ea(self, *paragraphs, **kw):
+        return {f.normalized_value: f for f in extract(*paragraphs, **kw)["ELECTROCHEMICAL"]["Activation_Energy"]}
+
+    def test_a_measured_value_a_calculated_one_is_compared_with(self):
+        found = self.ea("The calculated activation energy of 0.27 eV for Na3PS4 agrees well with the value of 0.28 eV "
+                        "derived from impedance measurements [26].")
+        self.assertEqual(found["0.27 eV"].data_origin, "simulation")
+        self.assertEqual((found["0.28 eV"].data_origin, found["0.28 eV"].attribution), ("experimental", "cited"))
+
+    def test_calculated_to_be_names_no_computation(self):
+        found = self.ea("The Arrhenius plots of the Li6PS5Cl discs show similar slopes, with activation energies "
+                        "calculated to be 0.29 eV.")
+        self.assertEqual(found["0.29 eV"].data_origin, "experimental")
+        computed = self.ea("The migration barrier of Li7P3S11 is calculated to be 0.31 eV by NEB.")
+        self.assertEqual(computed["0.31 eV"].data_origin, "simulation")
+
+    def test_a_value_of_previous_work_is_cited(self):
+        for sentence in ("The diffusion barrier of glassy Li3PS4 was estimated as 0.25 eV in previous AIMD simulations.",
+                         "These results agree with the previous predictions of Ea = 0.201 eV for vacancy-rich Li2S."):
+            with self.subTest(sentence=sentence):
+                value, = self.ea(sentence).values()
+                self.assertEqual(value.attribution, "cited")
+
+    def test_the_material_a_comparison_names_does_not_take_the_value_outside_it(self):
+        found = self.ea("Li7P3S11 glass-ceramics were prepared. The activation energy was about 0.325 eV, a low value "
+                        "compared with the result of Li10SnP2S12 (0.31 eV) reported by Bron [24].")
+        self.assertNotEqual(found["0.325 eV"].material_formula, "Li10SnP2S12")
+        self.assertEqual(found["0.31 eV"].material_formula, "Li10SnP2S12")
+
+    def test_a_citation_after_a_value_closes_its_statement(self):
+        # A table run into the text: each row is a material, its conductivity, its E_a and its source.
+        found = self.ea("Li6.4La3Zr1.4Ta0.6O12 1.0 × 10−3 S cm−1, Ea ~ 0.35 eV [17] "
+                        "Li6.5La3Zr1.75Te0.25O12 1.02 × 10−3 S cm−1, Ea ~ 0.38 eV [18]")
+        self.assertEqual(found["0.35 eV"].material_formula, "Li6.4La3Zr1.4Ta0.6O12")
+        self.assertEqual(found["0.38 eV"].material_formula, "Li6.5La3Zr1.75Te0.25O12")
+
+    def test_a_vacancy_is_no_formula(self):
+        self.assertEqual(materials("a Frenkel defect with decreasing Lii–VLi distance"), [])
+        self.assertEqual(materials("the VNa and VLi sites"), [])
+        self.assertEqual(materials("VO2 and LiV3O8 cathodes"), ["VO2", "LiV3O8"])
+
+    def test_an_energy_of_something_else_than_ion_migration_is_flagged(self):
+        from LocalExtraction.species import plausibility
+        for sentence, what in (
+                ("Between 60 and 80 °C, the activation energy of the exchange current density at the Li/LLZO interface "
+                 "is 0.70 eV.", "an interfacial charge transfer"),
+                ("The charge-transfer activation energy of the Li/Li6PS5Cl interface is 0.62 eV.", "an interfacial charge transfer"),
+                ("The activation energy of the anion reorientation in LiCB11H12 is 0.40 eV.", "a rotation")):
+            with self.subTest(sentence=sentence):
+                value, = self.ea(sentence).values()
+                self.assertTrue(value.reported_as.endswith(f"(of {what})"), value.reported_as)
+                self.assertTrue(plausibility("Activation_Energy", value.normalized_value, "Li+", value.reported_as)
+                                .startswith("check: it is the activation energy of"))
+        value, = self.ea("Li6PS5Cl has an activation energy of 0.30 eV, and its interface with Li is stable.").values()
+        self.assertEqual(plausibility("Activation_Energy", value.normalized_value, "Li+", value.reported_as), "in range")
+
+    def test_a_computed_barrier_at_a_surface(self):
+        value, = self.ea(COMPUTATIONAL, "For intraoctahedral migration at the surface, Li3OCl exhibits a barrier of "
+                                        "0.301 eV.").values()
+        self.assertEqual(value.transport_component, "surface")
+        bulk, = self.ea(COMPUTATIONAL, "In the bulk of Li3OCl the barrier is 0.37 eV, lower than at the surface.").values()
+        self.assertNotEqual(bulk.transport_component, "surface")
 
 
 if __name__ == "__main__":

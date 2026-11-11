@@ -50,7 +50,8 @@ class GateTests(unittest.TestCase):
         with mock.patch("LocalExtraction.gui.main", side_effect=lambda **k: opened.append(k)), \
                 mock.patch.object(cli, "print_banner"):
             self.assertEqual(cli.main(["gui", "--input", "pdfs", "-w", "3"]), 0)
-        self.assertEqual(opened, [{"input_dir": "pdfs", "output_dir": DEFAULT_OUTPUT, "workers": 3, "lookup": True}])
+        self.assertEqual(opened, [{"input_dir": "pdfs", "output_dir": DEFAULT_OUTPUT, "workers": 3, "lookup": True,
+                                   "domain": "electrolyte"}])
         opened.clear()
         with mock.patch("LocalExtraction.gui.main", side_effect=lambda **k: opened.append(k)), \
                 mock.patch.object(cli, "print_banner"):
