@@ -50,7 +50,8 @@ class ProjectFolder(unittest.TestCase):
 
 class OutputsTests(ProjectFolder):
     def offered(self, part):
-        return {group.key: sorted(str(p.relative_to(self.home)) for p in group.items(self.home))
+        # as_posix: the same "a/b" on Windows, whose paths are written "a\\b"
+        return {group.key: sorted(p.relative_to(self.home).as_posix() for p in group.items(self.home))
                 for group in outputs.PARTS[part][1]}
 
     def test_each_part_offers_only_what_it_writes(self):

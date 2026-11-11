@@ -206,6 +206,7 @@ class WindowTests(unittest.TestCase):
         self.root.update()
         classes, materials = self.app.classes["crystal_structure"], self.app.materials["crystal_structure"]
         classes.tree.selection_set("garnet")
+        classes.tree.event_generate("<<TreeviewSelect>>")  # as a click does: some Tk builds send nothing for a selection made in code
         self.root.update()
         self.assertEqual([self.cells(materials, row)["material"] for row in materials.tree.get_children()], ["Li7La3Zr2O12"])
         self.app.stated.set(True)
@@ -231,10 +232,12 @@ class WindowTests(unittest.TestCase):
         empty = self.cells(tree, tree.tree.get_children("argyrodite")[2])  # argyrodite → total: none
         self.assertEqual((empty["n_values"], empty["min"]), ("0", NO_VALUE))
         tree.tree.selection_set("argyrodite\x1fbulk")
+        tree.tree.event_generate("<<TreeviewSelect>>")  # as a click does: some Tk builds send nothing for a selection made in code
         self.root.update()
         self.assertEqual([self.cells(materials, row)["material"] for row in materials.tree.get_children()], ["Li6PS5Cl"])
         self.assertIn("argyrodite — bulk", self.app.captions["crystal_structure"].cget("text"))
         tree.tree.selection_set("garnet\x1ftotal")
+        tree.tree.event_generate("<<TreeviewSelect>>")  # as a click does: some Tk builds send nothing for a selection made in code
         self.root.update()
         self.assertEqual([self.cells(materials, row)["material"] for row in materials.tree.get_children()], ["Li7La3Zr2O12"])
         tree.tree.item("garnet", open=False)

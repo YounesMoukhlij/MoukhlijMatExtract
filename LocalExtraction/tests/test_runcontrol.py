@@ -244,17 +244,18 @@ def test_stop_ends_a_rate_limit_wait_of_fetch_dois(monkeypatch):
 
 
 def test_ctrl_c_in_the_terminal_stops_the_step_as_stop_does():
-    import os
     import signal
     with runcontrol.ctrl_c_stops() as control:
         assert runcontrol.current() is control
-        os.kill(os.getpid(), signal.SIGINT)  # the first Ctrl-C
+        # raise_signal: a Ctrl-C on every platform. (On Windows os.kill(pid, SIGINT) is no Ctrl-C: it ends the
+        # process at once, and the test run with it.)
+        signal.raise_signal(signal.SIGINT)  # the first Ctrl-C
         time.sleep(0.1)
         assert control.is_set()
         with pytest.raises(runcontrol.StepStopped):
             runcontrol.check()
         with pytest.raises(KeyboardInterrupt):  # the second one quits at once
-            os.kill(os.getpid(), signal.SIGINT)
+            signal.raise_signal(signal.SIGINT)
             time.sleep(0.5)
     assert runcontrol.current() is None
 
