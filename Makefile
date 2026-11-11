@@ -25,7 +25,7 @@ switch = $(if $(call given,$(1)),$(if $(filter 1 yes true on YES TRUE ON,$($(1))
 
 # ---- The options of each command ---------------------------------------------------------------
 LOCAL_OPTS  = $(call opt,INPUT,--input) $(call opt,OUTPUT,--output) $(call opt,WORKERS,--workers) \
-              $(call switch,VERBOSE,--verbose) $(call switch,OFFLINE,--offline)
+              $(call switch,VERBOSE,--verbose) $(call switch,OFFLINE,--offline) $(call opt,DOMAIN,--domain)
 WEB_COMMON  = $(call opt,JOB,--job) $(call opt,OUTPUT,--output) $(call opt,WORKERS,--workers) \
               $(call switch,VERBOSE,--verbose)
 # DOIS=1: the list of Fetch DOIs; DOIS=path/to/list.csv: that list
@@ -37,6 +37,7 @@ DOI_OPTS    = $(call opt,COUNT,--count) $(call opt,JOB,--job) $(call opt,MAX,--m
               $(call switch,REFRESH,--refresh) $(call switch,NO_EXPAND,--no-expand) \
               $(if $(call given,KEYWORDS),$(KEYWORDS))
 RANK_OPTS   = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,CRITERIA,--criteria) \
+              $(call opt,DOMAIN,--domain) $(call opt,KIND,--kind) \
               $(call opt,POLICY,--policy) $(call switch,BY_PHASE,--by-phase) $(call opt,ORIGIN,--origin) \
               $(call opt,ATTRIBUTION,--attribution) $(call opt,COMPONENT,--component) \
               $(call list,ELEMENT,--element) $(call opt,MIN_CONFIDENCE,--min-confidence) $(call opt,TOP,--top) \
@@ -47,7 +48,7 @@ RANK_GUI_OPTS = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,CR
 CLASSIFY_OPTS = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call switch,FORCE,--force)
 CLASSIFY_GUI_OPTS = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call switch,NO_WRITE,--no-write)
 EVAL_SHEET_OPTS = $(call list,SOURCE,--source) $(call opt,PAPERS,--papers) $(call opt,SEED,--seed) \
-              $(call opt,OUT,--out) $(call switch,FORCE,--force)
+              $(call opt,OUT,--out) $(call switch,FORCE,--force) $(call switch,ALL_PAPERS,--all-papers)
 EVAL_SCORE_OPTS = $(call opt,GOLD,--gold) $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,SEED,--seed) \
               $(call list,PREDICTIONS,--predictions)
 EVAL_REF_OPTS = $(call list,DB,--db) $(call switch,NO_FETCH,--no-fetch) $(call opt,LIMIT,--limit) \
@@ -70,6 +71,8 @@ help:
 	@echo "  make test          every test        K=<words> (-k)  TESTS=<files or folders>  VERBOSE=1  FAST=1 (-x)  ARGS=<more pytest options>"
 	@echo "  make clean          remove every __pycache__ folder"
 	@echo "  make version        the version of MoukhlijMatExtract"
+	@echo "  make commands       rewrite docs/COMMANDS.md: every command with all of its options (from each one's --help)"
+	@echo "  make manual         every command at a glance, with the typical runs (= mme help)"
 	@echo ""
 	@echo "The one window"
 	@echo "  make gui            python -m mme_gui: one button per part"
@@ -77,6 +80,9 @@ help:
 	@echo "1 · Local extraction (python -m LocalExtraction)"
 	@echo "  make local          extract the PDFs of LocalExtraction/papers"
 	@echo "                      INPUT=<folder> OUTPUT=<folder> WORKERS=<n> VERBOSE=1 OFFLINE=1 REBUILD=1"
+	@echo "                      DOMAIN=electrolyte|cathode|anode (what the papers are about; one output folder per domain)"
+	@echo "  make local-cathode  the PDFs of LocalExtraction/papers_cathode -> LocalExtraction/output_cathode (DOMAIN=cathode)"
+	@echo "  make local-anode    the PDFs of LocalExtraction/papers_anode -> LocalExtraction/output_anode (DOMAIN=anode)"
 	@echo "  make local-rebuild  extract every PDF again (the present database is moved to <output>/previous_<date>/)"
 	@echo "  make local-gui      the same, in a window       INPUT= OUTPUT= WORKERS= VERBOSE=1 OFFLINE=1"
 	@echo ""
@@ -93,14 +99,20 @@ help:
 	@echo "  make web-extract    only extract what is downloaded                              (STAGE=extract; REBUILD=1 ...)"
 	@echo "  make web-dois       the saved DOIs only: checked, then those on topic downloaded and extracted   (DOIS=<list.csv>)"
 	@echo "  make web-gui        the window                    JOB= OUTPUT= WORKERS= VERBOSE=1"
+	@echo "  make web-cathode    the whole run for cathodes: configs/cathode.yaml -> WebScraping/web_output_cathode (every web option)"
+	@echo "  make web-anode      the whole run for anodes:   configs/anode.yaml -> WebScraping/web_output_anode (every web option)"
 	@echo ""
 	@echo "3 · Ranking (python -m SelectingTopMaterial)"
 	@echo "  make rank           rank the materials by activation energy"
 	@echo "                      SOURCE='<folder> <folder>' OUT=<folder> CRITERIA=<file.toml> POLICY=consensus|optimistic|conservative"
 	@echo "                      BY_PHASE=1 ORIGIN=experimental|simulation ATTRIBUTION=this-work|cited"
 	@echo "                      COMPONENT=bulk|grain_boundary|total ELEMENT='Li Na' MIN_CONFIDENCE=<0-1> TOP=<n> INCLUDE_FLAGGED=1"
+	@echo "                      DOMAIN=electrolyte|cathode|anode (the criteria of that domain)"
+	@echo "                      KIND=arrhenius|migration_barrier|bvse|local_hop|vtf|unspecified (one kind of energy)"
 	@echo "                      FORMAT='csv xlsx json html' NO_FILES=1 OPEN=1 QUIET=1 NO_COLOR=1 FORCE=1"
 	@echo "  make rank-gui       the window                    SOURCE= OUT= CRITERIA="
+	@echo "  make rank-cathode   rank WebScraping/web_output_cathode with the cathode criteria -> SelectingTopMaterial/results_cathode"
+	@echo "  make rank-anode     rank WebScraping/web_output_anode with the anode criteria -> SelectingTopMaterial/results_anode"
 	@echo ""
 	@echo "4 · Classification (python -m Classification)"
 	@echo "  make classify       classify the materials by structure     SOURCE='<folder> <folder>' OUT=<folder> FORCE=1"
@@ -109,13 +121,14 @@ help:
 	@echo "Evaluation — how accurate is the extraction? (python -m Evaluation)"
 	@echo "  make eval-sheet     draw papers at random, write the workbook to annotate (Evaluation/annotation.xlsx)"
 	@echo "                      SOURCE='<folder> <folder>' PAPERS=<n, default 60> SEED=<n> OUT=<file.xlsx> FORCE=1"
+	@echo "                      ALL_PAPERS=1 (draw from every paper, not only those mme-release would publish)"
 	@echo "  make eval-score     precision, recall, F1 (95 % intervals), calibration, errors -> Evaluation/scores/"
 	@echo "                      GOLD=<annotated.xlsx> SOURCE='<folder> ...' (score a newer run) OUT=<folder> SEED=<n>"
 	@echo "                      PREDICTIONS='<other_tool.csv> ...' (other tools scored the same way, compared side by side)"
 	@echo "  make eval-agree     agreement of two annotators      FIRST=<a.xlsx> SECOND=<b.xlsx>"
 	@echo "  make eval-reference recall against curated databases (OBELiX, Liverpool), on their own papers"
 	@echo "                      DB='obelix liverpool' NO_FETCH=1 LIMIT=<papers> REFRESH=1 WORKERS=<n>"
-	@echo "                      ESTIMATE=1 (cost first, nothing generated) GOLD=<annotated.xlsx> PDFS='<folder> ...' OUT=<file.csv>"
+	@echo "                      PREDICTIONS='<other_tool.csv> ...' (other tools scored the same way, side by side)"
 	@echo ""
 	@echo "Release — the dataset, ready to deposit (python -m Release)"
 	@echo "  make release        databases + ranking + classification, license-checked, with datasheet and SHA256SUMS -> Release/"
@@ -124,7 +137,8 @@ help:
 	@echo "  make release FINISH=<release folder>    after completing its README: SHA256SUMS and .zip again"
 	@echo ""
 	@echo "Each command's own help: make gui-help, local-help, local-gui-help, web-help, web-gui-help, doi-help,"
-	@echo "rank-help, rank-gui-help, classify-help, classify-gui-help, eval-help, release-help"
+	@echo "rank-help, rank-gui-help, classify-help, classify-gui-help, eval-help, release-help, mme-help"
+	@echo "Installed without this folder: the same commands as mme <part> …  (mme help, mme commands)"
 
 # ---- Set up and look after ------------------------------------------------------------------------
 install:
@@ -171,6 +185,12 @@ clean:
 version:
 	@$(PYTHON) -m mme_gui --version
 
+commands:
+	@$(PYTHON) -m mme_gui.commands commands --markdown --output docs/COMMANDS.md
+
+manual:
+	@$(PYTHON) -m mme_gui.commands help
+
 # ---- The one window ---------------------------------------------------------------------------------
 gui:
 	@$(PYTHON) -m mme_gui
@@ -184,6 +204,14 @@ local-rebuild:
 
 local-gui:
 	$(PYTHON) -m LocalExtraction gui $(LOCAL_OPTS)
+
+local-cathode:
+	$(PYTHON) -m LocalExtraction extract --domain cathode --input LocalExtraction/papers_cathode \
+	    --output LocalExtraction/output_cathode $(LOCAL_OPTS) $(call switch,REBUILD,--rebuild)
+
+local-anode:
+	$(PYTHON) -m LocalExtraction extract --domain anode --input LocalExtraction/papers_anode \
+	    --output LocalExtraction/output_anode $(LOCAL_OPTS) $(call switch,REBUILD,--rebuild)
 
 # ---- 2 · Web scraping -------------------------------------------------------------------------------
 doi:
@@ -207,12 +235,26 @@ web-dois:
 web-gui:
 	$(PYTHON) -m WebScraping gui $(WEB_COMMON)
 
+web-cathode:
+	$(PYTHON) -m WebScraping run --job configs/cathode.yaml --output WebScraping/web_output_cathode $(WEB_OPTS)
+
+web-anode:
+	$(PYTHON) -m WebScraping run --job configs/anode.yaml --output WebScraping/web_output_anode $(WEB_OPTS)
+
 # ---- 3 · Ranking ------------------------------------------------------------------------------------
 rank:
 	$(PYTHON) -m SelectingTopMaterial $(RANK_OPTS)
 
 rank-gui:
 	$(PYTHON) -m SelectingTopMaterial gui $(RANK_GUI_OPTS)
+
+rank-cathode:
+	$(PYTHON) -m SelectingTopMaterial --domain cathode --source WebScraping/web_output_cathode \
+	    --out SelectingTopMaterial/results_cathode $(RANK_OPTS)
+
+rank-anode:
+	$(PYTHON) -m SelectingTopMaterial --domain anode --source WebScraping/web_output_anode \
+	    --out SelectingTopMaterial/results_anode $(RANK_OPTS)
 
 # ---- 4 · Classification -----------------------------------------------------------------------------
 classify:
@@ -266,8 +308,12 @@ eval-help:
 	 $(PYTHON) -m Evaluation reference --help
 release-help:
 	@$(PYTHON) -m Release --help
+mme-help:
+	@$(PYTHON) -m mme_gui.commands --help
 
-.PHONY: demo help install install-locked lock dictionary test clean version gui local local-rebuild local-gui doi web web-check web-fetch web-extract \
+.PHONY: demo help install install-locked lock dictionary commands manual test clean version gui local local-rebuild local-gui \
+        local-cathode local-anode web-cathode web-anode rank-cathode rank-anode mme-help \
+        doi web web-check web-fetch web-extract \
         web-dois web-gui rank rank-gui classify classify-gui gui-help local-help local-gui-help web-help \
         web-gui-help doi-help rank-help rank-gui-help classify-help classify-gui-help eval-sheet eval-score \
         eval-agree eval-reference eval-help release release-help

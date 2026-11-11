@@ -20,17 +20,32 @@ DEFAULT_OUTPUT = os.path.join("WebScraping", "web_output")
 # folder has no configs/sse.yaml, a starter copy is made from it, so an installed copy searches out
 # of the box. Edit the copy to change the search.
 SHIPPED_JOB = "default_job.yaml"
+# ... and the jobs for the electrode materials, made next to it the same way: each domain its own job file.
+SHIPPED_JOBS = {"sse.yaml": SHIPPED_JOB, "cathode.yaml": "default_cathode_job.yaml", "anode.yaml": "default_anode_job.yaml"}
 
 
 def ensure_default_job(path: str = DEFAULT_JOB) -> str:
     """Return the working job file. If it is missing, create a starter copy from the one shipped with
-    the package (so a fresh install works at once). Returns `path` either way; never raises."""
+    the package (so a fresh install works at once); the starter jobs of the other domains (cathode.yaml,
+    anode.yaml) are made next to it when they are missing. Returns `path` either way; never raises."""
     target = Path(path)
+    for name, shipped in SHIPPED_JOBS.items():
+        sibling = target.with_name(name)
+        if sibling != target and target.name in SHIPPED_JOBS:
+            _copy_starter(sibling, shipped)
     if target.exists():
         return path
+    _copy_starter(target, SHIPPED_JOBS.get(target.name, SHIPPED_JOB))
+    return path
+
+
+def _copy_starter(target: Path, shipped: str) -> None:
+    """Copies the job file `shipped` with the package to `target`, unless `target` exists; never raises."""
+    if target.exists():
+        return
     try:
         from importlib import resources
-        source = resources.files("WebScraping.averageScrap").joinpath(SHIPPED_JOB)
+        source = resources.files("WebScraping.averageScrap").joinpath(shipped)
         if source.is_file():
             with resources.as_file(source) as real:
                 if Path(real).resolve() != target.resolve():
@@ -40,4 +55,3 @@ def ensure_default_job(path: str = DEFAULT_JOB) -> str:
                                  "MoukhlijMatExtract). Edit it to change what the web search looks for.")
     except (ModuleNotFoundError, FileNotFoundError, OSError) as error:
         logging.debug(f"Could not create a starter job file at {target}: {error}")
-    return path

@@ -1,0 +1,33 @@
+# criteria_anode.toml — the classes of a ranking of anode materials by the activation energy of ion migration in them
+# (Ea, in eV), best first:  mme-rank --domain anode
+#
+# A low barrier means fast solid-state diffusion of the ion in the anode, which favours rate capability. It says
+# nothing of capacity, voltage or stability, which decide whether a anode is good.
+#
+# THE LIMITS BELOW ARE STARTING POINTS, NOT LITERATURE CRITERIA. They split the usual range of reported values
+# (about 0.2–0.8 eV) into three bands. Set them for your study, say where they come from, and rank one kind of
+# energy at a time (--kind arrhenius or --kind migration_barrier): a computed NEB barrier and a measured Arrhenius
+# activation energy of the same material differ.
+#
+# Decimals are written with a point (0.30), as in the database.
+
+[[class]]
+name = "Low barrier"
+below = 0.30
+
+[[class]]
+name = "Moderate barrier"
+below = 0.50
+
+[rejected]
+name = "High barrier"
+
+[material]
+#   consensus     the confidence-weighted median of its values — one outlier does not decide
+#   optimistic    its lowest reported value
+#   conservative  its highest reported value
+policy = "consensus"
+
+[checks]
+borderline_margin = 0.01
+low_confidence = 0.5

@@ -24,7 +24,7 @@ STATED = "stated"
 CARRIERS: List[Tuple[str, str, str]] = [
     ("Li", "lithium", "Li+"), ("Na", "sodium", "Na+"), ("K", "potassium", "K+"), ("Ag", "silver", "Ag+"),
     ("Cu", "copper", "Cu+"), ("Mg", "magnesium", "Mg2+"), ("Zn", "zinc", "Zn2+"), ("Ca", "calcium", "Ca2+"),
-    ("Al", "alumin(?:i)?um", "Al3+"),
+    ("Al", "alumin(?:i)?um", "Al3+"), ("Cs", "c(?:a)?esium", "Cs+"), ("Rb", "rubidium", "Rb+"),
 ]
 ANIONS = [("H+", r"\bprotons?\b|\bproton(?:ic)?\b|\bH\s?\+(?![\w+])|\bhydrogen(?:[- ]ion)?\s+(?:diffus|migrat|conduct|transport)"),
           ("O2-", r"\boxide[- ]ions?\b|\bO\s?2\s?[−-](?![\w])|\boxygen(?:[- ]ion)?\s+(?:diffus|migrat|conduct|transport|vacanc)"),
@@ -158,10 +158,19 @@ def _short(x: float) -> str:
     return f"{x:g}"
 
 
-def plausibility(prop: str, value, species: str) -> str:
-    """"in range", or "check: <why>" for a value outside the known range of its quantity or carried by a
-    species that is no conducting ion."""
-    reasons = []
+# What the extraction appends to `reported_as` for an activation energy that is not of an ion's migration
+# (extractor._ROTATION, extractor._NOT_MIGRATION): "activation energy (of a rotation)".
+_NOT_MIGRATION_MARK = re.compile(r'\(of (a rotation|an interfacial charge transfer|an electron transfer|a reaction)\)\s*$')
+
+
+def plausibility(prop: str, value, species: str, reported_as: str = "", material_note: str = "") -> str:
+    """"in range", or "check: <why>" for a value outside the known range of its quantity, carried by a
+    species that is no conducting ion, (an activation energy) of something else than ion migration, or of a
+    material that is no candidate electrolyte (`material_note`, from scope.material_scope)."""
+    reasons = [f"it is {material_note}"] if material_note else []
+    kind = _NOT_MIGRATION_MARK.search(str(reported_as or ""))
+    if kind:
+        reasons.append(f"it is the activation energy of {kind.group(1)}, not of ion migration")
     number = _number(value)
     low, high, unit = RANGES.get(prop, (None, None, ""))
     if number is not None and low is not None and not (low <= number <= high):

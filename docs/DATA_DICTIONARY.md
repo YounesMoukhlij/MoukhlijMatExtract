@@ -102,6 +102,7 @@ The activation energies (migration barriers, Ea, …), one numeric column in eV.
 | `page` | integer | The page of the PDF. |
 | `plausibility` | text | “in range”, or “check: …” for a value outside the range known for ion conductors or carried by another species than a conducting ion (left out of the ranking by default). |
 | `needs_check` | text | “no”, or “yes: …” with why a person should look at the value: out of range, unusual formula, doped sample, material from another sentence, table text, low confidence. A pointer to the values most worth checking, not a verdict (see docs/LIMITATIONS.md). |
+| `energy_kind` | arrhenius | migration_barrier | bvse | local_hop | vtf | rotation | charge_transfer | electron_transfer | reaction | unspecified | What kind of energy an activation energy is: the Arrhenius slope of long-range transport (impedance, molecular dynamics), the static barrier of one hop (NEB), a bond-valence percolation barrier, local ion motion (NMR relaxation), a VTF pseudo-activation energy, or no ion migration at all. Values of different kinds are different quantities: compare like with like. basis says why (kind: …). |
 | `composition` | JSON | Element amounts of the material, elements in alphabetical order. |
 | `structure` | text | Crystal system, structure family, polymorph, space group (cubic \| garnet \| Ia-3d); else the kind of compound (thiophosphate, oxide, …). |
 | `ionic_radii` | JSON | Shannon ionic radius (Å) of each ion, from the composition (charge-balanced, six-fold coordination): {"Li+": 0.76, …}. |

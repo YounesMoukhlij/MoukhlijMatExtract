@@ -82,6 +82,10 @@ class ExtractedField:
     # The paper's own wording for the quantity ("migration barrier", "Ea"); only kept for the
     # activation energy, which papers name in a dozen ways.
     reported_as: str = "NONE"
+    # What kind of energy an activation energy is (energy.KINDS: "arrhenius", "migration_barrier", "bvse",
+    # "local_hop", "vtf", "rotation", "charge_transfer", "electron_transfer", "unspecified"); basis["kind"]
+    # says why. "NONE" for every other property.
+    energy_kind: str = "NONE"
     # "this work" for a result of the paper itself, "cited" for one it quotes from another source.
     attribution: str = "NONE"
     # The species that moves, for the transport quantities: "Li+", "Na+", "O2-", "electron", or another

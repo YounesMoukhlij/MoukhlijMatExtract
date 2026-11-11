@@ -115,7 +115,10 @@ _PRESSURE_IS_A_VARIABLE = 4
 # unit or a bracket ("conductors.9", "coworkers1", "0.40 eV40.", "(σRT = 1 mS/cm, Ea = 0.3 eV)3,").
 _QUOTED = re.compile(
     r'(?i:\bet\s+al\b|\bref(?:s|erences?)?\.?\s*\[?\d|\bliterature\b|\belsewhere\b|\bpublished\s+(?:values?|data|results?)'
-    r'|\b(?:previous(?:ly)?|earlier|prior)\s+(?:\w+\s+)?(?:works?|stud(?:y|ies)|reports?|reported|experiments?|calculations?)'
+    r'|\b(?:previous(?:ly)?|earlier|prior)\s+(?:\w+\s+)?(?:works?|stud(?:y|ies)|reports?|reported|experiments?|calculations?'
+    # "in previous AIMD", "the previous predictions of 0.20 eV", "previously calculated"
+    r'|predictions?|predicted|simulations?|simulated|results?|values?|estimates?|estimated|findings?|investigations?'
+    r'|measurements?|measured|calculated|computed|determined|AIMD|DFT|NEB|MD)\b'
     r'|\b(?:their|the\s+authors\W?|these\s+authors\W?)\s+(?:\w+\s+)?(?:study|work|results?|calculations?|reports?|measurements?)'
     r'|\bthey\s+(?:also\s+)?(?:reported|found|showed|proposed|demonstrated|observed|obtained|calculated|measured)'
     r'|\breported\b(?!\s+(?:in\s+)?(?:here|this|table|fig)))'

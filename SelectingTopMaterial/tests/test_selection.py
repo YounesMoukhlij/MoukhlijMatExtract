@@ -132,6 +132,13 @@ class CriteriaTests(unittest.TestCase):
         self.assertEqual([criteria.classify(e).name for e in (0.1, 0.2, 0.49, 0.5)], ["Fast", "Slow", "Slow", "Out"])
         self.assertEqual(criteria.policy, "optimistic")
 
+    def test_each_domain_has_its_criteria(self):
+        from SelectingTopMaterial.criteria import DOMAIN_CRITERIA
+        names = {domain: [c.name for c in Criteria.load(path).classes] for domain, path in DOMAIN_CRITERIA.items()}
+        self.assertEqual(names["electrolyte"][0], "Superionic")
+        self.assertEqual(names["cathode"], ["Low barrier", "Moderate barrier", "High barrier"])
+        self.assertEqual(names["anode"], names["cathode"])
+
     def test_a_wrong_criteria_file_is_refused_with_the_reason(self):
         wrong = {
             "at least one": {},
@@ -362,6 +369,16 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(Filters().describe(), "all values in range")
         self.assertEqual(Filters(origin="experimental", min_confidence=0.5, elements=("Na",)).describe(),
                          "experimental values · materials with Na · confidence ≥ 0.5")
+
+    def test_one_kind_of_energy_only(self):
+        # A static NEB barrier is lower than the Arrhenius activation energy of the same material: not to be pooled.
+        values = [value("Li6PS5Cl", 0.18, data_origin="simulation", energy_kind="migration_barrier"),
+                  value("Li6PS5Cl", 0.35, energy_kind="arrhenius"), value("Na3Zr2Si2PO12", 0.33, energy_kind="arrhenius")]
+        energy = lambda **filters: {m.material: m.energy_eV for m in select(values, self.criteria, filters=Filters(**filters)).materials}
+        self.assertEqual(energy(kind="arrhenius"), {"Li6PS5Cl": 0.35, "Na3Zr2Si2PO12": 0.33})
+        self.assertEqual(energy(kind="migration_barrier"), {"Li6PS5Cl": 0.18})
+        self.assertEqual(energy(kind="bvse"), {})
+        self.assertIn("arrhenius energies", Filters(kind="arrhenius").describe())
 
     def test_flagged_values_are_left_out_unless_asked_for(self):
         values = [value("Li6PS5Cl", 0.01, plausibility="check: 0.01 eV is outside the 0.05–1.5 eV known for ion conductors"),

@@ -17,6 +17,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_CRITERIA = Path(__file__).with_name("criteria.toml")
+# The criteria shipped for each kind of material a database can be about (LocalExtraction/scope.py).
+DOMAIN_CRITERIA = {"electrolyte": DEFAULT_CRITERIA, "cathode": Path(__file__).with_name("criteria_cathode.toml"),
+                   "anode": Path(__file__).with_name("criteria_anode.toml")}
 
 # How one activation energy is chosen for a material that has several, and what each choice means.
 POLICIES = {

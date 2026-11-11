@@ -35,6 +35,8 @@ class Command(NamedTuple):
 
 
 COMMANDS: List[Command] = [
+    Command("mme", "mme_gui.commands", (), "Every command", "every command in one: mme help, mme commands, mme <part> …",
+            "make help"),
     Command("mme-gui", "mme_gui", (), "The one window", "opens the main window: one button per part", "make gui"),
     Command("mme-local", "LocalExtraction", ("extract",), "1 · Local extraction",
             "reads your PDFs into a database", "make local"),
@@ -85,11 +87,17 @@ $ mme-web                                2 · Search (keywords + saved DOIs), th
 $ mme-web --stage fetch --limit 50       after the review: download 50 approved papers, extract them
 $ mme-web --dois                         only the saved DOIs: check, download, extract
 $ mme-web --check                        test the network, the API keys and the folders
+$ mme-web --job configs/cathode.yaml --output WebScraping/web_output_cathode     the same for cathodes
+$ mme-web --job configs/anode.yaml --output WebScraping/web_output_anode         … and for anodes
+$ mme-local --domain cathode --input ~/pdfs/cathodes --output LocalExtraction/output_cathode
 $ mme-rank --component bulk --element Li --top 20
+$ mme-rank --kind arrhenius --origin experimental --attribution this-work     one kind of energy, measured
+$ mme-rank --domain cathode --source WebScraping/web_output_cathode            a cathode database
 $ mme-classify --force                   classify again even when nothing changed
 $ mme-eval sheet --papers 60             draw 60 papers to annotate (accuracy of the extraction)
 $ mme-eval score                         precision, recall, F1 from the annotated workbook
 $ mme-release                            the dataset in one .zip, ready for Zenodo
+$ mme commands                           every option of every command (docs/COMMANDS.md)
 """
 
 

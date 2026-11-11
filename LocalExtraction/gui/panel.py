@@ -127,6 +127,7 @@ class LocalPanel(Pausable, ttk.LabelFrame):
             with self.app.writing("Local extraction", output, self.stop_event), runcontrol.bound(self.stop_event):
                 code = run_extraction(folder, output, max_workers=workers, stop_event=self.stop_event,
                                       lookup=getattr(self.app, "lookup", True),
+                                      domain=getattr(self.app, "domain", "electrolyte"),
                                       progress_callback=lambda name, paper: self.app.post(self._paper_done, name, paper))
             self.app.post(self._summed_up, code)
         except Stopped:

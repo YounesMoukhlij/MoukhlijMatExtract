@@ -619,3 +619,6 @@ extract:
   properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
                Ionic_Radius]
   require_material: true
+  # Values of materials that are no candidate electrolyte (electrodes, alloys, interphase salts, composites) are
+  # flagged, and the ranking leaves them out. The jobs for electrodes: configs/cathode.yaml, configs/anode.yaml.
+  domain: electrolyte

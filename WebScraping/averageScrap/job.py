@@ -184,6 +184,9 @@ class FetchConfig:
 class ExtractConfig:
     properties: List[str] = field(default_factory=list)  # the wished data; empty = every property
     require_material: bool = False  # drop a value that cannot be tied to a material
+    # What the papers are about: "electrolyte", "cathode" or "anode" (LocalExtraction/scope.py). The values of a
+    # material of another kind are flagged, and the ranking leaves them out.
+    domain: str = "electrolyte"
 
 
 @dataclass
@@ -471,4 +474,6 @@ def load_job(path: str) -> Job:
         hints = [f"{p!r} (did you mean {difflib.get_close_matches(p, known, 1)[0]!r}?)"
                  if difflib.get_close_matches(p, known, 1) else repr(p) for p in bad]
         raise ValueError(f"extract.properties: unknown {', '.join(hints)}")
+    if e.domain not in ("electrolyte", "cathode", "anode"):
+        raise ValueError(f"extract.domain: {e.domain!r} is none of electrolyte, cathode, anode")
     return job
