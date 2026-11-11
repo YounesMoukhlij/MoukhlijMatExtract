@@ -4,7 +4,99 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — to be released as 1.1.0
+## [Unreleased] — after 1.1.0
+
+### Added
+
+- **Every command in one, and its manual.**
+  - **`mme`:** `mme help` lists every command, `mme commands` prints every option of every command, and
+    `mme <part> …` runs a part (`mme local`, `mme web run`, `mme rank`, `mme eval score` …). It is installed with
+    the package, so a copy without the project folder has every command.
+  - **`docs/COMMANDS.md`:** every command with all of its options, written from each command's own `--help`
+    (`make commands`).
+  - **`docs/MANUAL.md`:** the complete manual for users and reviewers. It covers installing, the three domains,
+    every step, the outputs, measuring the accuracy, reproducing a result and the legal sources.
+  - **New make options and targets:** `DOMAIN=`, `KIND=`, `ALL_PAPERS=`; `make web-cathode`, `web-anode`,
+    `rank-cathode`, `rank-anode`, `local-cathode`, `local-anode`, `commands`, `manual`, `mme-help`.
+  - **Tests** check that every option of every command can be given through its make target, and that the
+    reference and the manual name only what exists.
+
+- **Three domains: electrolytes, cathodes and anodes.** Each has its own job file, ranking criteria and database.
+  - **Job files:** `configs/sse.yaml`, `configs/cathode.yaml`, `configs/anode.yaml`. Each has its own search, download
+    folder and DOI list. The cathode and anode starters ship with the package and are made next to `sse.yaml` on the
+    first run.
+  - **`extract.domain`** in a job file, and `mme-local --domain`: what the database is about, recorded in the run
+    manifest. A cathode database keeps cathodes and flags solid electrolytes, interphase salts, alloys and
+    lithiated carbon. An anode database keeps alloys, carbons, titanates and conversion oxides, and flags solid
+    electrolytes and interphase salts.
+  - **`mme-rank --domain cathode | anode`** ranks with `criteria_cathode.toml` / `criteria_anode.toml`: low, moderate
+    and high barrier. Their limits are starting points to set for a study.
+  - The electrode jobs also extract capacity, capacity retention, voltage and rate capability.
+
+- **`energy_kind`** in the activation-energy table: what kind of energy each "activation energy" is.
+  - The kinds: `arrhenius` (the slope of long-range transport: impedance, molecular dynamics, PFG-NMR),
+    `migration_barrier` (a static barrier of one hop: NEB), `bvse`, `local_hop` (NMR relaxation, QENS), `vtf`,
+    or no ion migration at all (`rotation`, `charge_transfer`, `electron_transfer`), else `unspecified`.
+  - It is read from the value's own clause first, then from the method named just before it or the one method
+    of the paper. `basis` says which (`kind: stated (NEB)`, `kind: assumed (…)`).
+  - Papers give one name to all of these, and they are different quantities: a static barrier leaves out the
+    defect formation energy and is lower than the Arrhenius activation energy of the same material
+    (`LocalExtraction/energy.py`).
+  - `mme-rank --kind arrhenius` ranks one kind only.
+  - A database of an earlier version gets the column, from each row's own sentence, when it is brought up to date.
+- **Activation energies of something other than ion migration are flagged** (`plausibility: check: …`), so the
+  ranking leaves them out by default:
+  - anion rotations (marked before, but still ranked);
+  - the exchange current or charge transfer at an interface, and ion transfer across one ("through the
+    interface", "the PEO|LATP interface", "the SEI and CT processes");
+  - electron transfer;
+  - reactions ("the nucleation activation energy", "the activation energy of crystallization").
+- **Values of materials that are no candidate electrolyte are flagged** (`LocalExtraction/scope.py`); the ranking
+  leaves them out by default (`--include-flagged` brings them back):
+  - interphase compounds and simple salts (LiF, Li2CO3, CaO …);
+  - alloys and lithiated carbon;
+  - transition-metal electrode materials (LiCoO2, LiFePO4, Li3V2(PO4)3 …);
+  - molecules (H2O);
+  - composites with a polymer, a gel or a framework, when the value's own clause says so;
+  - doped samples stored under the undoped formula ("the Al-doped LLZO" as Li7La3Zr2O12).
+- **Cs+ and Rb+** are recognised as mobile ions.
+- `docs/LIMITATIONS.md` § 2 gives a first measurement of the precision of the activation energies on papers that
+  were not used to write the rules (37–41 % fully correct, 57–62 % counting doubtful cases), and what limits it.
+
+### Fixed
+
+- `make help` no longer lists options `mme-eval reference` does not have (`ESTIMATE=`, `GOLD=`, `PDFS=`, `OUT=`).
+- `mme-local gui --domain` is passed to the window's extraction.
+
+The fixes below come from a hand check of 60 random activation energies of the legal web database
+(November 2026). 14 of its 23 errors are fixed. On 30 other papers, extracted with the old and the new code,
+one row of 123 changed, for the better.
+- **Measured vs computed:**
+  - A measured value quoted in a sentence about a computed one ("The calculated E_a of 0.27 eV agrees with
+    the 0.28 eV derived from impedance measurements") is now experimental: a value inside a comparison takes
+    its origin from the comparison when that names a method.
+  - "Calculated to be" and "calculated as" no longer make a value computed; discs count as specimens.
+- **Previous work:** "previous AIMD", "previous predictions" and "previously calculated" now mark a value as cited.
+- **Which material a value is for:**
+  - A material named only to compare with ("compared with the result of Li10SnP2S12") no longer takes the
+    paper's own value.
+  - A citation right after a value closes its statement: in a table run into text, the next row's material
+    no longer takes the value before it ("… Ea ~ 0.35 eV [17] Li6.5La3Zr1.75Te0.25O12 …").
+  - The Kröger–Vink symbol of a vacancy ("VLi", "VNa") is no longer read as a formula ("LiV").
+- **Surface values:** a computed value whose sentence names only a surface (or only a grain boundary) is given
+  that component instead of the bulk.
+- **Numbers that are not results are dropped:** the spread of a distribution ("σ ≈ 0.69 eV"), a discrepancy, and
+  the bounds of a prior ("p(Ea) ∼ U(0, 0.5 eV)").
+- **More comparisons are recognised** ("compares favourably with … the LLZO garnet", "lower than typical values
+  reported for undoped LLZO"), so the material compared with no longer takes the value.
+- **Formulas:**
+  - Square brackets inside a formula are read ("Li6.5[P0.25Si0.25Ge0.25Sb0.25]S5I").
+  - A formula split by a space is joined ("Li1.3 Ga0.3Ti1.7(PO4)3", "Li1.3Ga0.3Ti1.7 (PO4)3").
+  - The inside of a formula that cannot be read whole ("SeO3" of "LiM(SeO3)2") is no longer taken for a material.
+- **NMR relaxation** ("SLR rates", "spin-lattice", relaxometry) counts as a measurement; a value given for "X = Cl,
+  Br" no longer falls back on the paragraph's material.
+
+## [1.1.0]
 
 ### Added
 

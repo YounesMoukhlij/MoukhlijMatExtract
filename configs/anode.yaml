@@ -1,0 +1,205 @@
+# Anode materials of lithium-, sodium-, potassium-, magnesium- and zinc-ion batteries: ion transport in them
+# (activation energy, diffusion coefficient, ionic and electronic conductivity), with their capacity and voltage.
+#
+#   mme-web run --job configs/anode.yaml --output WebScraping/web_output_anode
+#   mme-rank --domain anode --source WebScraping/web_output_anode --kind arrhenius
+#
+# Its papers, its search ledger and its DOI list are kept apart from those of the other jobs (sse.yaml,
+# cathode.yaml), so that each database holds one kind of material.
+
+name: anode
+
+contact_email: "younes.moukhlij@usms.ac.ma"
+
+search:
+  queries:
+    # General anode transport
+    - "anode material lithium diffusion coefficient"
+    - "anode lithium ion diffusion activation energy"
+    - "anode solid-state diffusion kinetics"
+    - "anode migration barrier first principles"
+    - "anode lithium migration pathway DFT"
+    - "anode rate capability lithium diffusion"
+    - "anode GITT diffusion coefficient"
+    - "anode electrochemical impedance diffusion coefficient"
+    - "anode cyclic voltammetry lithium diffusion coefficient"
+    - "anode NMR lithium dynamics"
+
+    # Carbon anodes
+    - "graphite anode lithium diffusion coefficient"
+    - "graphite lithium intercalation migration barrier"
+    - "LiC6 lithium diffusion"
+    - "hard carbon anode sodium diffusion"
+    - "hard carbon sodium storage kinetics"
+    - "soft carbon anode ion transport"
+    - "graphene anode lithium diffusion barrier"
+    - "carbon nanotube anode lithium diffusion"
+    - "potassium intercalation graphite diffusion"
+
+    # Alloy anodes
+    - "silicon anode lithium diffusion coefficient"
+    - "silicon lithiation diffusion barrier"
+    - "amorphous silicon lithium diffusion"
+    - "Li15Si4 lithium diffusion"
+    - "tin anode lithium diffusion"
+    - "Li-Sn alloy lithium migration barrier"
+    - "germanium anode lithium diffusion"
+    - "antimony anode sodium diffusion"
+    - "phosphorus anode sodium diffusion"
+    - "bismuth anode sodium diffusion"
+    - "Li-In alloy anode lithium diffusion"
+    - "Li-Al alloy anode lithium diffusion"
+    - "Li-Mg alloy anode lithium diffusion"
+
+    # Titanates and insertion oxides
+    - "Li4Ti5O12 lithium diffusion coefficient"
+    - "lithium titanate anode ion transport"
+    - "TiO2 anode lithium diffusion"
+    - "Nb2O5 anode lithium diffusion"
+    - "titanium niobium oxide anode lithium diffusion"
+    - "Wadsley-Roth anode lithium diffusion"
+    - "Na2Ti3O7 sodium diffusion"
+    - "NaTi2(PO4)3 anode sodium diffusion"
+    - "MXene anode ion diffusion barrier"
+
+    # Conversion anodes
+    - "conversion anode lithium diffusion"
+    - "transition metal oxide anode ion diffusion"
+    - "Fe2O3 anode lithium diffusion"
+    - "Co3O4 anode lithium diffusion"
+    - "transition metal sulfide anode ion diffusion"
+    - "MoS2 anode lithium diffusion barrier"
+    - "SnO2 anode lithium diffusion"
+    - "phosphide anode sodium diffusion"
+
+    # Metal anodes and their interphases
+    - "lithium metal anode self-diffusion"
+    - "lithium metal surface diffusion barrier"
+    - "sodium metal anode diffusion"
+    - "zinc anode zinc diffusion"
+    - "solid electrolyte interphase lithium ion transport"
+    - "SEI component lithium diffusion barrier"
+    - "artificial interphase anode lithium transport"
+    - "anode-free battery lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # The DOI list Fetch DOIs (mme-dois) collects for this job: its own, apart from the other jobs'.
+  doi_list: WebScraping/Fetch_DOIs/dois_anode.csv
+  collect_dois: true
+
+screen:
+  topic_words:
+    # General terminology
+    - "anode"
+    - "anode material"
+    - "negative electrode"
+    - "intercalation anode"
+    - "alloy anode"
+    - "conversion anode"
+    - "lithium metal anode"
+    - "sodium metal anode"
+    - "zinc anode"
+    - "lithium-ion battery anode"
+    - "sodium-ion battery anode"
+    - "potassium-ion battery anode"
+
+    # Materials
+    - "graphite"
+    - "hard carbon"
+    - "soft carbon"
+    - "graphene"
+    - "silicon anode"
+    - "Si anode"
+    - "tin anode"
+    - "germanium anode"
+    - "antimony"
+    - "red phosphorus"
+    - "Li4Ti5O12"
+    - "LTO"
+    - "lithium titanate"
+    - "TiNb2O7"
+    - "Nb2O5"
+    - "MXene"
+    - "Li15Si4"
+    - "LiC6"
+
+    # Transport and kinetics
+    - "lithium diffusion"
+    - "sodium diffusion"
+    - "ion diffusion"
+    - "solid-state diffusion"
+    - "lithiation"
+    - "sodiation"
+    - "intercalation"
+    - "rate capability"
+    - "solid electrolyte interphase"
+
+  property_words:
+    - "activation energy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "energy barrier"
+    - "diffusion barrier"
+    - "diffusion coefficient"
+    - "diffusivity"
+    - "chemical diffusion coefficient"
+    - "ionic conductivity"
+    - "electronic conductivity"
+    - "GITT"
+    - "impedance"
+    - "Arrhenius"
+    - "nudged elastic band"
+    - "NEB"
+    - "specific capacity"
+    - "reversible capacity"
+    - "capacity retention"
+    - "Coulombic efficiency"
+    - "rate performance"
+    - "voltage"
+
+  # Remove papers of other fields. "cathode" is not excluded: an anode paper reports its full cell.
+  exclude_words:
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+    - "electrocatalyst"
+    - "hydrogen evolution reaction"
+    - "thermoelectric"
+    - "piezoelectric"
+    - "dielectric capacitor"
+    - "corrosion"
+
+  min_score: 2
+  review: false
+
+fetch:
+  folder: WebScraping/papers_anode
+  sources: [ elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 3
+  max_pdf_mb: 60
+
+extract:
+  # The transport quantities get their own tables (activation_energy.csv, ...); the capacity, efficiency and voltage
+  # go to properties.csv.
+  properties: [Activation_Energy, Diffusion_Coefficient, Ionic_Conductivity, Electronic_Conductivity, Ionic_Radius,
+               Specific_Capacity, Capacity_Retention, Coulombic_Efficiency, Voltage, Rate_Capability]
+  require_material: true
+  # Values of materials that are no anode (solid electrolytes, interphase salts, molecules) are flagged, and the
+  # ranking leaves them out. Alloys, carbons, titanates and conversion oxides are anodes here.
+  domain: anode

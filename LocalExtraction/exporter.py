@@ -18,7 +18,10 @@ from .chemistry import ChemistryEngine, common_radii
 from .models import ExtractedField, Material, PaperData, TableRecord, as_written
 from .provenance import extracted_with
 from .review import needs_check
+from .energy import energy_kind
+from .scope import DOMAINS, ELECTROLYTE, material_scope
 from .species import mobile_species, paper_ion, plausibility
+from .study import technique
 
 # Characters XML (and therefore .xlsx) cannot store.
 _ILLEGAL_XML_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
@@ -46,12 +49,27 @@ TABLE_NAMES = ["papers", "materials", "properties", *(table for _, table, _, _ i
 NOT_RECORDED = "not recorded (written by an earlier version of MoukhlijMatExtract)"
 ADDED_BY_HAND = "not filled (a column added by hand)"
 # Columns a later version added that `upgrade` can work out for the rows an earlier version wrote.
-UPGRADABLE = {"extracted_with", "mobile_ion", "plausibility", "needs_check", "equation_basis"}
+UPGRADABLE = {"extracted_with", "mobile_ion", "plausibility", "needs_check", "equation_basis", "energy_kind"}
 EARLIER_VERSION = "an earlier version of MoukhlijMatExtract (before the version was recorded with each paper)"
 # The rebuilds of a folder whose papers have not all been brought back yet (see `archive`).
 _PENDING_REBUILDS = "rebuild_pending.json"
-_BASIS_ORDER = ("structure", "temperature", "pressure", "origin", "component", "ion")
+_BASIS_ORDER = ("structure", "temperature", "pressure", "origin", "component", "ion", "kind")
+# The answers counted in n_assumed: the conditions of a value. (The kind of an activation energy is a
+# reading of what the value is, not a condition it holds under.)
+_CONDITION_BASIS = ("structure", "temperature", "pressure", "origin", "component", "ion")
 _EXCEL_CELL_LIMIT = 32767  # the characters one cell of a workbook can hold
+
+
+# The quantities whose values are only those of a candidate electrolyte when the material is one (scope.py). Not
+# the electronic conductivity: that of an electrode is the point.
+_SCOPED = ("Activation_Energy", "Ionic_Conductivity", "Diffusion_Coefficient")
+
+
+def _position(sentence: str, raw_value: str) -> Optional[int]:
+    """Where a value's number stands in its sentence (its first occurrence), or None."""
+    number = raw_value.split(" ", 1)[0]
+    at = sentence.find(number) if number and number not in ("NONE", "nan") else -1
+    return at if at >= 0 else None
 
 _VALUE_CONTEXT = ["temperature", "pressure", "data_origin", "attribution", "n_assumed", "basis"]
 _QUANTITY_COLUMNS = ["paper_id", "material_formula", "{value}", "reported_as", "extracted_from", "page", "plausibility",
@@ -70,7 +88,11 @@ COLUMNS: Dict[str, List[str]] = {
     "properties": ["paper_id", "material_id", "material_formula", "composition", "structure", "ionic_radii",
                    "material_link", "category", "property_name", "raw_value", "normalized_value", "unit",
                    "extracted_from", "page", *_VALUE_CONTEXT, "confidence", "source", "section", "sentence"],
-    **{table: [value if name == "{value}" else name for name in _QUANTITY_COLUMNS] for _, table, value, _ in QUANTITY_TABLES},
+    # The activation energy says, next to the paper's word for it, what kind of energy it is (energy.py).
+    **{table: [column for name in _QUANTITY_COLUMNS
+               for column in ([value] if name == "{value}" else
+                              [name, "energy_kind"] if name == "needs_check" and table == "activation_energy" else [name])]
+       for _, table, value, _ in QUANTITY_TABLES},
     "unassigned_values": ["paper_id", "category", "property_name", "raw_value", "normalized_value", "unit",
                           "extracted_from", "page", *_VALUE_CONTEXT, "confidence", "source", "section", "sentence"],
     "methods": ["paper_id", "category", "property_name", "raw_value", "normalized_value", "unit", "extracted_from",
@@ -242,8 +264,13 @@ class StrictExporter:
       summary                one line per paper: its materials and how many values of each kind
     """
 
-    def __init__(self, output_dir: str):
+    def __init__(self, output_dir: str, domain: str = ELECTROLYTE):
+        """`domain` ("electrolyte", "cathode", "anode") is what the database is about: it decides which values of
+        a material of another kind are flagged (scope.py)."""
+        if domain not in DOMAINS:
+            raise ValueError(f"unknown domain {domain!r}: one of {', '.join(DOMAINS)}")
         self.output_dir = output_dir
+        self.domain = domain
         os.makedirs(self.output_dir, exist_ok=True)
 
     @staticmethod
@@ -376,9 +403,25 @@ class StrictExporter:
                     if "basis" in frame.columns:
                         frame["basis"] = [f"{basis} | ion: {why}" if str(basis) not in ("", "NONE", "nan")
                                           else f"ion: {why}" for basis, why in zip(frame["basis"], notes)]
+                if "energy_kind" in missing:
+                    # From each row's own words: its name for the quantity, its sentence and its origin (the
+                    # paper's other sentences are not in the table, so a method named only there is not seen).
+                    frame["energy_kind"] = [energy_kind(str(reported), str(sentence), str(origin), technique(str(sentence)),
+                                                        None, _position(str(sentence), str(raw)))[0]
+                                            for reported, sentence, origin, raw in zip(
+                                                frame.get("reported_as", [""] * len(frame)), frame.get("sentence", [""] * len(frame)),
+                                                frame.get("data_origin", [""] * len(frame)), frame.get("raw_value", [""] * len(frame)))]
                 if "plausibility" in missing:
-                    frame["plausibility"] = [plausibility(prop, number, ion)
-                                             for number, ion in zip(frame.get(value, [""] * len(frame)), frame["mobile_ion"])]
+                    blank = [""] * len(frame)
+                    notes = [material_scope(str(formula), str(composition), str(sentence), _position(str(sentence), str(raw)))
+                             if prop in _SCOPED else ""
+                             for formula, composition, sentence, raw in zip(
+                                 frame.get("material_formula", blank), frame.get("composition", blank),
+                                 frame.get("sentence", blank), frame.get("raw_value", blank))]
+                    frame["plausibility"] = [plausibility(prop, number, ion, reported, note)
+                                             for number, ion, reported, note in zip(frame.get(value, blank),
+                                                                                    frame["mobile_ion"],
+                                                                                    frame.get("reported_as", blank), notes)]
                 if "needs_check" in missing:
                     frame["needs_check"] = [needs_check(row.get("plausibility", ""), row.get("confidence", ""),
                                                         row.get("material_link", ""), row.get("sentence", ""),
@@ -502,7 +545,7 @@ class StrictExporter:
             **({"transport_component": f.transport_component} if component else {}),
             "attribution": f.attribution,
             # How many of the answers above (and the structure) are defaults rather than read from the paper.
-            "n_assumed": sum(1 for name in _BASIS_ORDER if (component or name != "component")
+            "n_assumed": sum(1 for name in _CONDITION_BASIS if (component or name != "component")
                              and f.basis.get(name, "").startswith("assumed")),
             "basis": cls.basis_text(f),
         }
@@ -594,7 +637,7 @@ class StrictExporter:
         }
 
     @classmethod
-    def _build_rows(cls, papers: List[PaperData]) -> Dict[str, List[Dict[str, Any]]]:
+    def _build_rows(cls, papers: List[PaperData], domain: str = ELECTROLYTE) -> Dict[str, List[Dict[str, Any]]]:
         tables: Dict[str, List[Dict[str, Any]]] = {name: [] for name in TABLE_NAMES}
         quantity = {prop: (table, value) for prop, table, value, _ in QUANTITY_TABLES}
         titles: Dict[str, str] = {}
@@ -666,7 +709,10 @@ class StrictExporter:
                         table, number = quantity[prop]
                         columns = cls._material_columns(c, materials)
                         counts[table] = counts.get(table, 0) + 1
-                        plausible = plausibility(prop, c.normalized_value, cls.species_of(c))
+                        note = (material_scope(columns["material_formula"], columns["composition"], cls.sentence_of(c),
+                                               _position(cls.sentence_of(c), str(c.raw_value)), domain)
+                                if prop in _SCOPED else "")
+                        plausible = plausibility(prop, c.normalized_value, cls.species_of(c), c.reported_as, note)
                         tables[table].append({
                             "paper_id": pid, "material_formula": columns["material_formula"],
                             number: float(c.normalized_value.split(" ", 1)[0]),
@@ -674,6 +720,8 @@ class StrictExporter:
                             "needs_check": needs_check(plausible, c.confidence, c.material_link, cls.sentence_of(c),
                                                        columns["material_formula"]),
                             "reported_as": c.reported_as if c.reported_as != "NONE" else prop.replace("_", " ").lower(),
+                            **({"energy_kind": c.energy_kind if c.energy_kind != "NONE" else "unspecified"}
+                               if table == "activation_energy" else {}),
                             **cls._part_columns(c),
                             "composition": columns["composition"], "structure": columns["structure"],
                             "ionic_radii": columns["ionic_radii"],
@@ -748,7 +796,7 @@ class StrictExporter:
         if not new_dataset:
             return
         frames = {name: self._strict_none(pd.DataFrame(rows, columns=COLUMNS[name]))
-                  for name, rows in self._build_rows(new_dataset).items()}
+                  for name, rows in self._build_rows(new_dataset, self.domain).items()}
         self._append(frames, [self._paper_to_nested_dict(p) for p in new_dataset], {p.pid for p in new_dataset})
         if excel:
             self.export_excel()

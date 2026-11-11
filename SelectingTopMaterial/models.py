@@ -60,6 +60,9 @@ class Measurement:
     sentence: str
     mobile_ion: str = "Li+"       # the species that moves (databases of earlier versions: not recorded)
     plausibility: str = "in range"  # "check: …" when outside the known range or carried by another species
+    # What kind of energy it is (LocalExtraction/energy.py: "arrhenius", "migration_barrier", ...); empty for a
+    # database of an earlier version, which did not record it.
+    energy_kind: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +73,9 @@ class Filters:
     attribution: str = ""         # "this work" or "cited"
     component: str = ""           # "bulk", "total", ...
     elements: tuple[str, ...] = ()
+    # One kind of energy only ("arrhenius", "migration_barrier", ...): values of different kinds are different
+    # quantities — a static NEB barrier is lower than the Arrhenius activation energy of the same material.
+    kind: str = ""
     # Values the extraction flagged ("check: outside 0.05–1.5 eV", "check: the transport of Co"): left out
     # unless asked for — a 0.01 eV misreading would otherwise rank first.
     include_flagged: bool = False
@@ -80,6 +86,7 @@ class Filters:
                 and (not self.origin or value.data_origin.casefold() == self.origin.casefold())
                 and (not self.attribution or value.attribution.casefold() == self.attribution.casefold())
                 and (not self.component or component_key(value.transport_component) == component_key(self.component))
+                and (not self.kind or value.energy_kind.casefold() == self.kind.casefold())
                 and all(element in value.elements for element in self.elements))
 
     def describe(self) -> str:
@@ -91,6 +98,8 @@ class Filters:
             parts.append(f"{self.attribution} only")
         if self.component:
             parts.append(f"{component_word(self.component)} transport")
+        if self.kind:
+            parts.append(f"{self.kind.replace('_', ' ')} energies")
         if self.elements:
             parts.append(f"materials with {' + '.join(self.elements)}")
         if self.min_confidence > 0:

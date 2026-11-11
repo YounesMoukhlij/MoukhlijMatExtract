@@ -141,6 +141,11 @@ ACRONYM_BLACKLIST = {
 # Letter-only, all-caps tokens ("FV", "KNN", "TDOS") are acronyms far more often than formulas;
 # real all-caps binaries are whitelisted.
 _ALLCAPS_FORMULAS = {"BN", "CO", "HF", "HI", "KI", "KF", "NO"}
+# A group in square brackets glued inside a formula (see find_materials).
+_SQUARE_GROUP = re.compile(r'(?<=[A-Za-z0-9.])\[([A-Z][A-Za-z0-9.()]*)\](?=[A-Z0-9(]|$|[^\w])')
+# A vacancy on the site of a mobile cation, its subscript run into the "V": "VLi", "VNa" (the vacancy of
+# V_Li, V_Na). No vanadium compound is written that way.
+_VACANCY = re.compile(r'V(?:Li|Na|K|Ag|Cu|Mg|Zn|Ca)')
 # A letter-only token of this many different elements ("UIOSLi", "LiPON") is a name, not a formula.
 _NAME_NOT_FORMULA = 4
 
@@ -668,6 +673,9 @@ class ChemistryEngine:
         its own names for formulas ("NZSP") are mentions too, and take precedence over the curated
         aliases."""
         text = normalize_scientific_text(text)
+        # "Li6.5[P0.25Si0.25Ge0.25Sb0.25]S5I": a group in square brackets inside a formula is read as one in round
+        # brackets (same length, so every offset stays where it was).
+        text = _SQUARE_GROUP.sub(lambda m: "(" + m.group(1) + ")", text)
         results: List[Dict[str, Any]] = []
         claimed_spans: List[tuple] = []
         # "x = 0.5" fixes the composition of a series for the whole sentence — unless it gives x several values.
@@ -696,6 +704,8 @@ class ChemistryEngine:
                 continue  # the rest of a sample label: "LPS-0.05SnO2"
             if _LABEL_AFTER_FORMULA.match(text, m.end()):
                 continue  # the head of one: "1LiF–LZZTO"
+            if m.start() >= 2 and text[m.start() - 1] in "([" and text[m.start() - 2].isalnum():
+                continue  # the inside of a formula that could not be read whole: "SeO3" of "LiM(SeO3)2"
             material = ChemistryEngine._resolve_token(m.group(), values)
             if not material:
                 continue
@@ -873,6 +883,8 @@ class ChemistryEngine:
         """Whether a formula with real elements is a compound and not an acronym or an ion."""
         if body.upper() in ACRONYM_BLACKLIST:
             return False
+        if _VACANCY.fullmatch(body):
+            return False  # Kröger–Vink notation run together: "VLi" (a lithium vacancy) is no "LiV"
         if body.isalpha():
             if body.isupper() and body not in _ALLCAPS_FORMULAS:
                 return False

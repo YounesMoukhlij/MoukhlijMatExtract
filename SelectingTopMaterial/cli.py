@@ -28,7 +28,7 @@ from LocalExtraction.provenance import Run
 
 from . import console, exporters, html_report, loader
 from .about import DEFAULT_RESULTS, NAME, PROJECT_ROOT
-from .criteria import POLICIES, Criteria, CriteriaError
+from .criteria import DOMAIN_CRITERIA, POLICIES, Criteria, CriteriaError
 from .models import COMPONENTS, Filters, component_word
 from .selection import select_from_each
 
@@ -62,6 +62,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Folder to write the ranking into (default: SelectingTopMaterial/results)")
     parser.add_argument("--criteria", metavar="FILE",
                         help="Criteria file to use instead of SelectingTopMaterial/criteria.toml")
+    parser.add_argument("--domain", choices=tuple(DOMAIN_CRITERIA), default="electrolyte",
+                        help="What the materials are: electrolyte (criteria.toml), cathode (criteria_cathode.toml) or "
+                             "anode (criteria_anode.toml), unless --criteria names a file (default: electrolyte)")
     parser.add_argument("--policy", choices=tuple(POLICIES),
                         help="Which activation energy stands for a material that has several: "
                              + "; ".join(f"{name} = {meaning}" for name, meaning in POLICIES.items())
@@ -78,6 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
     values.add_argument("--component", metavar="NAME",
                         help="Rank one transport component only: bulk, grain_boundary (or \"grain boundary\"), "
                              "total. By default each is ranked on its own, into a folder of its own")
+    values.add_argument("--kind", choices=("arrhenius", "migration_barrier", "bvse", "local_hop", "vtf", "unspecified"),
+                        help="Rank one kind of energy only (the energy_kind column): arrhenius (the slope of long-range "
+                             "transport: impedance, molecular dynamics), migration_barrier (a static barrier of one hop, "
+                             "NEB), bvse, local_hop (NMR relaxation), vtf. Different kinds are different quantities; by "
+                             "default all take part")
     values.add_argument("--element", nargs="+", action="extend", metavar="SYMBOL", type=_element,
                         help="Only the materials that contain these elements (--element Na: the sodium conductors)")
     values.add_argument("--min-confidence", type=_confidence, default=0.0, metavar="0-1",
@@ -114,7 +122,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     _keep_printing(sys.stdout, sys.stderr)
 
     try:
-        criteria = Criteria.load(args.criteria)
+        criteria = Criteria.load(args.criteria or DOMAIN_CRITERIA[args.domain])
     except CriteriaError as error:
         return _fail(str(error), code=2)
 
@@ -130,7 +138,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     filters = Filters(min_confidence=args.min_confidence, origin=args.origin or "",
                       attribution=(args.attribution or "").replace("-", " "), component=args.component or "",
-                      elements=tuple(dict.fromkeys(args.element or ())), include_flagged=args.include_flagged)
+                      kind=args.kind or "", elements=tuple(dict.fromkeys(args.element or ())), include_flagged=args.include_flagged)
     # The same databases, criteria, options and code as the ranking already in --out: already done.
     settings = {"databases": [str(Path(d).resolve()) for d in databases], "criteria": repr(criteria),
                 "policy": args.policy, "by_phase": args.by_phase, "filters": repr(filters), "top": args.top,

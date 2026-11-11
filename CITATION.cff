@@ -2,9 +2,9 @@ cff-version: 1.2.0
 message: "If you use MoukhlijMatExtract in your research, please cite it as below."
 title: "MoukhlijMatExtract (MME)"
 abstract: >-
-  A tool that extracts solid-state-electrolyte data (activation energies, ionic and electronic
-  conductivities, diffusion coefficients and more) from scientific papers, ranks the materials and
-  classifies them by crystal and structure family.
+  A tool that extracts battery-materials data — solid electrolytes, cathodes and anodes — (activation
+  energies, ionic and electronic conductivities, diffusion coefficients and more) from scientific papers,
+  ranks the materials and classifies them by crystal and structure family.
 type: software
 version: "1.1.0"
 date-released: "2026-11-08"   # TODO: set to the day the 1.1.0 release is published
@@ -13,6 +13,8 @@ repository-code: "https://github.com/YounesMoukhlij/MoukhlijMatExtract"
 url: "https://github.com/YounesMoukhlij/MoukhlijMatExtract"
 keywords:
   - solid-state electrolytes
+  - cathode materials
+  - anode materials
   - materials science
   - scientific literature mining
   - activation energy

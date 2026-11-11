@@ -20,6 +20,7 @@ from .context import (AMBIENT_PRESSURE, EXPERIMENTAL, NEARBY, ROOM_TEMPERATURE, 
 from .models import (EquationRecord, ExtractedField, FigureRecord, Material, Relation, TableRecord, WorkflowStep,
                      as_written)
 from .normalizer import DataNormalizer
+from .energy import energy_kind
 from .species import mobile_species, paper_ion
 from .study import DYNAMIC, LOCAL_PROBE, STATIC, Study, is_quoted, names_interface, technique
 from .transport import classify_transport, classify_transport_contexts, components_in_order
@@ -170,6 +171,39 @@ _MISSED_BREAK = re.compile(r'(?<=[A-Za-z)\]%])\.(?:\d{1,3}|\[\d{1,3})(?:\s?[,–
                            r'|(?:(?<=eV)|(?<=°C)|(?<=\dK)|(?<=\sK)|(?<=cm−1)|(?<=cm-1)|(?<=/cm)|(?<=Pa)|(?<=%))\.\s+(?=[A-Z][a-z])')
 # An activation energy of something other than an ion's hop: the rotation of an anion group.
 _ROTATION = re.compile(r'(?i)\b(?:re)?orientation(?:al|s)?\b|\brotation(?:al|s)?\b|\brotat(?:e|es|ing)\b')
+_REACTION = (r'(?:nucleation|crystalli[sz]ation|decomposition|grain[\s-]growth|sintering|densification|desorption'
+             r'|dehydration|dehydrogenation|degradation|phase[\s-]transformation|transformation|reaction)')
+# Activation energies of something other than an ion's migration through the solid. They are kept, but marked
+# in `reported_as` like a rotation is, and flagged by species.plausibility so a screening leaves them out:
+# "the activation energy of the exchange current density ... (0.70 eV)", "a charge-transfer activation
+# energy of 0.6 eV", "a barrier (ΔEt ≈ 7.23 eV) to the transfer of electrons".
+_NOT_MIGRATION = (
+    ("an interfacial charge transfer", re.compile(
+        r'(?i)\bexchange[\s-]current|\bcharge[\s-]transfer\b|\bR\s?ct\b|\bdesolvation\b'
+        r'|\binterfacial\s+(?:resistance|reaction|kinetics)\b'
+        # "the activation energy for interfacial Li+ transfer", "migration barriers for Li-ion transfer through the
+        # interface", "the PEO-LiTFSI|LATP interface exhibited ...", "the SEI and CT processes"
+        r'|\binterfacial\s+(?:(?:Li|Na|K|Mg|Zn|Ca)\S{0,3}\s+|lithium\s+|sodium\s+|ions?\s+|ionic\s+)?(?:transfer|transport)\b'
+        r'|\bthrough\s+the\s+(?:\w+\s+)?interfaces?\b|\S\|\S+(?:\s+\([^()]{1,12}\))?\s+interfaces?\b'
+        r'|\b(?:SEI|CEI|CT)\s+(?:and\s+(?:SEI|CEI|CT)\s+)?process(?:es)?\b')),
+    # A reaction only when its word is tied to the energy itself: "the nucleation activation energy", "the activation
+    # energy of crystallization" — not "a decomposition temperature above 190 °C and a low activation energy".
+    ("a reaction", re.compile(
+        rf'(?i)\b{_REACTION}\s+(?:activation\s+)?(?:energ(?:y|ies)|barriers?|enthalp(?:y|ies))\b'
+        rf'|\b(?:activation\s+energ(?:y|ies)|barriers?)\s+(?:of|for)\s+(?:the\s+)?(?:[\w-]+\s+){{0,2}}{_REACTION}')),
+    ("an electron transfer", re.compile(r'(?i)\belectron[\s-]transfer\b|\btransfer\s+of\s+electrons\b|\bwork\s+function\b')),
+)
+# The part of a sentence that says what an energy is of: its clause up to the value, and a few words after it.
+_CLAUSE_START = re.compile(r'[.;,:]\s')
+_CLAUSE_END = re.compile(r'[.;,]\s|$')
+# A computed value's sentence that names one kind of boundary only (see _boundary_named).
+_BULK_WORD = re.compile(r'(?i)\bbulk\b|\binside\s+the\s+grains?\b|\bintra[\s-]?grain')
+_BOUNDARY_WORDS = (
+    ("surface", re.compile(r'(?i)\bsurfaces?\b|\bslabs?\b')),
+    ("grain_boundary", re.compile(r'(?i)\bgrain[\s-]boundar(?:y|ies)\b|\bGBs?\b')),
+)
+# "0.35 eV [17]": a citation right after a value (see _process_sentence).
+_CITATION_RIGHT_AFTER = re.compile(r'\s?\[\d{1,3}(?:\s?[,–-]\s?\d{1,3})*\]')
 # A material this seldom named in a paper is one it compares with, not one it studies: at most
 # this many mentions, or this share of the mentions of the paper's most named material.
 _PASSING_MENTIONS = 2
@@ -203,7 +237,9 @@ _VARIANT = re.compile(
     r'|(?:different|various|all|these|those|other|both)\s+(?:[\w-]+\s+){0,4}'
     r'(?:samples|compositions|compounds|materials|glasses|electrolytes|systems|phases|structures|candidates|conductors|'
     r'SEs|SSEs)'
-    r'|composites?|(?:composite|hybrid)\s+(?:[\w-]+\s+){0,2}(?:samples?|glass(?:es)?|electrolytes?|membranes?|films?))\b')
+    r'|composites?|(?:composite|hybrid)\s+(?:[\w-]+\s+){0,2}(?:samples?|glass(?:es)?|electrolytes?|membranes?|films?))\b'
+    # "for X = Cl, Br": members of a family named by the element that varies
+    r'|\b[XMAB]\s?=\s?(?:[A-Z][a-z]?)(?:\s?[,/]\s?[A-Z][a-z]?)+\b')
 # A paper that measures calls what it measured an activation energy; what it calls a barrier it
 # usually computed on the side (bond-valence or NEB estimates in an experimental paper).
 _BARRIER_WORD = re.compile(r'(?i)barrier|migration\s+energ')
@@ -559,11 +595,30 @@ class ExtractorEngine:
         text = re.sub(r'\s+', ' ', text.replace("|", "/")).strip()  # "|" separates the parts of a basis
         return text if len(text) <= _BASIS_QUOTE else text[:_BASIS_QUOTE].rsplit(" ", 1)[0] + " ..."
 
+    @staticmethod
+    def _boundary_named(sent: str) -> str:
+        """ "surface" or "grain_boundary" when a sentence names that one (and not the bulk, nor the other);
+        "" otherwise: "For intraoctahedral migration at the surface, Na3OCl exhibits a barrier of 0.587 eV"."""
+        if not sent or _BULK_WORD.search(sent):
+            return ""
+        named = [label for label, pattern in _BOUNDARY_WORDS if pattern.search(sent)]
+        return named[0] if len(named) == 1 else ""
+
+    @staticmethod
+    def _not_migration(sent: str, anchor: Tuple[int, int]) -> str:
+        """What an activation energy is of when it is not an ion's migration (see _NOT_MIGRATION), read from
+        its clause up to the value and the few words after it; "" otherwise."""
+        start = max((m.end() for m in _CLAUSE_START.finditer(sent, 0, anchor[0])), default=0)
+        after = _CLAUSE_END.search(sent, anchor[1])
+        end = min(after.start() if after else len(sent), anchor[1] + 80)
+        return next((what for what, pattern in _NOT_MIGRATION if pattern.search(sent, start, end)), "")
+
     @classmethod
     def _in_sentence(cls, field: ExtractedField, sent: str, spans: Sequence[Tuple[int, int]], kind: str,
-                     neighbors: Tuple[str, str]) -> None:
+                     neighbors: Tuple[str, str], number: Optional[Tuple[int, int]] = None) -> None:
         """Level 1 and the nearest part of level 2. `spans` are the stretches of the sentence to
-        read the value's wording from: its own, then (for one of a list of values) the list's."""
+        read the value's wording from: its own, then (for one of a list of values) the list's.
+        `number` is where the value's number stands (it decides which comparison clause it is in)."""
         prop = field.property_name
         if prop in TRANSPORT_PROPERTIES:
             for start, end in spans:
@@ -576,7 +631,7 @@ class ExtractorEngine:
                 dominated = f", dominated by the {result.dominant.replace('_', ' ')}" if result.dominant != "NONE" else ""
                 field.basis["component"] = f"{STATED} ({cls._quote(result.evidence)}{dominated})"
         for start, end in spans:
-            ctx = value_context(sent, start, end, kind, neighbors[0], any_rival=prop in EA_PROPERTIES)
+            ctx = value_context(sent, start, end, kind, neighbors[0], any_rival=prop in EA_PROPERTIES, number=number)
             if field.temperature == "NONE" and ctx.temperature != "NONE":
                 field.temperature, field.basis["temperature"] = ctx.temperature, STATED
             if field.pressure == "NONE" and ctx.pressure != "NONE":
@@ -768,9 +823,18 @@ class ExtractorEngine:
         usual = study.technique(origin) if own_paper else None
         method = said or usual
 
+        if is_ea and f.energy_kind == "NONE":
+            number = str(f.raw_value).split(" ", 1)[0]
+            at = f.source_sentence.find(number) if number and number != "NONE" else -1
+            f.energy_kind, basis["kind"] = energy_kind(f.reported_as, f.source_sentence, origin, said, usual,
+                                                       at if at >= 0 else None)
+
         if prop in COMPONENT_PROPERTIES and f.transport_component in ("NONE", UNSPECIFIED):
             if note.rotation:
                 f.transport_component, why = "bulk", "a rotation inside the crystal, not a path through the sample"
+            elif origin == SIMULATION and cls._boundary_named(f.source_sentence):
+                f.transport_component = cls._boundary_named(f.source_sentence)
+                why = f"a computed value whose sentence names a {f.transport_component.replace('_', ' ')} and no bulk"
             elif origin == SIMULATION:
                 f.transport_component, why = "bulk", "a computed value: of the bulk unless a boundary or a surface is named"
             elif method == LOCAL_PROBE:
@@ -978,7 +1042,12 @@ class ExtractorEngine:
             if item.prop in EA_PROPERTIES and _ROTATION.search(sent, item.anchor[0], item.anchor[1]):
                 note.rotation = True
                 item.field.reported_as = f"{item.field.reported_as} (of a rotation)"
-            cls._in_sentence(item.field, sent, spans, kind, neighbors)
+            elif item.prop in EA_PROPERTIES:
+                what = cls._not_migration(sent, item.anchor)
+                if what:
+                    note.interface = True
+                    item.field.reported_as = f"{item.field.reported_as} (of {what})"
+            cls._in_sentence(item.field, sent, spans, kind, neighbors, number=item.span)
             if item.prop in TRANSPORT_PROPERTIES and item.size > 1:
                 # "The total and bulk conductivities are 0.4 and 2.5 mS/cm": one component each, in that order.
                 components, wording = components_in_order(sent, item.anchor[0], item.list_start)
@@ -1161,6 +1230,12 @@ class ExtractorEngine:
                     if _VARIANT.search(between):
                         usable = [j for j in usable if materials[j]["start"] >= other.span[1]]
                     break
+                # "... Ea ~ 0.35 eV [17] Li6.5La3Zr1.75Te0.25O12 1.02 ...": a citation right after a value
+                # closes its statement (a table run into text, a list of literature values), so a material
+                # named after the citation opens the next one and is not this value's.
+                closed = _CITATION_RIGHT_AFTER.match(sent, item.span[1])
+                if closed and not in_comparison:
+                    usable = [j for j in usable if materials[j]["start"] < closed.start()]
             # A value inside a comparison is a value of what the comparison names.
             inside = [j for j in usable if in_comparison and in_comparison[0] <= materials[j]["start"] < in_comparison[1]]
             usable = inside if numeric and inside else usable

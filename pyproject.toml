@@ -5,13 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "moukhlijmatextract"
 version = "1.1.0"
-description = "Extract, rank and classify solid-state-electrolyte data from scientific papers (activation energies, conductivities, diffusion coefficients)."
+description = "Extract, rank and classify battery-materials data — solid electrolytes, cathodes and anodes — from scientific papers (activation energies, conductivities, diffusion coefficients)."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [{ name = "Younes Moukhlij", email = "younes.moukhlij@usms.ac.ma" }]
-keywords = ["solid-state electrolytes", "materials science", "data extraction",
+keywords = ["solid-state electrolytes", "cathode materials", "anode materials", "batteries", "materials science", "data extraction",
             "scientific literature", "activation energy", "ionic conductivity"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -53,6 +53,7 @@ Repository = "https://github.com/YounesMoukhlij/MoukhlijMatExtract"
 
 # One command per part (run from anywhere once installed):
 [project.scripts]
+mme = "mme_gui.commands:main"
 mme-gui = "mme_gui.hub:main"
 mme-local = "LocalExtraction.cli:main"
 mme-web = "WebScraping.averageScrap.cli:main"
@@ -68,4 +69,4 @@ exclude = ["*.tests", "*.tests.*", "tests", "tests.*"]
 
 [tool.setuptools.package-data]
 SelectingTopMaterial = ["*.toml", "*.html"]
-"WebScraping.averageScrap" = ["default_job.yaml"]   # the starter job for a fresh install
+"WebScraping.averageScrap" = ["default_job.yaml", "default_cathode_job.yaml", "default_anode_job.yaml"]   # the starter jobs for a fresh install

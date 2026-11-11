@@ -105,6 +105,12 @@ COLUMN: Dict[str, Tuple[str, str]] = {
                             "unusual formula, doped sample, material from another sentence, table text, low confidence. A pointer "
                             "to the values most worth checking, not a verdict (see docs/LIMITATIONS.md)."),
     "reported_as": ("text", "The paper's own word for the quantity (activation energy, Ea, migration barrier, …)."),
+    "energy_kind": ("arrhenius | migration_barrier | bvse | local_hop | vtf | rotation | charge_transfer | "
+                    "electron_transfer | reaction | unspecified",
+                    "What kind of energy an activation energy is: the Arrhenius slope of long-range transport (impedance, "
+                    "molecular dynamics), the static barrier of one hop (NEB), a bond-valence percolation barrier, local "
+                    "ion motion (NMR relaxation), a VTF pseudo-activation energy, or no ion migration at all. Values of "
+                    "different kinds are different quantities: compare like with like. basis says why (kind: …)."),
     "n_assumed": ("integer", "How many of the context answers (structure, temperature, pressure, origin, "
                              "component, ion) are defaults rather than read from the paper."),
     "basis": ("text", "Where each context answer comes from — stated, context, caption of Figure 3, table, "

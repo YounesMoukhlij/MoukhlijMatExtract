@@ -112,7 +112,7 @@ class FormTests(Folder):
         form._save(self.path)
         self.assertEqual(self.saved, [self.path])
         self.assertEqual(load_job(self.path), before)
-        self.assertEqual(len(comment_lines(self.read())), 44)  # the 43 of the shipped file + the first line
+        self.assertEqual(len(comment_lines(self.read())), 46)  # the 45 of the shipped file + the first line
         self.assertEqual([a for a in self.asked if a[0] != "askyesno"], [])
 
     def test_a_change_is_saved_with_the_heading_typed_for_it(self):
@@ -197,6 +197,51 @@ class FormTests(Folder):
         when_saved(window.saved)
         self.form()._save(self.path)
         self.assertEqual(window.heard, [self.path])
+
+
+class DomainJobTests(unittest.TestCase):
+    """Electrolytes, cathodes and anodes: one job file each, shipped with the package."""
+
+    def test_each_shipped_job_names_its_domain_and_its_own_folders(self):
+        here = os.path.dirname(SHIPPED)
+        seen = {}
+        for name, domain in (("default_job.yaml", "electrolyte"), ("default_cathode_job.yaml", "cathode"),
+                             ("default_anode_job.yaml", "anode")):
+            with self.subTest(name=name):
+                job = load_job(os.path.join(here, name))
+                self.assertEqual(job.extract.domain, domain)
+                self.assertGreater(len(job.search.queries), 40)
+                seen[domain] = (job.fetch.folder, job.search.doi_list)
+        self.assertEqual(len({folder for folder, _ in seen.values()}), 3)  # no two jobs share a folder of PDFs
+        self.assertEqual(len({dois for _, dois in seen.values()}), 3)
+
+    def test_an_unknown_domain_is_refused(self):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        path = os.path.join(folder, "job.yaml")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("name: x\nsearch:\n  queries: [a]\nextract:\n  domain: separator\n")
+        with self.assertRaisesRegex(ValueError, "extract.domain"):
+            load_job(path)
+
+    def test_the_starter_jobs_of_every_domain_are_made_next_to_sse_yaml(self):
+        from WebScraping.averageScrap.about import ensure_default_job
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        ensure_default_job(os.path.join(folder, "configs", "sse.yaml"))
+        self.assertEqual(sorted(os.listdir(os.path.join(folder, "configs"))), ["anode.yaml", "cathode.yaml", "sse.yaml"])
+        self.assertEqual(load_job(os.path.join(folder, "configs", "cathode.yaml")).extract.domain, "cathode")
+
+    def test_saving_a_job_keeps_its_domain(self):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        path = os.path.join(folder, "cathode.yaml")
+        shutil.copyfile(os.path.join(os.path.dirname(SHIPPED), "default_cathode_job.yaml"), path)
+        headings, notes = read_comments(path)
+        text = dump_job(load_job(path), headings, notes)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        self.assertEqual(load_job(path).extract.domain, "cathode")
 
 
 if __name__ == "__main__":
