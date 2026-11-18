@@ -13,8 +13,17 @@ import yaml
 
 from LocalExtraction.config import PROPERTY_ALIASES, SchemaConfig
 
-# The keys and the contact address live next to this file: WebScraping/averageScrap/.env (git-ignored).
-ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+# The keys and the contact address live in ~/MoukhlijMatExtract/.env (ENV_PATH below), readable by their owner only.
+# The keys and the contact address: in the main folder, where an upgrade of the package never reaches (inside the
+# installed package, `pip install --upgrade` deleted them). OLD_ENV_PATH, where earlier versions kept them, is still
+# read, and carried over once the main folder exists.
+def _main_folder() -> str:
+    from LocalExtraction.about import PROJECT_HOME
+    return str(PROJECT_HOME)
+
+
+ENV_PATH = os.path.join(_main_folder(), ".env")
+OLD_ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 DEFAULT_FOLDER = os.path.join("WebScraping", "papers")
 # What the .env file may hold, in the order the settings window shows it: (variable, what it is, secret?).
 ENV_SETTINGS = (
@@ -32,6 +41,8 @@ ENV_SETTINGS = (
     ("LENS_API_TOKEN", "The Lens Scholarly API token (institutional subscription, or a non-commercial trial)", True),
     ("DIMENSIONS_API_KEY", "Dimensions API key (free for non-commercial research, on application)", True),
     ("BASE_ACCESS", "BASE: write yes once BASE has registered your network's IP address", False),
+    ("MP_API_KEY", "Materials Project API key (computed data of the ranked materials: mme-rank --materials-project)",
+     True),
 )
 # Where each key is had — all of them free.
 KEY_SIGNUP = {
@@ -46,6 +57,7 @@ KEY_SIGNUP = {
     "LENS_API_TOKEN": "https://www.lens.org/lens/user/subscriptions → API & Data → request access (through your "
                       "institution's subscription, or a non-commercial trial)",
     "DIMENSIONS_API_KEY": "https://www.dimensions.ai/scientometric-research/ → apply (free for non-commercial research)",
+    "MP_API_KEY": "https://next-gen.materialsproject.org/api → log in (free), the key is on that page",
     "BASE_ACCESS": "https://www.base-search.net/about/en/contact.php → ask BASE to register your IP address for "
                    "non-commercial research, then write yes",
 }
@@ -94,9 +106,12 @@ KEY_GROUPS = (
     KeyGroup("BASE (Bielefeld)", "Over 400 million documents from 11,000 repositories. BASE answers only the networks "
              "it has registered: once it has registered yours, write yes.", (("BASE_ACCESS", "Registered (yes)"),),
              KEY_SIGNUP["BASE_ACCESS"]),
+    KeyGroup("Materials Project", "Not a source of papers: the ranking's computed data. With a key, mme-rank "
+             "--materials-project writes each ranked material beside its Materials Project entry (stability, band gap, "
+             "space group, link).", (("MP_API_KEY", "API key"),), KEY_SIGNUP["MP_API_KEY"]),
 )
 # Where candidates are searched for (WebScraping/sources/ says what each one is). Those that need a
-# key are skipped, with a line saying so, until the key is in WebScraping/averageScrap/.env.
+# key are skipped, with a line saying so, until the key is in ~/MoukhlijMatExtract/.env.
 SOURCES = ("openalex", "arxiv", "crossref", "semanticscholar", "europepmc", "openaire", "doaj", "jstage", "core",
            "springernature", "scopus", "ads", "ieee", "wos",
            "zenodo", "datacite", "plos", "ntrs", "figshare", "osf", "lareferencia", "thesesfr", "lens", "base", "dimensions")
@@ -132,6 +147,7 @@ NEEDS = {
 # The numbers of a job a person may set, and their bounds (the window and the loader both hold them).
 LIMITS = {
     "max_per_query": (1, 1000),   # results asked of each source for each query
+    "snowball_citing": (1, 1000),  # papers citing a kept paper asked of OpenAlex
     "min_score": (0, 20),         # the screening score a paper needs
     "workers": (1, 8),            # downloads at once: more is impolite to the servers
     "max_pdf_mb": (1, 500),       # the largest PDF accepted
@@ -158,6 +174,10 @@ class SearchConfig:
     arxiv_categories: List[str] = field(
         default_factory=lambda: ["cond-mat.mtrl-sci", "physics.chem-ph", "physics.comp-ph"])
     abstract_sources: List[str] = field(default_factory=lambda: list(ABSTRACT_SOURCES))  # [] = ask nobody
+    # true: after the keyword searches, citation snowballing on OpenAlex — the papers kept so far (decision
+    # "yes") give the papers they cite and the papers citing them, which are then screened like the others.
+    snowball: bool = False
+    snowball_citing: int = 100  # papers citing a kept paper asked for, the most cited first
 
 
 @dataclass
@@ -208,11 +228,29 @@ class Job:
 _FORMER_NAMES = {"AUTOMATEXTRACT_EMAIL": "MME_EMAIL"}
 
 
-def load_env(path: str = ENV_PATH) -> int:
+def _env_file() -> str:
+    """The keys file to read: the main folder's; the one of an earlier version while the main folder has none (copied
+    there, readable by its owner only, once the main folder exists; the old file is left as it was)."""
+    if os.path.exists(ENV_PATH) or not os.path.exists(OLD_ENV_PATH):
+        return ENV_PATH
+    if os.path.isdir(os.path.dirname(ENV_PATH)):
+        try:
+            with open(OLD_ENV_PATH, encoding="utf-8") as f:
+                text = f.read()
+            with open(os.open(ENV_PATH, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as f:
+                f.write(text)
+            return ENV_PATH
+        except OSError:  # another run made it meanwhile, or the folder is read-only: the old file still serves
+            return ENV_PATH if os.path.exists(ENV_PATH) else OLD_ENV_PATH
+    return OLD_ENV_PATH
+
+
+def load_env(path: Optional[str] = None) -> int:
     """Puts the KEY=VALUE lines of a .env file into the environment; what is already set wins and an
     empty value is ignored. It is where the secrets live (the keys of ENV_SETTINGS) and the contact
-    address (MME_EMAIL); the file is git-ignored.
-    Returns how many variables it set."""
+    address (MME_EMAIL): ~/MoukhlijMatExtract/.env, readable by its owner only (the file of an earlier version is
+    carried over: _env_file). Returns how many variables it set."""
+    path = path or _env_file()
     if not os.path.exists(path):
         return 0
     count = 0
@@ -230,8 +268,9 @@ def load_env(path: str = ENV_PATH) -> int:
     return count
 
 
-def read_env(path: str = ENV_PATH) -> Dict[str, str]:
+def read_env(path: Optional[str] = None) -> Dict[str, str]:
     """The KEY=VALUE lines of a .env file as they stand, whatever the environment holds."""
+    path = path or _env_file()
     values: Dict[str, str] = {}
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
@@ -242,14 +281,18 @@ def read_env(path: str = ENV_PATH) -> Dict[str, str]:
     return values
 
 
-def save_env(values: Dict[str, str], path: str = ENV_PATH) -> None:
+def save_env(values: Dict[str, str], path: Optional[str] = None) -> None:
     """Writes settings into a .env file and into the environment of this run: a line that names the
     variable is replaced, a new variable is added at the end, every other line (and comment) is
     kept; an empty value unsets the variable. The file is created readable by its owner only."""
     for name, value in values.items():
         if "\n" in value or "\r" in value or "=" in name or not name.strip():
             raise ValueError(f"{name}: a setting is one line of text")
-    lines = ["# Keys and contact address of MoukhlijMatExtract. This file is git-ignored: keep it to yourself."]
+    if path is None:  # the main folder's file, carried over from an earlier version first if there is one
+        path = ENV_PATH
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        _env_file()
+    lines = ["# Keys and contact address of MoukhlijMatExtract. Readable by you alone: keep it to yourself."]
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             lines = f.read().splitlines()
@@ -459,6 +502,7 @@ def load_job(path: str) -> Job:
     if bad:
         raise ValueError(f"fetch.sources: unknown {bad}; known: {list(RESOLVERS)}")
     for where, value, limit in (("search.max_per_query", s.max_per_query, "max_per_query"),
+                                ("search.snowball_citing", s.snowball_citing, "snowball_citing"),
                                 ("screen.min_score", c.min_score, "min_score"),
                                 ("fetch.workers", f.workers, "workers"), ("fetch.max_pdf_mb", f.max_pdf_mb, "max_pdf_mb")):
         low, high = LIMITS[limit]

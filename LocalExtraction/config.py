@@ -254,7 +254,7 @@ class SchemaConfig:
             "Training_Size": (rf'(?i)(?:training (?:set|data)|trained on)\b{GAP}{NUM}\s*(samples|structures|compounds|data points)?', 'count'),
             "Validation_Size": (rf'(?i)validation (?:set|data)\b{GAP}{NUM}\s*(samples|structures|compounds|data points)?', 'count'),
             "Test_Size": (rf'(?i)test (?:set|data)\b{GAP}{NUM}\s*(samples|structures|compounds|data points)?', 'count'),
-            "Cross_Validation": (rf'(?i)(\d+)[- ]fold cross[- ]validation', 'count'),
+            "Cross_Validation": (r'(?i)(\d+)[- ]fold cross[- ]validation', 'count'),
             "Accuracy": (rf'(?i)accuracy\b{GAP}{NUM}\s*(%|percent)?', 'percent'),
             "Precision": (rf'(?i)precision\b{GAP}{NUM}\s*(%|percent)?', 'percent'),
             "Recall": (rf'(?i)recall\b{GAP}{NUM}\s*(%|percent)?', 'percent'),

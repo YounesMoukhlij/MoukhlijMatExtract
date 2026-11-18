@@ -9,7 +9,8 @@
 
 name: sse
 
-contact_email: "younes.moukhlij@usms.ac.ma"
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
 
 search:
   queries:

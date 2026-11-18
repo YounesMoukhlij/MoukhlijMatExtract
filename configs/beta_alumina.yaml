@@ -1,0 +1,359 @@
+# Beta-alumina solid electrolytes
+#
+# Sodium beta- and beta''-alumina (Na2O-Al2O3, Mg- or Li-stabilised beta''), and their potassium and
+# lithium-exchanged forms, as used in sodium-sulfur, ZEBRA and AMTEC cells.
+#
+# Kind: crystal-structure type.
+#   Prototype: beta-alumina P63/mmc, beta''-alumina R-3m.
+#
+# 119 queries, 23 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/beta_alumina.yaml          # extracts into WebScraping/web_output_beta_alumina
+#   mme-rank --domain electrolyte --source WebScraping/web_output_beta_alumina --kind arrhenius
+
+name: beta_alumina
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # beta-Alumina: phases, conduction plane and processing
+    - "beta'' alumina conduction plane sodium"
+    - "beta beta'' alumina phase ratio conductivity"
+    - "Mg stabilized beta'' alumina conductivity"
+    - "Li stabilized beta'' alumina conductivity"
+    - "beta alumina vapor phase conversion conductivity"
+    - "beta alumina sintering zirconia toughened"
+    - "beta alumina grain boundary conductivity"
+    - "beta alumina single crystal sodium diffusion"
+    - "beta alumina ion exchange potassium lithium"
+    - "beta alumina water uptake conductivity"
+    - "beta alumina sodium sulfur battery electrolyte"
+    - "beta alumina ZEBRA battery electrolyte"
+    - "beta alumina AMTEC electrolyte"
+    - "beta alumina wetting molten sodium interface"
+
+    # beta-alumina solid electrolyte: every transport measurement and method
+    - "beta-alumina solid electrolyte ionic conductivity"
+    - "beta-alumina solid electrolyte activation energy"
+    - "beta-alumina solid electrolyte sodium ion diffusion"
+    - "beta-alumina solid electrolyte potassium ion diffusion"
+    - "beta-alumina solid electrolyte sodium migration barrier"
+    - "beta-alumina solid electrolyte potassium migration barrier"
+    - "beta-alumina solid electrolyte ion transport mechanism"
+    - "beta-alumina solid electrolyte grain boundary conductivity"
+    - "beta-alumina solid electrolyte bulk ionic conductivity"
+    - "beta-alumina solid electrolyte impedance spectroscopy"
+    - "beta-alumina solid electrolyte temperature dependent conductivity"
+    - "beta-alumina solid electrolyte diffusion coefficient"
+    - "beta-alumina solid electrolyte doping ionic conductivity"
+    - "beta-alumina solid electrolyte electronic conductivity"
+    - "beta-alumina solid electrolyte electrochemical stability window"
+    - "beta-alumina solid electrolyte interfacial resistance"
+    - "beta-alumina solid electrolyte molecular dynamics sodium diffusion"
+    - "beta-alumina solid electrolyte molecular dynamics potassium diffusion"
+    - "beta-alumina solid electrolyte density functional theory migration"
+    - "beta-alumina solid electrolyte NMR sodium dynamics"
+    - "beta-alumina solid electrolyte NMR potassium dynamics"
+    - "beta-alumina solid electrolyte synthesis ionic conductivity"
+    - "beta-alumina solid electrolyte fast ion conductor"
+    - "beta-alumina solid electrolyte superionic conductor"
+
+    # beta''-alumina: every transport measurement and method
+    - "beta''-alumina ionic conductivity"
+    - "beta''-alumina activation energy"
+    - "beta''-alumina sodium ion diffusion"
+    - "beta''-alumina potassium ion diffusion"
+    - "beta''-alumina sodium migration barrier"
+    - "beta''-alumina potassium migration barrier"
+    - "beta''-alumina ion transport mechanism"
+    - "beta''-alumina grain boundary conductivity"
+    - "beta''-alumina bulk ionic conductivity"
+    - "beta''-alumina impedance spectroscopy"
+    - "beta''-alumina temperature dependent conductivity"
+    - "beta''-alumina diffusion coefficient"
+    - "beta''-alumina doping ionic conductivity"
+    - "beta''-alumina electronic conductivity"
+    - "beta''-alumina electrochemical stability window"
+    - "beta''-alumina interfacial resistance"
+    - "beta''-alumina molecular dynamics sodium diffusion"
+    - "beta''-alumina molecular dynamics potassium diffusion"
+    - "beta''-alumina density functional theory migration"
+    - "beta''-alumina NMR sodium dynamics"
+    - "beta''-alumina NMR potassium dynamics"
+    - "beta''-alumina synthesis ionic conductivity"
+    - "beta''-alumina fast ion conductor"
+    - "beta''-alumina superionic conductor"
+
+    # sodium beta alumina: every transport measurement and method
+    - "sodium beta alumina ionic conductivity"
+    - "sodium beta alumina activation energy"
+    - "sodium beta alumina sodium ion diffusion"
+    - "sodium beta alumina potassium ion diffusion"
+    - "sodium beta alumina sodium migration barrier"
+    - "sodium beta alumina potassium migration barrier"
+    - "sodium beta alumina ion transport mechanism"
+    - "sodium beta alumina grain boundary conductivity"
+    - "sodium beta alumina bulk ionic conductivity"
+    - "sodium beta alumina impedance spectroscopy"
+    - "sodium beta alumina temperature dependent conductivity"
+    - "sodium beta alumina diffusion coefficient"
+    - "sodium beta alumina doping ionic conductivity"
+    - "sodium beta alumina electronic conductivity"
+    - "sodium beta alumina electrochemical stability window"
+    - "sodium beta alumina interfacial resistance"
+    - "sodium beta alumina molecular dynamics sodium diffusion"
+    - "sodium beta alumina molecular dynamics potassium diffusion"
+    - "sodium beta alumina density functional theory migration"
+    - "sodium beta alumina NMR sodium dynamics"
+    - "sodium beta alumina NMR potassium dynamics"
+    - "sodium beta alumina synthesis ionic conductivity"
+    - "sodium beta alumina fast ion conductor"
+    - "sodium beta alumina superionic conductor"
+
+    # Na-β''-Al2O3: every transport measurement and method
+    - "Na-β''-Al2O3 ionic conductivity"
+    - "Na-β''-Al2O3 activation energy"
+    - "Na-β''-Al2O3 sodium ion diffusion"
+    - "Na-β''-Al2O3 potassium ion diffusion"
+    - "Na-β''-Al2O3 sodium migration barrier"
+    - "Na-β''-Al2O3 potassium migration barrier"
+    - "Na-β''-Al2O3 ion transport mechanism"
+    - "Na-β''-Al2O3 grain boundary conductivity"
+    - "Na-β''-Al2O3 bulk ionic conductivity"
+    - "Na-β''-Al2O3 impedance spectroscopy"
+    - "Na-β''-Al2O3 temperature dependent conductivity"
+    - "Na-β''-Al2O3 diffusion coefficient"
+    - "Na-β''-Al2O3 doping ionic conductivity"
+    - "Na-β''-Al2O3 electronic conductivity"
+    - "Na-β''-Al2O3 electrochemical stability window"
+    - "Na-β''-Al2O3 interfacial resistance"
+    - "Na-β''-Al2O3 molecular dynamics sodium diffusion"
+    - "Na-β''-Al2O3 molecular dynamics potassium diffusion"
+    - "Na-β''-Al2O3 density functional theory migration"
+    - "Na-β''-Al2O3 NMR sodium dynamics"
+    - "Na-β''-Al2O3 NMR potassium dynamics"
+    - "Na-β''-Al2O3 synthesis ionic conductivity"
+    - "Na-β''-Al2O3 fast ion conductor"
+    - "Na-β''-Al2O3 superionic conductor"
+
+    # beta-alumina solid electrolyte: transport mechanisms
+    - "beta-alumina solid electrolyte concerted migration"
+    - "beta-alumina solid electrolyte vacancy mechanism"
+    - "beta-alumina solid electrolyte interstitial mechanism"
+    - "beta-alumina solid electrolyte interstitialcy mechanism"
+    - "beta-alumina solid electrolyte paddle-wheel mechanism"
+    - "beta-alumina solid electrolyte correlated ion hopping"
+    - "beta-alumina solid electrolyte percolation conduction pathway"
+    - "beta-alumina solid electrolyte bottleneck size migration"
+    - "beta-alumina solid electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_beta_alumina.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # beta-Alumina aliases
+    - "beta-alumina"
+    - "β-alumina"
+    - "beta''-alumina"
+    - "β''-alumina"
+    - "beta double prime alumina"
+    - "beta-alumina solid electrolyte"
+    - "sodium beta alumina"
+    - "potassium beta alumina"
+    - "Na-β''-alumina"
+    - "Na-β-alumina"
+    - "K-β''-alumina"
+
+    # beta-Alumina formulas
+    - "Na-β''-Al2O3"
+    - "Na-β-Al2O3"
+    - "NaAl11O17"
+    - "Na1.67Mg0.67Al10.33O17"
+    - "Na2O·5.33Al2O3"
+    - "Na2O-Al2O3"
+    - "Na2O–Al2O3"
+    - "K-β''-Al2O3"
+    - "Li-stabilized β''-alumina"
+    - "Mg-stabilized β''-alumina"
+
+    # Parts of formulas (find the doped members)
+    - "Al11O17"
+    - "Al10.33O17"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "catalyst support"
+    - "alumina catalyst"
+    - "Pt/Al2O3"
+    - "adsorbent"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_beta_alumina
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

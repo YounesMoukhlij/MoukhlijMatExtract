@@ -4,6 +4,7 @@ matching, the scores on a small database whose right answers are known, the work
 way twice, never overwritten), the annotations checked, and the agreement of two annotators."""
 
 import io
+import math
 import shutil
 import tempfile
 import unittest
@@ -393,3 +394,44 @@ class ReferenceTests(unittest.TestCase):
         self.assertEqual(dois_of(_doi("10.1/A|https://doi.org/10.2/b")), ["10.1/a", "10.2/b"])
         self.assertEqual(_doi("n/a"), "")
 
+
+
+class AgainstDatabaseTests(unittest.TestCase):
+    """A database of MoukhlijMatExtract against a curated one, material by material, whatever the papers."""
+
+    setUp = ReferenceTests.setUp  # the same small database
+
+    def curated(self):
+        return pd.DataFrame([
+            {"reference": "X", "ref_id": 1, "doi": "", "composition": "Li12P2S10Cl2", "conductivity_S_cm": 1.0e-3, "temperature_K": None},
+            {"reference": "X", "ref_id": 2, "doi": "", "composition": "Li6PS5Cl", "conductivity_S_cm": 4.0e-3, "temperature_K": 300.0},
+            {"reference": "X", "ref_id": 3, "doi": "", "composition": "Li7La3Zr2O12", "conductivity_S_cm": 5e-6, "temperature_K": None},
+            {"reference": "X", "ref_id": 4, "doi": "", "composition": "Li3InCl6", "conductivity_S_cm": 1.5e-3, "temperature_K": 373.15},
+            {"reference": "X", "ref_id": 5, "doi": "", "composition": "Li3YCl6", "conductivity_S_cm": 5e-4, "temperature_K": None},
+        ])
+
+    def test_each_curated_material_met_with_its_room_temperature_values(self):
+        from Evaluation import reference
+        table = reference.against(self.curated(), self.out)
+        rows = {r["composition"]: r for r in table.to_dict("records")}
+        # Li3InCl6 is curated at 100 °C: not a room-temperature material, left out
+        self.assertEqual(sorted(rows), ["Li12P2S10Cl2", "Li3YCl6", "Li7La3Zr2O12"])
+        argyrodite = rows["Li12P2S10Cl2"]  # its two entries, 1e-3 and 4e-3: their median 2.5e-3
+        self.assertEqual((argyrodite["our_material"], argyrodite["our_values"]), ("Li6PS5Cl", 1))
+        self.assertAlmostEqual(argyrodite["curated_S_cm"], 2.5e-3)
+        self.assertAlmostEqual(argyrodite["decades"], round(math.log10(1.19e-3 / 2.5e-3), 3))
+        self.assertAlmostEqual(rows["Li7La3Zr2O12"]["decades"], 2.0)
+        self.assertEqual(rows["Li3YCl6"]["our_material"], "")  # not in our database
+        summary = reference.against_summary(table)
+        self.assertEqual((summary["curated"], summary["found"], summary["within_0.5"], summary["within_1"]), (3, 2, 1, 1))
+
+    def test_the_command_writes_the_comparison(self):
+        from Evaluation import reference
+        base = self.base / "eval"
+        with mock.patch.object(reference, "download"), mock.patch.object(reference, "load", return_value=self.curated()), \
+                mock.patch("Evaluation.about.DEFAULT_DIR", base), redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(cli.run_reference(cli.build_parser().parse_args(
+                ["reference", "--db", "obelix", "--against", str(self.out)])), 0)
+        written = base / "reference" / "against_output.csv"
+        self.assertTrue(written.is_file())
+        self.assertIn("2 of its 3 room-temperature materials", out.getvalue())

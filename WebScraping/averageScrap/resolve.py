@@ -133,6 +133,9 @@ class Resolver:
         self._lock = threading.Lock()
         self._failed: Dict[str, int] = {}  # service -> lookups in a row that got no usable answer
         self._local = threading.local()    # the services that refused while this thread looked up its paper
+        # The services that did not answer at all this run (down, not busy): a few minutes' wait will not bring
+        # them back, so the papers only they refused are left for the next run (harvest.worth_waiting).
+        self.down: set = set()
 
     def options(self, candidate: Candidate) -> Iterator[FetchOption]:
         self._local.refused = []
@@ -177,6 +180,8 @@ class Resolver:
             # No answer even after the client's own retries (minutes of waiting): the service is
             # down, and asking it again for each paper would cost those minutes paper after paper.
             self._note_refused(service)
+            with self._lock:
+                self.down.add(service)
             self._strike(service, "it does not answer", at_once=True)
             return None
         except ValueError:

@@ -163,9 +163,8 @@ class CsvBrowser(tk.Toplevel):
         super().__init__(parent)
         self.folder, self.part, self.extra = Path(folder), part, [(label, Path(p)) for label, p in extra]
         self.title(f"CSV files — {part}")
-        width, height = 1280, 820
-        self.geometry(f"{min(width, int(self.winfo_screenwidth() * 0.95))}x{min(height, int(self.winfo_screenheight() * 0.88))}")
-        self.minsize(760, 480)
+        from . import layout
+        layout.place(self, (1280, 820), (760, 480), parent=parent)  # fitted to the screen, centred
         self.bind("<Escape>", lambda e: self.destroy())
 
         self._inbox: "queue.Queue[Tuple[int, str, object]]" = queue.Queue()
@@ -181,6 +180,8 @@ class CsvBrowser(tk.Toplevel):
 
         body = ttk.Frame(self, padding=12)
         body.pack(fill="both", expand=True)
+        from .design import website_line
+        website_line(self)
         ttk.Label(body, text=f"{part} — the CSV files of the results", font=("TkDefaultFont", 14, "bold")).pack(anchor="w")
         self.headline = tk.StringVar()
         WrapLabel(body, textvariable=self.headline, foreground=_QUIET, justify="left").pack(fill="x", pady=(2, 8))
@@ -233,6 +234,8 @@ class CsvBrowser(tk.Toplevel):
         grid.rowconfigure(0, weight=1)
         grid.columnconfigure(0, weight=1)
         self.table.bind("<<TreeviewSelect>>", lambda e: self._show_row())
+        from .design import stripes
+        stripes(self.table)
 
         cell = ttk.Frame(panes)
         panes.add(cell, weight=1)
@@ -439,8 +442,9 @@ class CsvBrowser(tk.Toplevel):
         start = self._page * per
         chosen = self._rows[start:start + per]
         page = self._data.iloc[chosen]
-        for position, values in zip(chosen, page.itertuples(index=False, name=None)):
-            self.table.insert("", "end", iid=str(int(position)), values=[str(v) for v in values])
+        for row, (position, values) in enumerate(zip(chosen, page.itertuples(index=False, name=None))):
+            self.table.insert("", "end", iid=str(int(position)), values=[str(v) for v in values],
+                              tags=("stripe",) if row % 2 else ())
         shown = len(self._rows)
         self.page_text.set(f"page {self._page + 1:,} of {self._pages():,}")
         if shown:

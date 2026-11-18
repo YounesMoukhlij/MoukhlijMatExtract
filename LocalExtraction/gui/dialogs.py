@@ -14,12 +14,15 @@ class Dialog(tk.Toplevel):
     def __init__(self, parent: tk.Misc, title: str, size: str = ""):
         super().__init__(parent)
         self.title(title)
-        if size:
-            self.geometry(size)
+        if size:  # fitted to the screen, over the window it belongs to
+            from . import layout
+            layout.place(self, size, parent=parent)
         self.transient(parent.winfo_toplevel())
         self.bind("<Escape>", lambda event: self.destroy())
         self.body = ttk.Frame(self, padding=12)
         self.body.pack(fill="both", expand=True)
+        from .design import website_line
+        website_line(self)  # the website, at the bottom of every dialog
 
 
 class DetailsDialog(Dialog):

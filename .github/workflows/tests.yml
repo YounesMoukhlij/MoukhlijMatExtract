@@ -100,12 +100,21 @@ jobs:
           "$RUNNER_TEMP/clean/bin/mme-web" run --help > /dev/null
           test ! -e "$HOME/MoukhlijMatExtract"  # asking for help makes no folder
 
+      - name: The metadata and README are what PyPI accepts and renders
+        run: |
+          python -m pip install twine
+          python -m twine check --strict dist/*
+
       - name: No secret is shipped
         run: |
           python - <<'EOF'
-          import glob, zipfile
+          import glob, tarfile, zipfile
           names = zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist()
           leaked = [n for n in names if n.endswith((".env", ".sqlite")) or "/tests/" in n]
           assert not leaked, leaked
           print(len(names), "files in the wheel, no .env, no test, no ledger")
+          source = tarfile.open(glob.glob("dist/*.tar.gz")[0]).getnames()
+          leaked = [n for n in source if n.endswith((".env", ".sqlite", ".pdf")) and "examples/" not in n]
+          assert not leaked, leaked
+          print(len(source), "files in the source archive, no .env, no ledger, no PDF but the examples")
           EOF

@@ -3,7 +3,6 @@
 PDFs given to it), that a part in use cannot be emptied, and the dialog. Offline, in a folder made
 here; files are deleted for good in the tests, never sent to the real Trash."""
 
-import os
 import shutil
 import tempfile
 import unittest
@@ -99,14 +98,7 @@ class OutputsTests(ProjectFolder):
         self.assertEqual(outputs.readable_size(2048), "2.0 KB")
 
 
-def has_screen() -> bool:
-    if tk is None or os.environ.get("MME_NO_WINDOW_TESTS"):
-        return False
-    try:
-        tk.Tk().destroy()
-        return True
-    except tk.TclError:
-        return False
+from LocalExtraction.tests.test_gui import has_screen  # noqa: E402  (one check, made safely)
 
 
 @unittest.skipUnless(has_screen(), "the window needs a screen")

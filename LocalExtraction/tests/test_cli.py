@@ -99,6 +99,26 @@ class GateTests(unittest.TestCase):
         self.assertEqual(sorted(path.name for path in (home / "LocalExtraction").iterdir()), ["local_output", "papers"])
         self.assertEqual(Path.cwd().resolve(), home.resolve())
 
+    def test_a_path_given_from_another_folder_is_found_there_after_the_move_into_the_home(self):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        self.addCleanup(os.chdir, os.getcwd())
+        home, checkout = root / "MoukhlijMatExtract", root / "checkout"
+        (home / "configs").mkdir(parents=True)
+        (checkout / "configs").mkdir(parents=True)
+        (home / "configs" / "sse.yaml").write_text("name: home\n", encoding="utf-8")
+        (checkout / "configs" / "garnet.yaml").write_text("name: checkout\n", encoding="utf-8")
+        (checkout / "configs" / "sse.yaml").write_text("name: checkout\n", encoding="utf-8")
+        os.chdir(checkout)
+        with mock.patch.object(about, "PROJECT_HOME", home):
+            # Only where the command was started: made absolute, so the move into the home keeps it.
+            self.assertEqual(about.found_here("configs/garnet.yaml"), str((checkout / "configs" / "garnet.yaml").resolve()))
+            self.assertEqual(about.found_here(Path("configs/garnet.yaml")), (checkout / "configs" / "garnet.yaml").resolve())
+            # In the home: relative paths are read from there, as documented.
+            self.assertEqual(about.found_here("configs/sse.yaml"), "configs/sse.yaml")
+            self.assertEqual(about.found_here("configs/none.yaml"), "configs/none.yaml")  # nowhere: left as it is
+            self.assertEqual(about.found_here(""), "")
+
     def test_every_part_has_its_folders_made(self):
         home = Path(tempfile.mkdtemp()) / "MoukhlijMatExtract"
         self.addCleanup(shutil.rmtree, home.parent, True)

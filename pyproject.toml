@@ -17,6 +17,9 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Text Processing :: Linguistic",
+    "Environment :: Console",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -48,8 +51,12 @@ dependencies = [
 dev = ["pytest"]
 
 [project.urls]
+Website = "https://moukhlijmatextract.vercel.app"
 Homepage = "https://github.com/YounesMoukhlij/MoukhlijMatExtract"
 Repository = "https://github.com/YounesMoukhlij/MoukhlijMatExtract"
+Documentation = "https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/MANUAL.md"
+Issues = "https://github.com/YounesMoukhlij/MoukhlijMatExtract/issues"
+Changelog = "https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/CHANGELOG.md"
 
 # One command per part (run from anywhere once installed):
 [project.scripts]
@@ -64,9 +71,10 @@ mme-eval = "Evaluation.cli:main"
 mme-release = "Release.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["LocalExtraction*", "WebScraping*", "SelectingTopMaterial*", "Classification*", "Evaluation*", "Release*", "mme_gui*"]
+include = ["LocalExtraction*", "WebScraping*", "SelectingTopMaterial*", "Classification*", "Evaluation*", "Release*", "mme_gui*",
+           "mme_home*"]
 exclude = ["*.tests", "*.tests.*", "tests", "tests.*"]
 
 [tool.setuptools.package-data]
 SelectingTopMaterial = ["*.toml", "*.html"]
-"WebScraping.averageScrap" = ["default_job.yaml", "default_cathode_job.yaml", "default_anode_job.yaml"]   # the starter jobs for a fresh install
+LocalExtraction = ["gui/assets/*.png"]  # the program's icon

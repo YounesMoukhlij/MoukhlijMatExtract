@@ -5,6 +5,7 @@ Every network call is answered by a fake session, so these run anywhere, instant
 real service. Run them with:  python -m unittest discover -s WebScraping/tests -t . -v   (or: pytest WebScraping)
 """
 
+import csv
 import io
 import json
 import os
@@ -22,9 +23,9 @@ os.environ["MME_OFFLINE"] = "1"  # the tests never go on the network
 import pandas as pd
 import pymupdf
 
-from WebScraping.averageScrap import screening
+from WebScraping.averageScrap import by_hand, screening
 from WebScraping.averageScrap.elsevier import Elsevier
-from WebScraping.averageScrap.fetch import Downloader, check_pdf
+from WebScraping.averageScrap.fetch import HAND_LIST, SITE_BLOCKED_MARK, Downloader, Outcome, SiteBlocks, check_pdf
 from WebScraping.averageScrap.harvest import Harvest
 from WebScraping.averageScrap.http import Disallowed, HttpError, PoliteClient
 from WebScraping.averageScrap.doctor import check as check_setup
@@ -412,6 +413,27 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual([c.key for c in self.ledger.all(SCREENED)], ["b", "a"])
         self.assertEqual(self.ledger.counts(), {SCREENED: 2})
 
+    def test_a_record_with_a_huge_abstract_does_not_stop_the_download(self):
+        """Some repository records give a whole text as their abstract (a Zenodo record: 465,682 characters). The
+        review list could then not be read back — a cell longer than the CSV reader allows — and the download stopped
+        before its first paper."""
+        huge = "word " * 100_000                                          # 500,000 characters
+        self.ledger.add(candidate(key="z", doi="z", title="A Zenodo record", abstract=huge))
+        self.ledger.add(candidate(key="a", doi="a", title="Garnet electrolyte"))
+        self.ledger.update("z", status=SCREENED, decision="no")
+        self.ledger.update("a", status=SCREENED, decision="yes")
+        path = os.path.join(self.folder, "candidates.csv")
+        self.ledger.write_review(path)
+        rows = {r["key"]: r for r in self.ledger._read_review(path)}
+        self.assertLess(len(rows["z"]["abstract"]), 10_100)               # the list shows its beginning
+        self.assertTrue(rows["z"]["abstract"].endswith("[cut: 500,000 characters in all]"))
+        self.assertEqual(len(self.ledger.get("z").abstract), len(huge))  # the ledger keeps all of it
+        self.assertEqual(self.ledger.apply_decisions(path)["approved"], 1)
+        # A list written by an earlier version, with the whole text in it, is read too.
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write("decision,key,abstract\nyes,a,short\nno,z," + "x" * 300_000 + "\n")
+        self.assertEqual(self.ledger.apply_decisions(path)["approved"], 1)
+
     def test_the_review_list_round_trip(self):
         for key, score in (("a", 4.0), ("b", 2.0), ("c", 3.0)):
             self.ledger.add(candidate(key=key, doi=key, title=f"Paper {key}"))
@@ -605,6 +627,65 @@ class ScreeningTests(unittest.TestCase):
         self.assertEqual(self.ledger.get("10.1000/test").status, APPROVED)
         self.assertEqual(self.ledger.get("x").status, REJECTED)
 
+    def test_a_formula_is_found_however_it_is_written(self):
+        """A formula word is found with spaces in it (as Crossref gives sub-scripted titles), with subscript digits,
+        with <sub> tags — and a part of a formula is found inside a doped one (La3Zr2O12 in Li6.4Ga0.2La3Zr2O12).
+        A formula keeps its case: CO is not Co."""
+        cfg = ScreenConfig(topic_words=["Li7La3Zr2O12", "La3Zr2O12", "LiZr2(PO4)3", "Si2PO12"],
+                           property_words=["ionic conductivity"], min_score=2)
+        for n, title in enumerate(("Enhanced ionic conductivity of titanium doped Li 7 La 3 Zr 2 O 12",
+                                   "Ionic conductivity of Li₇La₃Zr₂O₁₂ thin films",
+                                   "Ionic conductivity of Li<sub>7</sub>La<sub>3</sub>Zr<sub>2</sub>O<sub>12</sub>",
+                                   "Ionic conductivity of Li6.4Ga0.2La3Zr2O12 pellets",
+                                   "Enhanced lithium-ion conductivity in a LiZr 2 (PO 4 ) 3 solid electrolyte, ionic conductivity",
+                                   "Cold sintering and ionic conductivities of Na3.256Mg0.128Zr1.872Si2PO12 solid electrolytes")):
+            self.ledger.add(candidate(key=f"k{n}", doi=f"k{n}", title=title, abstract=""))
+        self.ledger.add(candidate(key="lower", doi="lower", title="Ionic conductivity of li7la3zr2o12", abstract=""))
+        screening.screen(self.ledger, cfg)
+        self.assertEqual([self.ledger.get(f"k{n}").decision for n in range(6)], ["yes"] * 6)
+        self.assertIn("Li7La3Zr2O12 (title)", self.ledger.get("k0").why)
+        self.assertIn("La3Zr2O12 (title)", self.ledger.get("k3").why)
+        self.assertEqual(self.ledger.get("lower").decision, "no")  # a formula keeps its case
+
+    def test_a_formula_is_not_found_inside_another_element(self):
+        """Li3N (lithium nitride) is not Li3NbO4 (a niobate): an element symbol goes on in lower case, so a formula
+        must not be followed by one. Spaces before a word stay, so a formula is not glued to the next word."""
+        cfg = ScreenConfig(topic_words=["Li3N", "LiZr2(PO4)3"], property_words=["ionic conductivity"], min_score=2)
+        for key, title in (("nitride", "Ionic conductivity of Li3N single crystals"),
+                           ("niobate", "Ionic conductivity of Li3NbO4 ceramics"),
+                           ("spread", "Ionic conductivity of the LiZr 2 (PO 4 ) 3 solid electrolyte"),
+                           ("subscripts", "Ionic conductivity of Li₃N films")):
+            self.ledger.add(candidate(key=key, doi=key, title=title, abstract=""))
+        screening.screen(self.ledger, cfg)
+        self.assertEqual({k: self.ledger.get(k).decision for k in ("nitride", "niobate", "spread", "subscripts")},
+                         {"nitride": "yes", "niobate": "no", "spread": "yes", "subscripts": "yes"})
+
+    def test_papers_already_screened_are_screened_again_with_the_settings_of_now(self):
+        """The settings changed after the search (“also keep papers no free copy is known for” ticked, a word
+        excluded): the papers not downloaded yet are decided again. A paper downloaded, and a duplicate, are left."""
+        title = "Garnet solid electrolytes ionic conductivity"
+        self.ledger.add(candidate(key="closed", doi="closed", title=title, oa_status="closed", access=""))
+        self.ledger.add(candidate(key="open", doi="open", title=title + " again"))
+        self.ledger.add(candidate(key="twin", doi="twin", title=title + " twin"))
+        self.ledger.add(candidate(key="got", doi="got", title="Graphite anodes", abstract="Graphite.", status=DOWNLOADED,
+                                  decision="yes"))
+        cfg = ScreenConfig(**{**vars(self.cfg), "min_score": 5})
+        screening.screen(self.ledger, cfg, approve=True)
+        self.ledger.update("twin", flags=["duplicate-of:open"], decision="no", status=REJECTED)
+        self.assertEqual((self.ledger.get("closed").status, self.ledger.get("open").status), (REJECTED, APPROVED))
+
+        now = ScreenConfig(**{**vars(cfg), "propose_closed": True, "exclude_words": ["supercapacitor", "again"]})
+        counts = screening.rescreen(self.ledger, now)
+        self.assertEqual(counts, {"rescored": 2, "proposed": 1, "dropped": 1})
+        closed, opened, twin = (self.ledger.get(k) for k in ("closed", "open", "twin"))
+        self.assertEqual((closed.decision, closed.status), ("yes", SCREENED))  # proposed: waiting for the download
+        self.assertIn("no-open-copy-known", closed.flags)
+        self.assertEqual((opened.decision, opened.status), ("no", SCREENED))
+        self.assertIn("excluded: again (title)", opened.why)
+        self.assertEqual((twin.decision, twin.flags), ("no", ["duplicate-of:open"]))  # a duplicate stays declined
+        self.assertEqual((self.ledger.get("got").status, self.ledger.get("got").decision), (DOWNLOADED, "yes"))
+        self.assertEqual(screening.rescreen(self.ledger, now), {"rescored": 2, "proposed": 0, "dropped": 0})
+
     def test_nothing_is_scored_twice(self):
         self.screen_one(title="Garnet solid electrolytes ionic conductivity")
         self.ledger.update("10.1000/test", decision="no", score=0.0)  # a person's edit
@@ -703,6 +784,55 @@ class DownloaderTests(unittest.TestCase):
         self.assertIn("title", outcome.error)
         self.assertEqual(os.listdir(self.folder), [])
 
+    def test_a_site_refusing_three_downloads_in_a_row_is_not_asked_again_this_run(self):
+        blocks = SiteBlocks(after=3)
+        self.session = FakeSession([("www.mdpi.com", FakeResponse(403))])
+        d = Downloader(self.folder, client_for(self.session), StubResolver(
+            [FetchOption("openalex", "https://www.mdpi.com/p.pdf"), FetchOption("publisher", "https://www.mdpi.com/page", landing=True)]),
+            max_mb=5, blocks=blocks)
+        with self.assertLogs(level="WARNING") as said:
+            first, second = d.fetch(candidate(key="10.3390/a", doi="10.3390/a")), d.fetch(candidate(key="10.3390/b", doi="10.3390/b"))
+        self.assertTrue(blocks.blocked("www.mdpi.com"))
+        self.assertIn(SITE_BLOCKED_MARK, "\n".join(said.output))
+        downloads = lambda: self.session.hits("www.mdpi.com") - self.session.hits("robots.txt")  # noqa: E731
+        self.assertEqual(downloads(), 3)  # the fourth request was never sent
+        self.assertFalse(first.not_asked)
+        self.assertIn("skipped this run", second.error)
+        self.assertFalse(second.not_asked)  # its first option was still asked (the third refusal)
+        third = d.fetch(candidate(key="10.3390/c", doi="10.3390/c"))
+        self.assertEqual((third.status, third.not_asked), (FAILED, True))
+        self.assertEqual(downloads(), 3)
+
+    def test_a_refusal_reached_through_a_doi_link_blocks_the_publisher_not_doi_org(self):
+        def refused_at_the_publisher(url, params, headers):
+            response = FakeResponse(403)
+            response.url = "https://www.mdpi.com/2313-0105/9/2/137/pdf"  # where doi.org sent the request
+            return response
+        blocks = SiteBlocks(after=2)
+        self.session = FakeSession([("doi.org/", refused_at_the_publisher)])
+        d = Downloader(self.folder, client_for(self.session), StubResolver(
+            [FetchOption("openalex", "https://doi.org/10.3390/a")]), max_mb=5, blocks=blocks)
+        for key in ("10.3390/a", "10.3390/b"):
+            d.fetch(candidate(key=key, doi=key))
+        self.assertEqual(blocks.hosts(), ["www.mdpi.com"])
+        self.assertFalse(blocks.blocked("doi.org"))  # every other publisher's DOI links still go through
+
+    def test_a_download_a_site_lets_through_clears_its_refusals(self):
+        blocks = SiteBlocks(after=2)
+        blocks.refused("repo.example.org")
+        blocks.answered("repo.example.org")
+        blocks.refused("repo.example.org")
+        self.assertFalse(blocks.blocked("repo.example.org"))
+
+    def test_a_publisher_apis_403_is_about_the_subscription_and_blocks_nothing(self):
+        blocks = SiteBlocks(after=1)
+        self.session = FakeSession([("api.elsevier.com", FakeResponse(403))])
+        d = Downloader(self.folder, client_for(self.session), StubResolver(
+            [FetchOption("elsevier", "https://api.elsevier.com/content/article/doi/10.1016/x")]), max_mb=5, blocks=blocks)
+        outcome = d.fetch(candidate(key="10.1016/x", doi="10.1016/x"))
+        self.assertIn("not entitled", outcome.error)
+        self.assertEqual(blocks.hosts(), [])
+
     def test_nothing_to_try_means_closed(self):
         self.assertEqual(self.downloader([], []).fetch(candidate()).status, CLOSED)
 
@@ -796,6 +926,18 @@ class ResolverTests(unittest.TestCase):
     def options(self, c, sources, contact="", elsevier=None, session=None):
         resolver = Resolver(client_for(session or FakeSession()), sources, contact, elsevier)
         return [(o.service, o.url) for o in resolver.options(c)]
+
+    def test_a_service_that_does_not_answer_is_known_as_down_and_a_busy_one_is_not(self):
+        import requests
+        def no_answer(url, params, headers):
+            raise requests.ConnectionError("no route")
+        session = FakeSession([("osti.gov", no_answer), ("busy.example.org", FakeResponse(429))])
+        resolver = Resolver(client_for(session), [], "")
+        resolver._local.refused = []
+        self.assertIsNone(resolver._ask("OSTI", "https://www.osti.gov/api/v1/records"))
+        self.assertIsNone(resolver._ask("Busy", "https://busy.example.org/api"))
+        self.assertEqual(resolver.down, {"OSTI"})
+        self.assertEqual(resolver.refused(), ["OSTI", "Busy"])  # neither checked the paper: both still refused
 
     def test_the_order_is_the_jobs(self):
         c = candidate(oa_urls=["https://a/p.pdf"], arxiv_id="2001.00001", landing_url="https://a/landing")
@@ -1041,6 +1183,219 @@ class HarvestTests(unittest.TestCase):
             self.harvest._record(self.harvest.ledger.get("10.1016/j.a.1"), other)
         self.assertEqual(self.harvest.ledger.get("10.1016/j.a.1").status, CLOSED)  # a real failure still counts
 
+    def test_a_rescreen_writes_the_review_list_the_download_reads(self):
+        import dataclasses
+        self.harvest.ledger.add(Candidate(key="10.1000/shut", doi="10.1000/shut", title="Activation energy of a solid electrolyte",
+                                          abstract="", oa_status="closed", status=REJECTED, decision="no",
+                                          flags=["no-open-copy-known"]))
+        self.harvest.job = dataclasses.replace(self.job, screen=dataclasses.replace(self.job.screen, propose_closed=True))
+        self.assertEqual(self.harvest.rescreen()["proposed"], 1)
+        with open(self.harvest.review_path, encoding="utf-8-sig") as f:
+            self.assertEqual({row["key"]: row["decision"] for row in csv.DictReader(f)}["10.1000/shut"], "yes")
+        self.harvest.ledger.apply_decisions(self.harvest.review_path)  # what the download does first
+        self.assertEqual(self.harvest.ledger.get("10.1000/shut").status, APPROVED)
+
+    def test_papers_a_busy_service_refused_are_tried_again_at_the_end_one_after_another_spaced(self):
+        """“Too many requests”: the papers are said to wait, then tried again at the end of the download — one at a
+        time, with the slowest pace a service asked for between two of them (Semantic Scholar: 30 s). One still
+        refused stays for the next download, which says so."""
+        import threading
+        import time as clock
+        from WebScraping.averageScrap import harvest as module
+        for n in (1, 2, 3):
+            self.harvest.ledger.add(Candidate(key=f"10.1000/b{n}", doi=f"10.1000/b{n}", title=f"Busy {n}",
+                                              status=APPROVED, decision="yes"))
+        self.harvest.client._slowed["api.semanticscholar.org"] = 30.0  # what its 429s asked for, this run
+        tries, lock, running, most_at_once = {}, threading.Lock(), [0], [0]
+
+        def fetch(downloader, candidate):
+            with lock:
+                tries[candidate.key] = tries.get(candidate.key, 0) + 1
+                later = tries[candidate.key] > 1
+                running[0] += 1
+                if later:
+                    most_at_once[0] = max(most_at_once[0], running[0])
+            clock.sleep(0.02)
+            with lock:
+                running[0] -= 1
+            if later and candidate.key != "10.1000/b3":
+                return Outcome(candidate.key, DOWNLOADED, service="osti", file=f"{file_stem(candidate.key)}.pdf")
+            return Outcome(candidate.key, FAILED, error="osti: HTTP 429", refused=["OSTI"])
+        notices, paused = [], []
+        self.harvest.on_notice = notices.append
+        with mock.patch.object(module.Downloader, "fetch", autospec=True, side_effect=fetch), \
+                mock.patch.object(self.harvest.watcher, "wait"), \
+                mock.patch.object(self.harvest.client, "pause", side_effect=paused.append):
+            results = self.harvest.fetch()
+        self.assertEqual((results[DOWNLOADED], results["waiting"]), (2, 1))
+        self.assertEqual(most_at_once[0], 1)  # the papers tried again: one after another
+        self.assertEqual(paused, [30.0, 30.0])  # between the three of the first round; one paper left after it
+        first = notices[0]
+        for words in ("3 paper(s) not downloaded yet", "OSTI", "api.semanticscholar.org (one request every 30 s)",
+                      "one after another, 30 s apart", "round 1 of 4"):
+            self.assertIn(words, first)
+        self.assertIn("1 paper(s) still refused", notices[-1])
+        self.assertIn("the next “3 · Download” tries them first", notices[-1])
+        self.assertEqual(self.harvest.ledger.get("10.1000/b3").attempts, 0)  # a refusal is not a failed try
+
+    def test_a_paper_only_semantic_scholar_refused_is_filed_not_held_for_the_rounds(self):
+        """Semantic Scholar only adds to what the others find: its “too many requests” alone does not make a paper
+        wait for the rounds at the end (900 such papers took a day). The paper is filed with what the others
+        answered — on the hand list with that reason — the try does not count, and the next download asks again."""
+        self.harvest.ledger.add(Candidate(key="10.1000/s2", doi="10.1000/s2", title="Refused by S2", status=APPROVED,
+                                          decision="yes"))
+        outcome = Outcome("10.1000/s2", FAILED, error="openalex: HTTP 403; publisher: HTTP 403",
+                          refused=["Semantic Scholar"])
+        self.assertEqual(self.harvest._record(self.harvest.ledger.get("10.1000/s2"), outcome), FAILED)
+        paper = self.harvest.ledger.get("10.1000/s2")
+        self.assertEqual((paper.status, paper.attempts), (FAILED, 0))
+        self.assertIn("not checked: Semantic Scholar refused", paper.error)
+        self.assertFalse(paper.error.startswith("waiting"))
+        self.assertEqual([row["item"] for row in self.harvest.watcher.pending("download")], [])
+        from WebScraping.averageScrap.by_hand import BLOCKED, reason_of
+        self.assertEqual(reason_of(paper), BLOCKED)  # its real reason, for the hand list
+
+    def test_a_paper_another_service_refused_too_still_waits(self):
+        self.harvest.ledger.add(Candidate(key="10.1000/both", doi="10.1000/both", status=APPROVED, decision="yes"))
+        outcome = Outcome("10.1000/both", FAILED, error="osti: HTTP 429", refused=["Semantic Scholar", "OSTI"])
+        self.assertEqual(self.harvest._record(self.harvest.ledger.get("10.1000/both"), outcome), "waiting")
+        self.assertEqual([row["item"] for row in self.harvest.watcher.pending("download")], ["10.1000/both"])
+
+    def test_a_round_at_the_end_never_runs_longer_than_its_budget(self):
+        """At 30 s apart, a round of 30 minutes holds 60 papers; here a budget of 60 s holds 2 of 5: the others are
+        left for the next download, which is said."""
+        from WebScraping.averageScrap import harvest as module
+        for n in range(5):
+            self.harvest.ledger.add(Candidate(key=f"10.1000/r{n}", doi=f"10.1000/r{n}", status=APPROVED, decision="yes"))
+        self.harvest.client._slowed["osti.gov"] = 30.0
+        later = []
+
+        def fetch(downloader, candidate):
+            return Outcome(candidate.key, FAILED, error="osti: HTTP 429", refused=["OSTI"])
+        real_batch = self.harvest._fetch_batch
+
+        def batch(todo, stop_event, progress_callback, spacing=0.0, **kw):
+            if kw.get("later"):
+                later.append(len(todo))
+            return real_batch(todo, stop_event, progress_callback, **kw, spacing=spacing)
+        notices = []
+        self.harvest.on_notice = notices.append
+        with mock.patch.object(module, "LATER_ROUND_SECONDS", 60), \
+                mock.patch.object(module.Downloader, "fetch", autospec=True, side_effect=fetch), \
+                mock.patch.object(self.harvest.watcher, "wait"), mock.patch.object(self.harvest.client, "pause"), \
+                mock.patch.object(self.harvest, "_fetch_batch", side_effect=batch):
+            self.harvest.fetch()
+        self.assertTrue(later)
+        self.assertTrue(all(n <= 2 for n in later), later)
+        self.assertTrue(any("left for the next “3 · Download”" in text for text in notices), notices)
+
+    def test_a_paper_whose_sites_were_all_blocked_keeps_its_tries(self):
+        self.harvest.ledger.add(Candidate(key="10.3390/b.1", doi="10.3390/b.1", status=APPROVED, decision="yes"))
+        skipped = Outcome("10.3390/b.1", FAILED, error=f"openalex: www.mdpi.com {SITE_BLOCKED_MARK} (HTTP 403), skipped this run",
+                          not_asked=True)
+        for _ in range(5):
+            self.harvest._record(self.harvest.ledger.get("10.3390/b.1"), skipped)
+        self.assertEqual(self.harvest.ledger.get("10.3390/b.1").attempts, 0)
+
+    def test_every_paper_not_downloaded_is_listed_with_why_and_what_to_do(self):
+        add = self.harvest.ledger.add
+        add(Candidate(key="10.3390/open", doi="10.3390/open", title="Open one", oa_status="gold", status=FAILED,
+                      error="openalex: HTTP 403; publisher: HTTP 403"))
+        add(Candidate(key="10.1016/shut", doi="10.1016/shut", title="Closed one", oa_status="closed", status=CLOSED,
+                      error="elsevier: HTTP 403 (not entitled: closed Elsevier papers …)"))
+        add(Candidate(key="10.1000/gone", doi="10.1000/gone", title="Not found", status=FAILED, error="openalex: HTTP 404"))
+        add(Candidate(key="10.1000/none", doi="10.1000/none", title="No copy", status=CLOSED,
+                      error="no legal copy found: needs a manual PDF"))
+        add(Candidate(key="10.1000/busy", doi="10.1000/busy", title="Busy", status=FAILED,
+                      error="waiting: OSTI refused (too many requests, busy or no answer)"))
+        add(Candidate(key="10.3390/saved", doi="10.3390/saved", title="Saved by hand", status=FAILED, error="publisher: HTTP 403"))
+        add(Candidate(key="10.1000/got", doi="10.1000/got", title="Got", status=DOWNLOADED))
+        Path(self.job.fetch.folder, "10.3390_saved.pdf").write_bytes(b"%PDF-")
+        self.assertEqual(self.harvest.write_hand_list(), 5)
+        rows = pd.read_csv(Path(self.job.fetch.folder, HAND_LIST), encoding="utf-8-sig", keep_default_na=False)
+        self.assertEqual(list(rows.columns), list(by_hand.HAND_COLUMNS))
+        self.assertEqual(list(zip(rows["doi"], rows["reason"])), [
+            ("10.3390/open", by_hand.BLOCKED), ("10.1016/shut", by_hand.SUBSCRIPTION), ("10.1000/none", by_hand.NO_COPY),
+            ("10.1000/gone", by_hand.NOT_FOUND), ("10.1000/busy", by_hand.BUSY)])  # what a person can get at once first
+        self.assertEqual(rows["link"][0], "https://doi.org/10.3390/open")
+        self.assertIn("browser", rows["what_to_do"][0])
+        self.assertIn("university", rows["what_to_do"][1])
+        self.assertIn("HTTP 404", rows["detail"][3])
+        for key in ("10.3390/open", "10.1016/shut", "10.1000/gone", "10.1000/none", "10.1000/busy"):
+            self.harvest.ledger.update(key, status=DOWNLOADED, error="")
+        self.assertEqual(self.harvest.write_hand_list(), 0)
+        self.assertFalse(Path(self.job.fetch.folder, HAND_LIST).exists())
+
+    def test_a_publishers_first_page_only_means_a_subscription_is_needed(self):
+        paper = Candidate(key="10.1016/x", doi="10.1016/x", status=FAILED, error=(
+            "elsevier: only the first page (not entitled: the institutional token is set, but …)"))
+        self.assertEqual(by_hand.reason_of(paper), by_hand.SUBSCRIPTION)
+
+    def hand_paper(self, key="10.3390/batteries9020137"):
+        self.harvest.ledger.add(Candidate(key=key, doi=key, title="Ionic conductivity of the argyrodite Li6PS5Cl solid electrolyte",
+                                          oa_status="gold", license="cc-by", status=FAILED, error="publisher: HTTP 403"))
+        self.assertEqual(self.harvest.write_hand_list(), 1)
+
+    def pdf_naming(self, doi):
+        document = pymupdf.open(stream=self.pdf, filetype="pdf")
+        document[0].insert_text((50, 30), f"https://doi.org/{doi}", fontsize=8)
+        return document.tobytes()
+
+    def test_a_pdf_saved_by_hand_is_taken_in_by_the_doi_on_its_first_page(self):
+        self.hand_paper()
+        box = Path(self.harvest.by_hand_folder)
+        self.assertTrue(box.is_dir())  # made with the papers folder, for a fresh install too
+        (box / "batteries-09-00137.pdf").write_bytes(self.pdf_naming("10.3390/batteries9020137"))
+        with self.assertLogs(level="INFO"):
+            self.harvest.fetch()
+        paper = self.harvest.ledger.get("10.3390/batteries9020137")
+        self.assertEqual((paper.status, paper.file), (DOWNLOADED, "10.3390_batteries9020137.pdf"))
+        self.assertEqual(list(box.iterdir()), [])  # moved into the papers folder
+        sidecar = json.loads(Path(self.job.fetch.folder, "10.3390_batteries9020137.json").read_text(encoding="utf-8"))
+        self.assertEqual((sidecar["source_service"], sidecar["source_url"], sidecar["license"]),
+                         (by_hand.BY_HAND_SERVICE, "https://doi.org/10.3390/batteries9020137", "cc-by"))
+        self.assertFalse(Path(self.job.fetch.folder, HAND_LIST).exists())  # the list is done
+
+    def test_a_pdf_named_after_its_doi_is_taken_in(self):
+        self.hand_paper()
+        Path(self.harvest.by_hand_folder, "10.3390_batteries9020137.pdf").write_bytes(self.pdf)
+        self.assertEqual(by_hand.take_in(self.job.fetch.folder, self.harvest.ledger, self.harvest.hand_list_path), 1)
+
+    def test_a_pdf_citing_another_listed_paper_first_is_taken_in_as_itself(self):
+        self.hand_paper()  # 10.3390/batteries9020137, the argyrodite title of make_pdf
+        self.harvest.ledger.add(Candidate(key="10.1016/cited.1", doi="10.1016/cited.1", status=FAILED,
+                                          title="Grain boundaries of tantalum doped garnet ceramics", error="publisher: HTTP 403"))
+        self.harvest.write_hand_list()
+        document = pymupdf.open(stream=self.pdf, filetype="pdf")
+        document[0].insert_text((50, 20), "As shown in doi:10.1016/cited.1, and here https://doi.org/10.3390/batteries9020137",
+                                fontsize=7)
+        Path(self.harvest.by_hand_folder, "download.pdf").write_bytes(document.tobytes())
+        self.assertEqual(by_hand.take_in(self.job.fetch.folder, self.harvest.ledger, self.harvest.hand_list_path), 1)
+        self.assertEqual(self.harvest.ledger.get("10.3390/batteries9020137").status, DOWNLOADED)
+        self.assertEqual(self.harvest.ledger.get("10.1016/cited.1").status, FAILED)  # the paper only cited is not it
+
+    def test_a_pdf_of_another_article_or_off_the_list_is_left_where_it_is(self):
+        self.hand_paper()
+        box = Path(self.harvest.by_hand_folder)
+        (box / "wrong.pdf").write_bytes(self.pdf_naming("10.9999/not.on.the.list"))
+        other = pymupdf.open(stream=make_pdf(title="Lithium plating on graphite anodes in fast charging"), filetype="pdf")
+        other[0].insert_text((50, 30), "doi:10.3390/batteries9020137", fontsize=8)
+        (box / "same-doi-other-title.pdf").write_bytes(other.tobytes())
+        with self.assertLogs(level="WARNING") as said:
+            self.assertEqual(by_hand.take_in(self.job.fetch.folder, self.harvest.ledger, self.harvest.hand_list_path), 0)
+        self.assertEqual(sorted(p.name for p in box.iterdir()), ["same-doi-other-title.pdf", "wrong.pdf"])
+        self.assertIn("names no DOI", "\n".join(said.output))
+        self.assertIn("title", "\n".join(said.output))
+        self.assertEqual(self.harvest.ledger.get("10.3390/batteries9020137").status, FAILED)
+
+    def test_the_watcher_waits_in_the_run_only_for_busy_sites_not_for_ones_that_are_down(self):
+        from WebScraping.averageScrap.harvest import worth_waiting
+        rows = [{"item": "10.1/a", "reason": "OSTI"}, {"item": "10.1/b", "reason": "OSTI, Europe PMC"},
+                {"item": "10.1/c", "reason": "Semantic Scholar"}]
+        self.assertEqual([r["item"] for r in worth_waiting(rows, {"OSTI"})], ["10.1/b", "10.1/c"])
+        self.assertEqual([r["item"] for r in worth_waiting(rows, {"OSTI", "Europe PMC", "Semantic Scholar"})], [])
+        self.assertEqual(len(worth_waiting(rows, set())), 3)
+
     def test_the_review_comes_before_any_download(self):
         code, printed, pipeline = self.run_stage(start="discover")
         self.assertEqual(code, 0)
@@ -1164,14 +1519,14 @@ class GateTests(unittest.TestCase):
     """The terminal gate of the web project: python -m WebScraping.averageScrap."""
 
     def test_commands(self):
-        from WebScraping.averageScrap.about import DEFAULT_JOB, DEFAULT_OUTPUT
+        from WebScraping.averageScrap.about import DEFAULT_JOB
         from WebScraping.averageScrap.cli import parse_args
         run = parse_args(["run", "--job", "j.yaml", "--stage", "fetch", "--yes", "--limit", "5", "-w", "2"])
         self.assertEqual((run.command, run.job, run.stage, run.yes, run.limit, run.workers),
                          ("run", "j.yaml", "fetch", True, 5, 2))
-        # Its own folder of results, and the example job unless another is named.
+        # The example job unless another is named; no folder of results named: the job's own, found by main().
         default = parse_args(["run"])
-        self.assertEqual((default.job, default.output, default.stage), (DEFAULT_JOB, DEFAULT_OUTPUT, "discover"))
+        self.assertEqual((default.job, default.output, default.stage), (DEFAULT_JOB, None, "discover"))
         window = parse_args(["gui", "--output", "elsewhere"])
         self.assertEqual((window.command, window.job, window.output), ("gui", None, "elsewhere"))
 
@@ -1183,7 +1538,16 @@ class GateTests(unittest.TestCase):
                 mock.patch.object(cli, "print_banner"), redirect_stdout(io.StringIO()):
             self.assertEqual(cli.main([]), 0)
             self.assertEqual(cli.main(["--job", "j.yaml", "--output", "out", "--stage", "fetch"]), 0)
-        self.assertEqual(seen, [(cli.DEFAULT_JOB, cli.DEFAULT_OUTPUT, "discover"), ("j.yaml", "out", "fetch")])
+            # Another job, no --output: its own database, never the default job's (two corpora in one database).
+            folder = tempfile.mkdtemp()
+            self.addCleanup(shutil.rmtree, folder, True)
+            garnet = os.path.join(folder, "garnet.yaml")
+            with open(garnet, "w", encoding="utf-8") as f:
+                f.write(dump_job(Job(search=SearchConfig(queries=["garnet"]),
+                                     fetch=FetchConfig(folder=os.path.join("WebScraping", "papers_garnet")))))
+            self.assertEqual(cli.main(["--job", garnet]), 0)
+        self.assertEqual(seen, [(cli.DEFAULT_JOB, cli.DEFAULT_OUTPUT, "discover"), ("j.yaml", "out", "fetch"),
+                                (garnet, os.path.join("WebScraping", "web_output_garnet"), "discover")])
 
     def test_a_job_file_that_cannot_be_read(self):
         from WebScraping.averageScrap import cli

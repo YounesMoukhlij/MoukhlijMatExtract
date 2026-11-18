@@ -7,8 +7,9 @@ Only what a person may change is offered, each within its bounds (job.LIMITS):
   - where copies are looked for, how many downloads at once, the largest PDF;
   - which data are extracted.
 What may not be changed is shown, not offered: the folder of the PDFs (the search, its ledger
-and "Delete outputs" look for them there) and the job's name. The contact e-mail and the keys are
-set in the "API keys…" window. The "# headings" among the words of a list are kept when saving."""
+and "Delete outputs" look for them there), the job's name and its DOI list. "Reset to defaults" leaves them
+as they are. The contact e-mail and the keys are set in the "API keys…" window. The "# headings" among the
+words of a list are kept when saving."""
 
 from __future__ import annotations
 
@@ -21,11 +22,12 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from LocalExtraction.config import SchemaConfig
+from LocalExtraction.gui import layout
 from LocalExtraction.gui.dialogs import Dialog
 from LocalExtraction.gui.widgets import WrapLabel
 
-from ..job import (ABSTRACT_SOURCES, DEFAULT_FOLDER, LABELS, LIMITS, NEEDS, RESOLVERS, SOURCES, Job, dump_job,
-                   load_job, read_comments)
+from ..job import (ABSTRACT_SOURCES, LABELS, LIMITS, NEEDS, RESOLVERS, SOURCES, Job, dump_job, load_job,
+                   read_comments)
 
 TITLE = "Web search settings"
 _GREY = "#888888"
@@ -61,13 +63,12 @@ def _tell_saved(path: str) -> None:
 
 
 def shipped_job() -> Tuple[Job, Dict[str, List[str]], Dict[str, List[str]]]:
-    """The settings MoukhlijMatExtract comes with (default_job.yaml), with their comments."""
-    from importlib import resources
+    """The settings MoukhlijMatExtract comes with (configs/sse.yaml), with their comments."""
+    from mme_home import CONFIGS, folder
     from ..about import SHIPPED_JOB
-    source = resources.files("WebScraping.averageScrap").joinpath(SHIPPED_JOB)
-    with resources.as_file(source) as real:
-        headings, notes = read_comments(str(real))
-        return load_job(str(real)), headings, notes
+    real = folder(CONFIGS) / SHIPPED_JOB
+    headings, notes = read_comments(str(real))
+    return load_job(str(real)), headings, notes
 
 
 def open_job_settings(parent: tk.Misc, path: Optional[str] = None,
@@ -206,7 +207,7 @@ class JobDialog(Dialog):
     def __init__(self, parent: tk.Misc, job: Job, path: str, on_saved: Callable[[str], None],
                  headings: Optional[Dict[str, List[str]]] = None, notes: Optional[Dict[str, List[str]]] = None):
         super().__init__(parent, f"{TITLE} — {os.path.basename(path) or 'new'}", "900x760")
-        self.minsize(760, 560)
+        layout.minimum(self, 760, 560)
         if headings is None and notes is None and os.path.exists(path):
             headings, notes = read_comments(path)
         self.job, self.path, self._on_saved = job, path, on_saved
@@ -226,7 +227,8 @@ class JobDialog(Dialog):
 
         WrapLabel(self.body, foreground=_GREY, justify="left",
                   text=f"Not set here — the contact e-mail and the API keys: “API keys…” in the web window. "
-                       f"Fixed — the folder of the PDFs ({DEFAULT_FOLDER}/) and the job's name.").pack(fill="x", pady=(8, 0))
+                       f"Fixed — the folder of the PDFs ({job.fetch.folder}/), the job's name and its DOI list."
+                  ).pack(fill="x", pady=(8, 0))
         buttons = ttk.Frame(self.body)
         buttons.pack(fill="x", pady=(8, 0))
         ttk.Button(buttons, text="Reset to defaults", command=self._reset).pack(side="left")
@@ -284,6 +286,14 @@ class JobDialog(Dialog):
         ttk.Checkbutton(tab, text="Preprints count too (arXiv and the like)",
                         variable=self.include_preprints).pack(anchor="w", pady=(8, 0))
 
+        _heading(tab, "Citations (snowballing)")
+        _note(tab, "After the keywords, OpenAlex gives the papers each kept paper cites and the papers citing it; the "
+                   "new ones are screened like the others. It finds what keyword searches miss.")
+        self.snowball = tk.BooleanVar()
+        ttk.Checkbutton(tab, text="Follow the citations of the papers kept", variable=self.snowball).pack(
+            anchor="w", pady=(4, 0))
+        self.snowball_citing = _spin(tab, "Papers citing each kept paper, the most cited first", "snowball_citing")
+
         _heading(tab, "Missing abstracts are asked of")
         _note(tab, "A paper found without its abstract is looked up there, in this order. Untick them all to ask "
                    "nobody (screening then reads the title only).")
@@ -320,7 +330,8 @@ class JobDialog(Dialog):
         self.fetch_workers = _spin(tab, "Downloads at once", "workers", after="(1 to 8 — more is impolite to the servers)")
         self.max_pdf_mb = _spin(tab, "Largest PDF accepted, in MB", "max_pdf_mb")
         _heading(tab, "Folder of the PDFs")
-        ttk.Label(tab, text=f"{DEFAULT_FOLDER}/   (fixed)").pack(anchor="w")
+        self.fixed_folder = ttk.Label(tab, text=f"{self.job.fetch.folder}/   (fixed)")
+        self.fixed_folder.pack(anchor="w")
         _note(tab, "Not a setting: the search, its ledger and “Delete outputs” look for the "
                    "papers there.")
 
@@ -361,6 +372,8 @@ class JobDialog(Dialog):
         self.year_to.set(str(s.years[1]) if s.years else "")
         self.max_per_query.set(f"{s.max_per_query:g}")
         self.include_preprints.set(s.include_preprints)
+        self.snowball.set(s.snowball)
+        self.snowball_citing.set(f"{s.snowball_citing:g}")
         self.search_sources = self._checks(self.search_frame, SOURCES, s.sources)
         self.abstract_sources = self._checks(self.abstract_frame, ABSTRACT_SOURCES, s.abstract_sources)
         words(self.topic_words, "screen.topic_words", c.topic_words)
@@ -412,7 +425,14 @@ class JobDialog(Dialog):
                                           "saved until you press Save.", parent=self):
             return
         job, headings, notes = shipped_job()
-        self.job = dataclasses.replace(job, fetch=dataclasses.replace(job.fetch, folder=self.job.fetch.folder))
+        # What the form says is fixed stays this job's: its name, its PDF folder, its DOI list (and the contact
+        # e-mail, set elsewhere). The shipped ones would make this job read and write another job's DOIs.
+        mine = self.job
+        self.job = dataclasses.replace(
+            job, name=mine.name, contact_email=mine.contact_email,
+            search=dataclasses.replace(job.search, doi_list=mine.search.doi_list),
+            fetch=dataclasses.replace(job.fetch, folder=mine.fetch.folder),
+            extract=dataclasses.replace(job.extract, domain=mine.extract.domain))  # not on the form either
         self.notes = notes
         self._fill(self.job, headings)
 
@@ -467,7 +487,8 @@ class JobDialog(Dialog):
             search=dataclasses.replace(
                 job.search, queries=queries, ids_file=ids_file, years=years, sources=search_sources,
                 max_per_query=number(self.max_per_query, "max_per_query", "Results per source"),
-                include_preprints=self.include_preprints.get(),
+                include_preprints=self.include_preprints.get(), snowball=self.snowball.get(),
+                snowball_citing=number(self.snowball_citing, "snowball_citing", "Papers citing each kept paper"),
                 abstract_sources=[n for n, v in self.abstract_sources.items() if v.get()]),
             screen=dataclasses.replace(
                 job.screen, topic_words=topic, property_words=prop, exclude_words=_words(_layout(self.exclude_words)),

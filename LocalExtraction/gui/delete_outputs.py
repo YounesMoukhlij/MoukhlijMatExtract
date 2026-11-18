@@ -7,7 +7,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import messagebox, ttk
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Sequence
 
 from .. import outputs
 from ..about import PROJECT_HOME
@@ -17,10 +17,12 @@ TITLE = "MoukhlijMatExtract"
 
 class DeleteOutputsDialog(tk.Toplevel):
     def __init__(self, parent: tk.Misc, part: str, home: Path = PROJECT_HOME,
-                 on_close: Optional[Callable[[bool], None]] = None):
-        """`on_close(deleted)` is called when the dialog closes, `deleted` true if anything was deleted."""
+                 on_close: Optional[Callable[[bool], None]] = None, groups: Optional[Sequence[outputs.Group]] = None):
+        """`on_close(deleted)` is called when the dialog closes, `deleted` true if anything was deleted. `groups`:
+        what to offer instead of the part's usual folders (a web job's own folders)."""
         super().__init__(parent)
-        name, groups = outputs.PARTS[part]
+        name, usual = outputs.PARTS[part]
+        groups = tuple(groups) if groups is not None else usual
         self.part, self.home, self.groups, self.on_close = part, Path(home), groups, on_close
         self.deleted = False
         self.title(f"Delete outputs — {name}")
@@ -29,6 +31,8 @@ class DeleteOutputsDialog(tk.Toplevel):
 
         body = ttk.Frame(self, padding=16)
         body.pack(fill="both", expand=True)
+        from .design import website_line
+        website_line(self)
         ttk.Label(body, text=f"Delete the outputs of {name}", font=("TkDefaultFont", 13, "bold")).pack(anchor="w")
         where = ("They are moved to the Trash, so they can be got back." if outputs.TO_TRASH else
                  "There is no Trash to move them to here: they are deleted for good.")
@@ -109,11 +113,13 @@ class DeleteOutputsDialog(tk.Toplevel):
 
 
 def delete_outputs_button(parent: tk.Misc, part: str, before: Optional[Callable[[], None]] = None,
-                          after: Optional[Callable[[bool], None]] = None) -> ttk.Button:
+                          after: Optional[Callable[[bool], None]] = None,
+                          groups: Optional[Callable[[], Sequence[outputs.Group]]] = None) -> ttk.Button:
     """A "Delete outputs…" button that opens the dialog for `part`. `before()` is called before it
-    opens (e.g. to let go of a file the window holds), `after(deleted)` once it is closed."""
+    opens (e.g. to let go of a file the window holds), `after(deleted)` once it is closed; `groups()`, when
+    given, says which folders to offer when it is pressed (they may have changed: another job chosen)."""
     def open_dialog() -> None:
         if before is not None:
             before()
-        DeleteOutputsDialog(parent, part, on_close=after)
+        DeleteOutputsDialog(parent, part, on_close=after, groups=groups() if groups is not None else None)
     return ttk.Button(parent, text="Delete outputs…", command=open_dialog)

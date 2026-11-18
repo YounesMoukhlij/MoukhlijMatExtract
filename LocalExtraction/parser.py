@@ -74,7 +74,11 @@ class DocumentParser:
 
     def parse(self) -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]]:
         """Returns structured metadata, a list of contextual blocks, and split reference entries."""
-        doc = fitz.open(self.filepath)
+        try:
+            doc = fitz.open(self.filepath)
+        except Exception:  # not a PDF at all (an HTML page saved as .pdf, a file cut short at its start)
+            raise ValueError("it does not open as a PDF — the file is damaged or is not a PDF; download it "
+                             "again") from None
         if doc.page_count == 0:
             # A download that stopped part-way: kept out of the database (it would enter it empty).
             raise ValueError("no page of it can be read — the file is damaged or incomplete; download it again")

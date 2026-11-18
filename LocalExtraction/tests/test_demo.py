@@ -11,6 +11,9 @@ from pathlib import Path
 import pandas as pd
 
 from LocalExtraction.cli import run_extraction
+from LocalExtraction.extractor import NLP_MODEL
+
+_NO_MODEL = NLP_MODEL.startswith("no language model")
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
 PROPERTIES = {"activation_energy": "activation_energy_eV", "ionic_conductivity": "ionic_conductivity_S_cm",
@@ -21,6 +24,7 @@ KEY = ["paper_id", "property", "material_formula", "value", "attribution", "page
 
 @unittest.skipUnless((EXAMPLES / "papers").is_dir(), "the examples folder is not here (installed package)")
 class DemoTests(unittest.TestCase):
+    @unittest.skipIf(_NO_MODEL, "the expected values are those read with a spaCy language model (python -m spacy download en_core_web_sm); without one, sentences are split by punctuation only and the extraction warns that it reads less")
     def test_the_example_papers_give_the_expected_values(self):
         out = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, out, True)

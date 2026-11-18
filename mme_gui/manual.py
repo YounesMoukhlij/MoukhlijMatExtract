@@ -47,6 +47,10 @@ COMMANDS: List[Command] = [
     Command("mme-web", "WebScraping", ("run",), "2 · Web scraping",
             "search, review, download and extract", "make web"),
     Command("mme-web gui", "WebScraping", ("gui",), "2 · Web scraping", "the same, in its window", "make web-gui"),
+    Command("mme-web update", "WebScraping", ("update",), "2 · Web scraping",
+            "every job run before, searched for the papers published since", "make update"),
+    Command("mme-web coverage", "WebScraping", ("coverage",), "2 · Web scraping",
+            "how far each job's papers went, and by publisher", "make coverage"),
     Command("mme-rank", "SelectingTopMaterial", (), "3 · Ranking",
             "ranks the materials by activation energy", "make rank"),
     Command("mme-rank gui", "SelectingTopMaterial", ("gui",), "3 · Ranking", "the same, in its window",
@@ -198,8 +202,8 @@ def open_manual(parent) -> "object":
 
     win = tk.Toplevel(parent)
     win.title("MoukhlijMatExtract · Manual — every command and its options")
-    win.geometry("1000x720")
-    win.minsize(700, 460)
+    from LocalExtraction.gui import layout
+    layout.place(win, (1000, 720), (700, 460), parent=parent)
     try:
         win.transient(parent.winfo_toplevel())
     except Exception:
@@ -391,6 +395,8 @@ def open_manual(parent) -> "object":
     ttk.Label(footer, foreground="#8c8c8c",
               text="Any command followed by --help prints the same in a terminal.").pack(side="left")
 
+    from LocalExtraction.gui.design import website_line
+    website_line(win)
     win.manual_text = text  # hooks for the tests
     win.manual_pending = pending
     poll()

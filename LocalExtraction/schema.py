@@ -199,7 +199,7 @@ def markdown() -> str:
     return "\n".join(lines)
 
 
-DOC = Path(__file__).resolve().parent.parent / "docs" / "DATA_DICTIONARY.md"
+DOC = Path(__file__).resolve().parent.parent / "docs" / "DATA_DICTIONARY.md"  # shipped to ~/MoukhlijMatExtract/docs
 
 
 def main() -> int:

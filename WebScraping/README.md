@@ -38,7 +38,7 @@ python -m WebScraping --check          # test the setup (network, API keys, fold
 python -m WebScraping --stage extract  # only extract what is already in WebScraping/papers/
 ```
 
-Keys and your e-mail (all free, all optional) live in `WebScraping/averageScrap/.env`. Set them in the
+Keys and your e-mail (all free, all optional) live in `~/MoukhlijMatExtract/.env`. Set them in the
 window with **API keys…**: one card per organization, saying what its key opens and whether it is set,
 with a **Get a free key ↗** button to its sign-up page. Full options and the job-file format are in the
 [averageScrap README](averageScrap/README.md).

@@ -544,6 +544,18 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(temperature_range("The impedance was measured from room temperature to 100 °C."), "298-373.1 K")
 
 
+class UnreadableFileTests(unittest.TestCase):
+    def test_a_file_that_is_not_a_pdf_says_so_in_words(self):
+        from LocalExtraction.parser import DocumentParser
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        path = os.path.join(folder, "empty.pdf")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("not a pdf at all")
+        with self.assertRaisesRegex(ValueError, "it does not open as a PDF"):
+            DocumentParser(path).parse()
+
+
 class TextRepairTests(unittest.TestCase):
     def test_words_split_by_a_line_break(self):
         texts = ["The activation energy of the ion depends on temperature in Li and Na conducting solids.",
@@ -591,6 +603,8 @@ class ExportTests(unittest.TestCase):
     def table(self, name):
         return pd.read_csv(os.path.join(self.folder, f"{name}.csv"), dtype=str, keep_default_na=False)
 
+    @unittest.skipIf(__import__("LocalExtraction.extractor", fromlist=["NLP_MODEL"]).NLP_MODEL.startswith(
+        "no language model"), "the expected values are those read with a spaCy language model (python -m spacy download en_core_web_sm); without one, sentences are split by punctuation only and the extraction warns that it reads less")
     def test_each_table_holds_what_its_columns_apply_to(self):
         paper = self.paper(COMPUTATIONAL, "Li6PS5Cl has a migration barrier of 0.30 eV and an ionic conductivity of 3 mS/cm (Fig. 2b). "
                                           "A band gap of 4 eV was computed.")

@@ -1,0 +1,394 @@
+# Anti-perovskite solid electrolytes
+#
+# Lithium- and sodium-rich anti-perovskites: Li3OCl, Li3OBr, Li2OHCl, Na3OCl, Na3OBH4 and their mixed-anion and
+# cluster-ion relatives.
+#
+# Kind: crystal-structure type.
+#   Prototype: anti-perovskite (anti-ABX3); Li3OCl, cubic Pm-3m.
+#
+# 145 queries, 27 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/antiperovskite.yaml          # extracts into WebScraping/web_output_antiperovskite
+#   mme-rank --domain electrolyte --source WebScraping/web_output_antiperovskite --kind arrhenius
+
+name: antiperovskite
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Anti-perovskite: transport and defects
+    - "Li3OCl vacancy interstitial lithium migration"
+    - "Li3OCl Schottky defect conductivity"
+    - "anti-perovskite lithium vacancy mechanism"
+    - "anti-perovskite cluster anion rotation paddle wheel"
+    - "Li3OCl glass amorphous conductivity"
+    - "Li3OCl thin film conductivity"
+    - "Li2OHCl proton lithium conduction"
+    - "Li2OHCl phase transition conductivity"
+    - "Na3OBH4 sodium conductivity"
+    - "Na3OCl sodium conductivity"
+    - "anti-perovskite tolerance factor conductivity"
+    - "anti-perovskite hydroxide content conductivity"
+
+    # Anti-perovskite: synthesis and stability
+    - "Li3OCl synthesis hygroscopic"
+    - "anti-perovskite electrolyte lithium metal stability"
+    - "Li3OCl density functional theory stability"
+    - "anti-perovskite composite electrolyte"
+
+    # antiperovskite solid electrolyte: every transport measurement and method
+    - "antiperovskite solid electrolyte ionic conductivity"
+    - "antiperovskite solid electrolyte activation energy"
+    - "antiperovskite solid electrolyte lithium ion diffusion"
+    - "antiperovskite solid electrolyte sodium ion diffusion"
+    - "antiperovskite solid electrolyte lithium migration barrier"
+    - "antiperovskite solid electrolyte sodium migration barrier"
+    - "antiperovskite solid electrolyte ion transport mechanism"
+    - "antiperovskite solid electrolyte grain boundary conductivity"
+    - "antiperovskite solid electrolyte bulk ionic conductivity"
+    - "antiperovskite solid electrolyte impedance spectroscopy"
+    - "antiperovskite solid electrolyte temperature dependent conductivity"
+    - "antiperovskite solid electrolyte diffusion coefficient"
+    - "antiperovskite solid electrolyte doping ionic conductivity"
+    - "antiperovskite solid electrolyte electronic conductivity"
+    - "antiperovskite solid electrolyte electrochemical stability window"
+    - "antiperovskite solid electrolyte interfacial resistance"
+    - "antiperovskite solid electrolyte molecular dynamics lithium diffusion"
+    - "antiperovskite solid electrolyte molecular dynamics sodium diffusion"
+    - "antiperovskite solid electrolyte density functional theory migration"
+    - "antiperovskite solid electrolyte NMR lithium dynamics"
+    - "antiperovskite solid electrolyte NMR sodium dynamics"
+    - "antiperovskite solid electrolyte synthesis ionic conductivity"
+    - "antiperovskite solid electrolyte fast ion conductor"
+    - "antiperovskite solid electrolyte superionic conductor"
+
+    # Li3OCl: every transport measurement and method
+    - "Li3OCl ionic conductivity"
+    - "Li3OCl activation energy"
+    - "Li3OCl lithium ion diffusion"
+    - "Li3OCl sodium ion diffusion"
+    - "Li3OCl lithium migration barrier"
+    - "Li3OCl sodium migration barrier"
+    - "Li3OCl ion transport mechanism"
+    - "Li3OCl grain boundary conductivity"
+    - "Li3OCl bulk ionic conductivity"
+    - "Li3OCl impedance spectroscopy"
+    - "Li3OCl temperature dependent conductivity"
+    - "Li3OCl diffusion coefficient"
+    - "Li3OCl doping ionic conductivity"
+    - "Li3OCl electronic conductivity"
+    - "Li3OCl electrochemical stability window"
+    - "Li3OCl interfacial resistance"
+    - "Li3OCl molecular dynamics lithium diffusion"
+    - "Li3OCl molecular dynamics sodium diffusion"
+    - "Li3OCl density functional theory migration"
+    - "Li3OCl NMR lithium dynamics"
+    - "Li3OCl NMR sodium dynamics"
+    - "Li3OCl synthesis ionic conductivity"
+    - "Li3OCl fast ion conductor"
+    - "Li3OCl superionic conductor"
+
+    # Li2OHCl: every transport measurement and method
+    - "Li2OHCl ionic conductivity"
+    - "Li2OHCl activation energy"
+    - "Li2OHCl lithium ion diffusion"
+    - "Li2OHCl sodium ion diffusion"
+    - "Li2OHCl lithium migration barrier"
+    - "Li2OHCl sodium migration barrier"
+    - "Li2OHCl ion transport mechanism"
+    - "Li2OHCl grain boundary conductivity"
+    - "Li2OHCl bulk ionic conductivity"
+    - "Li2OHCl impedance spectroscopy"
+    - "Li2OHCl temperature dependent conductivity"
+    - "Li2OHCl diffusion coefficient"
+    - "Li2OHCl doping ionic conductivity"
+    - "Li2OHCl electronic conductivity"
+    - "Li2OHCl electrochemical stability window"
+    - "Li2OHCl interfacial resistance"
+    - "Li2OHCl molecular dynamics lithium diffusion"
+    - "Li2OHCl molecular dynamics sodium diffusion"
+    - "Li2OHCl density functional theory migration"
+    - "Li2OHCl NMR lithium dynamics"
+    - "Li2OHCl NMR sodium dynamics"
+    - "Li2OHCl synthesis ionic conductivity"
+    - "Li2OHCl fast ion conductor"
+    - "Li2OHCl superionic conductor"
+
+    # Na3OCl: every transport measurement and method
+    - "Na3OCl ionic conductivity"
+    - "Na3OCl activation energy"
+    - "Na3OCl lithium ion diffusion"
+    - "Na3OCl sodium ion diffusion"
+    - "Na3OCl lithium migration barrier"
+    - "Na3OCl sodium migration barrier"
+    - "Na3OCl ion transport mechanism"
+    - "Na3OCl grain boundary conductivity"
+    - "Na3OCl bulk ionic conductivity"
+    - "Na3OCl impedance spectroscopy"
+    - "Na3OCl temperature dependent conductivity"
+    - "Na3OCl diffusion coefficient"
+    - "Na3OCl doping ionic conductivity"
+    - "Na3OCl electronic conductivity"
+    - "Na3OCl electrochemical stability window"
+    - "Na3OCl interfacial resistance"
+    - "Na3OCl molecular dynamics lithium diffusion"
+    - "Na3OCl molecular dynamics sodium diffusion"
+    - "Na3OCl density functional theory migration"
+    - "Na3OCl NMR lithium dynamics"
+    - "Na3OCl NMR sodium dynamics"
+    - "Na3OCl synthesis ionic conductivity"
+    - "Na3OCl fast ion conductor"
+    - "Na3OCl superionic conductor"
+
+    # lithium-rich anti-perovskite: every transport measurement and method
+    - "lithium-rich anti-perovskite ionic conductivity"
+    - "lithium-rich anti-perovskite activation energy"
+    - "lithium-rich anti-perovskite lithium ion diffusion"
+    - "lithium-rich anti-perovskite sodium ion diffusion"
+    - "lithium-rich anti-perovskite lithium migration barrier"
+    - "lithium-rich anti-perovskite sodium migration barrier"
+    - "lithium-rich anti-perovskite ion transport mechanism"
+    - "lithium-rich anti-perovskite grain boundary conductivity"
+    - "lithium-rich anti-perovskite bulk ionic conductivity"
+    - "lithium-rich anti-perovskite impedance spectroscopy"
+    - "lithium-rich anti-perovskite temperature dependent conductivity"
+    - "lithium-rich anti-perovskite diffusion coefficient"
+    - "lithium-rich anti-perovskite doping ionic conductivity"
+    - "lithium-rich anti-perovskite electronic conductivity"
+    - "lithium-rich anti-perovskite electrochemical stability window"
+    - "lithium-rich anti-perovskite interfacial resistance"
+    - "lithium-rich anti-perovskite molecular dynamics lithium diffusion"
+    - "lithium-rich anti-perovskite molecular dynamics sodium diffusion"
+    - "lithium-rich anti-perovskite density functional theory migration"
+    - "lithium-rich anti-perovskite NMR lithium dynamics"
+    - "lithium-rich anti-perovskite NMR sodium dynamics"
+    - "lithium-rich anti-perovskite synthesis ionic conductivity"
+    - "lithium-rich anti-perovskite fast ion conductor"
+    - "lithium-rich anti-perovskite superionic conductor"
+
+    # antiperovskite solid electrolyte: transport mechanisms
+    - "antiperovskite solid electrolyte concerted migration"
+    - "antiperovskite solid electrolyte vacancy mechanism"
+    - "antiperovskite solid electrolyte interstitial mechanism"
+    - "antiperovskite solid electrolyte interstitialcy mechanism"
+    - "antiperovskite solid electrolyte paddle-wheel mechanism"
+    - "antiperovskite solid electrolyte correlated ion hopping"
+    - "antiperovskite solid electrolyte percolation conduction pathway"
+    - "antiperovskite solid electrolyte bottleneck size migration"
+    - "antiperovskite solid electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_antiperovskite.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Anti-perovskite aliases
+    - "antiperovskite"
+    - "anti-perovskite"
+    - "inverse perovskite"
+    - "LiRAP"
+    - "NaRAP"
+    - "lithium-rich anti-perovskite"
+    - "sodium-rich anti-perovskite"
+    - "cluster-ion anti-perovskite"
+
+    # Anti-perovskite formulas
+    - "Li3OCl"
+    - "Li3OBr"
+    - "Li3OCl0.5Br0.5"
+    - "Li3OI"
+    - "Li2OHCl"
+    - "Li2(OH)Cl"
+    - "Li2OHBr"
+    - "Li3-xOHxCl"
+    - "Li3OCl1-xBrx"
+    - "Na3OCl"
+    - "Na3OBr"
+    - "Na3OI"
+    - "Na3OBH4"
+    - "Na3OCN"
+    - "Na4OI2"
+    - "Li6OSI2"
+    - "Li3SI"
+    - "Li3OBH4"
+    - "Na3SI"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "magnetocaloric"
+    - "superconducting"
+    - "superconductivity"
+    - "negative thermal expansion"
+    - "anomalous Hall"
+    - "Mn3GaN"
+    - "MgCNi3"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_antiperovskite
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

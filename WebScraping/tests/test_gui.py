@@ -9,6 +9,7 @@ MME_NO_WINDOW_TESTS=1 to skip them anyway.
 """
 
 import csv
+import logging
 import os
 import sys
 import time
@@ -20,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 os.environ["MME_OFFLINE"] = "1"  # the tests never go on the network
 
 from LocalExtraction.exporter import StrictExporter
-from LocalExtraction.tests.test_gui import WEB, WindowTest, has_screen, paper
+from LocalExtraction.tests.test_gui import WEB, WindowTest, has_screen, paper, tk
 from WebScraping.averageScrap.fetch import Outcome
 from WebScraping.averageScrap.job import ExtractConfig, FetchConfig, Job, ScreenConfig, SearchConfig, dump_job, load_job
 from WebScraping.averageScrap.ledger import DOWNLOADED, SCREENED, Candidate, Ledger
@@ -145,6 +146,7 @@ class WindowTests(WindowTest):
             done.append(("fetch", limit))
             wanted = harvest.ledger.get("10.1000/wanted")
             harvest.ledger.update("10.1000/wanted", status=DOWNLOADED, source_used="osti")
+            logging.info("[1/1] downloaded: 10.1000/wanted via osti")  # as Harvest.fetch logs each paper
             progress_callback(wanted, Outcome("10.1000/wanted", DOWNLOADED, service="osti"), 1, 1)
             return {DOWNLOADED: 1}
 
@@ -158,7 +160,7 @@ class WindowTests(WindowTest):
             self.assertTrue(self.pump(until=lambda: not web.running() and web.search_button.instate(["!disabled"])))
             self.pump(0.2)
             # The steps of the search are shown, each ticked once done; Fetch DOIs is its own button.
-            self.assertTrue(web._step_labels["screen"].cget("text").startswith("✓ ③"))
+            self.assertTrue(web._step_labels["screen"].cget("text").startswith("✓ ④"))
             self.assertNotIn("dois", web._step_labels)
             self.assertEqual(harvest.ledger.get("10.1000/new").decision, "yes")  # screened, proposed, still to review
             self.assertIn("10.1000/new", web.table.tree.get_children())
@@ -167,7 +169,7 @@ class WindowTests(WindowTest):
             web.download()
             self.assertTrue(self.pump(until=lambda: not web.running() and web.search_button.instate(["!disabled"])))
         self.assertEqual(done, [("fetch", 5), ("extract", 2, self.web_output)])  # the extraction follows, into the web folder
-        self.assertEqual(web.table.tree.item("10.1000/wanted", "values")[3], "downloaded (osti)")
+        self.assertEqual(web.table.tree.item("10.1000/wanted", "values")[4], "downloaded (osti)")  # after score and model
         self.assertIn("[1/1] downloaded: 10.1000/wanted via osti", web.activity.contents())
 
     def download_with(self, email_problem):
@@ -190,12 +192,91 @@ class WindowTests(WindowTest):
         self.pump(0.2)
         return [message for kind, message in self.asked if kind in ("showinfo", "askyesno")]
 
-    def test_a_paper_not_found_is_told_with_what_can_still_be_done(self):
-        said, = self.download_with("")
-        self.assertIn("No legal open-access copy was found for 1 of the 1 paper(s)", said)
-        self.assertIn("Argyrodite conductors", said)
-        self.assertIn("Your e-mail is not the reason", said)
-        self.assertIn("university's network or VPN", said)
+    def test_a_paper_not_downloaded_opens_the_window_of_the_papers_to_get_by_hand(self):
+        from WebScraping.averageScrap import by_hand
+        from WebScraping.averageScrap.gui.dialogs import MissedDialog
+        self.assertEqual(self.download_with(""), [])  # a window of its own, not a message box
+        dialog, = [w for w in self.app.panel.winfo_children() if isinstance(w, MissedDialog)]
+        self.addCleanup(dialog.destroy)
+        self.assertEqual(dialog.title(), "Papers not downloaded automatically")
+        self.assertEqual(dialog.table.tree.get_children(), ("10.1000/wanted",))
+        title, _, _, _, reason = dialog.table.tree.item("10.1000/wanted", "values")
+        self.assertEqual((title, reason), ("Argyrodite conductors", by_hand.NO_COPY))
+        with mock.patch("webbrowser.open") as opened:
+            dialog._open(["10.1000/wanted"])  # what a double-click does
+        opened.assert_called_once_with("https://doi.org/10.1000/wanted")
+        card = self.app.panel.card.outcome
+        self.assertIn(("1", "to get by hand"), [(stat.value, stat.label) for stat in card.stats])
+        self.assertTrue(any(label == "Papers not downloaded (1)…" for label, _ in card.actions))
+
+    def test_the_browser_helper_opens_the_papers_left_and_takes_in_the_pdfs_that_arrive(self):
+        """“Get the rest with my browser…”: the pages of the papers left open in the browser; a PDF saved into the
+        Downloads folder is moved into by_hand and taken in, and its line says so. Nothing else there is touched."""
+        import tempfile
+        import pymupdf
+        from WebScraping.averageScrap.gui import browser_helper as module
+        from WebScraping.tests.test_web import make_pdf
+        self.download_with("")  # 10.1000/wanted: no copy found, on the hand list
+        for window in [w for w in self.app.panel.winfo_children() if isinstance(w, tk.Toplevel)]:
+            window.destroy()
+        web = self.app.panel
+        self.assertEqual(web.browser_button.cget("text"), "Get the rest with my browser…")
+        downloads = Path(tempfile.mkdtemp())
+        (downloads / "holiday.pdf").write_bytes(make_pdf("Holiday photos"))  # not a paper of the list
+        rows = web._hand_rows()
+        helper = module.BrowserHelperDialog(web, web, rows, downloads=str(downloads))
+        self.addCleanup(lambda: helper.winfo_exists() and helper.close())
+        self.assertEqual(helper.table.tree.item("10.1000/wanted", "values")[0], module.TO_OPEN)
+        with mock.patch("webbrowser.open") as opened:
+            self.assertEqual(helper.open_next(), ["10.1000/wanted"])
+            self.pump(1.0)
+        opened.assert_called_once_with("https://doi.org/10.1000/wanted")
+        self.assertEqual(helper.table.tree.item("10.1000/wanted", "values")[0], module.OPENED)
+        document = pymupdf.open(stream=make_pdf("Argyrodite conductors"), filetype="pdf")
+        document[0].insert_text((50, 30), "https://doi.org/10.1000/wanted", fontsize=8)
+        (downloads / "download (3).pdf").write_bytes(document.tobytes())
+        with mock.patch.object(module, "_LOOK_MS", 100):
+            helper._look()
+            self.assertTrue(self.pump(until=lambda: helper.table.tree.item("10.1000/wanted", "values")[0] == module.TAKEN,
+                                      limit=15))
+        self.assertEqual(web._harvest().ledger.get("10.1000/wanted").status, DOWNLOADED)
+        self.assertEqual(sorted(p.name for p in downloads.iterdir()), ["holiday.pdf"])  # only the paper was moved
+        self.assertIn("1 taken in", helper.status.get())
+
+    def test_the_browser_helper_opens_the_next_batch_by_itself_once_this_one_is_done(self):
+        """A batch done — every paper taken in, left in by_hand or skipped — opens the next one by itself, unless
+        “open the next batch by itself” is unticked. Skip marks the papers a person will not get."""
+        import tempfile
+        from WebScraping.averageScrap.gui import browser_helper as module
+        self.download_with("")
+        for window in [w for w in self.app.panel.winfo_children() if isinstance(w, tk.Toplevel)]:
+            window.destroy()
+        web = self.app.panel
+        first = web._hand_rows()[0]
+        rows = [first] + [dict(first, key=f"10.1000/next{n}", doi=f"10.1000/next{n}", link=f"https://doi.org/10.1000/next{n}",
+                               title=f"Next {n}") for n in (1, 2)]
+        helper = module.BrowserHelperDialog(web, web, rows, downloads=tempfile.mkdtemp())
+        self.addCleanup(lambda: helper.winfo_exists() and helper.close())
+        self.assertEqual(helper.batch.get(), 5)  # a person's pace by default
+        self.assertEqual(helper.tip.cget("text"), module.TIP)  # the setting that makes it one click a paper
+        self.assertIn("PDF documents → Download PDFs", module.TIP)
+        helper.batch.set(1)
+        with mock.patch("webbrowser.open") as opened, mock.patch.object(module, "_NEXT_MS", 50):
+            self.assertEqual(helper.open_next(), ["10.1000/wanted"])
+            self.pump(0.3)
+            self.assertFalse(helper.batch_done())
+            helper.skip(["10.1000/wanted"])
+            self.assertTrue(self.pump(until=lambda: helper.current == ["10.1000/next1"], limit=5))
+            self.pump(0.3)
+            self.assertEqual([c.args[0] for c in opened.call_args_list],
+                             ["https://doi.org/10.1000/wanted", "https://doi.org/10.1000/next1"])
+            self.assertEqual(helper.table.tree.item("10.1000/wanted", "values")[0], module.SKIPPED)
+            self.assertIn("1 skipped", helper.status.get())
+            helper.auto_next.set(False)  # unticked: the done batch waits for the button
+            helper.skip(["10.1000/next1"])
+            self.pump(0.5)
+            self.assertEqual(helper.current, ["10.1000/next1"])
+            self.assertEqual(opened.call_count, 2)
 
     def test_an_email_unpaywall_refused_is_told_with_where_to_change_it(self):
         os.environ["MME_EMAIL"] = "test@example.com"
@@ -539,10 +620,246 @@ class WindowTests(WindowTest):
         self.assertTrue(set(first[:-1]).isdisjoint(asked))  # the keywords already done are skipped
         self.assertEqual(asked[0], first[-1])  # the one cut short is asked again
 
+    # ------------------------------------------------------------------
+    # The papers got by hand, and the folders of a job
+    # ------------------------------------------------------------------
+    def test_a_pdf_saved_by_hand_is_taken_in_even_when_nothing_else_is_to_download(self):
+        """The papers left to get by hand are closed or out of tries: no paper is marked yes. “3 · Download” must
+        still run, since it is what takes in the PDFs of the by_hand folder."""
+        from WebScraping.averageScrap import by_hand
+        from WebScraping.averageScrap.ledger import CLOSED
+        web = self.app.panel
+        harvest = web._harvest()
+        harvest.ledger.update("10.1000/wanted", status=CLOSED, error="no legal copy found")
+        web.show_candidates()
+        Path(by_hand.inbox(self.web_folder), "saved from the browser.pdf").write_bytes(b"%PDF-1.4 a paper")
+        fetched = []
+
+        def fetch(limit=None, stop_event=None, progress_callback=None):
+            fetched.append(limit)
+            harvest.taken_in = 1
+            return {DOWNLOADED: 0, CLOSED: 0, "failed": 0, "waiting": 0}
+        web.then_extract.set(False)
+        with mock.patch.object(harvest, "fetch", side_effect=fetch):
+            web.download()
+            self.assertTrue(self.pump(until=lambda: not web.running() and web.search_button.instate(["!disabled"])))
+        self.assertEqual(fetched, [None])
+        self.assertFalse(any("nothing to download" in text for _, text in self.asked))
+        self.assertIn(("1", "taken in by hand"), [(s.value, s.label) for s in web.card.outcome.stats])
+
+    def test_with_nothing_to_download_and_no_pdf_by_hand_it_says_so(self):
+        from WebScraping.averageScrap.ledger import CLOSED
+        web = self.app.panel
+        web._harvest().ledger.update("10.1000/wanted", status=CLOSED)
+        web.show_candidates()
+        web.download()
+        self.assertFalse(web.running())
+        self.assertTrue(any("nothing to download" in text for kind, text in self.asked if kind == "showinfo"))
+
+    def test_no_message_when_every_paper_missed_was_got_on_a_later_round(self):
+        web = self.app.panel
+        web._harvest()
+        web._missed = [("10.1000/found", "failed")]  # failed first, downloaded by the watcher's next round
+        web._tell_missed({DOWNLOADED: 1}, "")
+        self.pump(0.1)
+        self.assertEqual(self.asked, [])
+
+    def test_the_hand_list_is_among_the_files_of_the_window(self):
+        from WebScraping.averageScrap.fetch import HAND_LIST
+        files = dict(self.app.panel.results_extra())
+        self.assertEqual(files["Papers to download by hand"], os.path.join(self.web_folder, HAND_LIST))
+
+    def test_the_results_folder_follows_the_job(self):
+        """Each job its own database: the papers of a job extracted into another job's database would mix two
+        corpora. A folder chosen by hand (here, or with --output) is kept."""
+        from WebScraping.averageScrap.about import output_for
+        from WebScraping.averageScrap.gui.app import App
+        garnet_folder = os.path.join(self.root_folder, "WebScraping", "papers_garnet")
+        garnet = os.path.join(self.root_folder, "garnet.yaml")
+        with open(garnet, "w", encoding="utf-8") as f:
+            f.write(dump_job(Job(name="garnet", search=self.job.search, screen=self.job.screen,
+                                 fetch=FetchConfig(folder=garnet_folder, sources=["openalex"]), extract=self.job.extract)))
+        self.assertEqual(output_for(load_job(garnet)), os.path.join(self.root_folder, "WebScraping", "web_output_garnet"))
+        self.assertEqual(output_for(Job()), os.path.join("WebScraping", "web_output"))
+
+        window = tk.Toplevel(self.root)
+        app = App(window, job_path=garnet, output_dir="", workers=2)  # no folder named: the job's
+        self.addCleanup(app.close)
+        self.pump(0.2)
+        web = app.panel
+        self.assertEqual(web.output.get(), output_for(load_job(garnet)))
+        web.job_file.set(self.job_path)
+        web.load_job()
+        self.assertEqual(web.output.get(), output_for(self.job))  # another job: its own database
+        web.output.var.set(self.web_output)  # chosen by hand: typed in, then Return
+        web.output._changed()
+        web.job_file.set(garnet)
+        web.load_job()
+        self.assertEqual(web.output.get(), self.web_output)
+        self.assertEqual(self.app.panel.output.get(), self.web_output)  # named when the window was opened: kept
+
+    def test_reset_to_defaults_keeps_what_the_form_says_is_fixed(self):
+        """Reset puts back the shipped search settings, never the job's name, its PDF folder or its DOI list: those
+        would make the job read and write another job's DOIs and papers."""
+        import dataclasses
+        from WebScraping.averageScrap.gui.dialogs import JobDialog
+        job = dataclasses.replace(self.job, name="garnet", contact_email="",
+                                  search=dataclasses.replace(self.job.search, doi_list="Fetch_DOIs/dois_garnet.csv"))
+        form = JobDialog(self.app.panel, job, self.job_path, lambda path: None)
+        self.addCleanup(form.destroy)
+        self.pump(0.1)
+        self.assertIn(self.web_folder, form.fixed_folder.cget("text"))  # the job's own folder, not the default one
+        form._reset()
+        reset = form._read()
+        self.assertEqual((reset.name, reset.fetch.folder, reset.search.doi_list),
+                         ("garnet", self.web_folder, "Fetch_DOIs/dois_garnet.csv"))
+
+    def test_what_the_engine_logs_during_a_step_is_in_the_activity_tab(self):
+        """Every line of a step is in its Activity tab (the strip at the bottom keeps every line too)."""
+        web = self.app.panel
+        harvest = web._harvest()
+
+        def fetch(limit=None, stop_event=None, progress_callback=None):
+            logging.getLogger("WebScraping.averageScrap.harvest").info("Watcher: 2 DOI(s) refused by a busy site")
+            return {DOWNLOADED: 0}
+        logging.info("said while no step runs")
+        web.then_extract.set(False)
+        with mock.patch.object(harvest, "fetch", side_effect=fetch):
+            web.download()
+            self.assertTrue(self.pump(until=lambda: not web.running() and web.search_button.instate(["!disabled"])))
+        self.pump(0.2)
+        self.assertIn("Watcher: 2 DOI(s) refused by a busy site", web.activity.contents())
+        self.assertNotIn("said while no step runs", web.activity.contents())
+        self.assertIn("said while no step runs", self.app.log.contents())
+
+    def test_papers_refused_for_too_many_requests_are_told_in_a_line_of_the_window(self):
+        web = self.app.panel
+        harvest = web._harvest()
+        said = ("2 paper(s) not downloaded yet: Semantic Scholar refused them (too many requests, or busy). They are "
+                "tried again at the end of this download, one after another, 30 s apart — round 1 of 4, in 2 min.")
+
+        def fetch(limit=None, stop_event=None, progress_callback=None):
+            harvest.notice(said)
+            return {DOWNLOADED: 0, "waiting": 2}
+        web.then_extract.set(False)
+        with mock.patch.object(harvest, "fetch", side_effect=fetch):
+            web.download()
+            self.assertTrue(self.pump(until=lambda: not web.running() and web.search_button.instate(["!disabled"])))
+        self.pump(0.2)
+        self.assertEqual(web.notice.get(), "⏳ " + said)
+        self.assertTrue(web._notice_label.winfo_ismapped())
+        self.assertIn(said, web.card.outcome.highlights)
+        web._run(lambda: None)  # the next step starts with no line
+        self.assertTrue(self.pump(until=lambda: not web.running()))
+        self.assertEqual(web.notice.get(), "")
+        self.assertFalse(web._notice_label.winfo_ismapped())
+
+    def test_the_papers_already_screened_can_be_screened_again_with_the_settings_of_now(self):
+        """“Also keep papers no free copy is known for” ticked after the search: “Re-screen with the settings…”
+        proposes the papers it had left out, and the download takes them."""
+        import dataclasses
+        from WebScraping.averageScrap.ledger import REJECTED
+        web = self.app.panel
+        ledger = web._harvest().ledger
+        ledger.add(Candidate(key="10.1000/shut", doi="10.1000/shut", title="Solid electrolyte activation energy",
+                             abstract="", year=2024, access="closed", oa_status="closed", status=REJECTED,
+                             decision="no", flags=["no-open-copy-known"]))
+        with open(self.job_path, "w", encoding="utf-8") as f:
+            f.write(dump_job(dataclasses.replace(self.job, screen=dataclasses.replace(self.job.screen, propose_closed=True))))
+        web.load_job()
+        self.assertTrue(self.pump(until=lambda: "10.1000/shut" in web._candidates))
+        web.rescreen()
+        self.assertTrue(self.pump(until=lambda: not web.running() and web.search_button.instate(["!disabled"])))
+        self.pump(0.2)
+        self.assertTrue(any("are kept" in text for kind, text in self.asked if kind == "askyesno"))
+        self.assertEqual(web._harvest().ledger.get("10.1000/shut").decision, "yes")
+        self.assertIn("10.1000/shut", web.table.tree.get_children())  # among the proposed
+        card = web.card.outcome
+        self.assertEqual(card.title, "Re-screened")
+        self.assertIn(("1", "newly proposed"), [(s.value, s.label) for s in card.stats])
+        self.assertTrue(any(label.startswith("Download the") for label, _ in card.actions))
+
+    def test_a_folder_deleted_while_the_window_is_open_is_said_and_made_again(self):
+        """~/MoukhlijMatExtract deleted while the Web scraping window is open: the next step says so, makes it again
+        (with its job files) and goes on in it — not a failure deep in the step, nor a ledger written into a deleted file."""
+        import shutil
+        from LocalExtraction import about
+        home = Path(self.root_folder, "home", "MoukhlijMatExtract")
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        with mock.patch.object(about, "PROJECT_HOME", home):
+            about.enter_project_home("web", "dois")
+            window = tk.Toplevel(self.root)
+            from WebScraping.averageScrap.gui.app import App
+            app = App(window, job_path=os.path.join("configs", "sse.yaml"), output_dir="", workers=2)
+            self.addCleanup(app.close)
+            self.pump(0.3)
+            web = app.panel
+            web._harvest()
+            shutil.rmtree(home)  # deleted in the Finder, the window still open
+            asked = []
+            with mock.patch("tkinter.messagebox.askyesno", side_effect=lambda *a, **k: asked.append(a[1]) or True), \
+                    mock.patch.object(web.harvest.__class__, "discover", return_value=0), \
+                    mock.patch.object(web.harvest.__class__, "screen", return_value=0):
+                web.search()
+                self.assertTrue(self.pump(until=lambda: not web.running(), limit=10))
+        self.assertTrue(asked and "was deleted" in asked[0], asked)
+        self.assertTrue((home / "configs" / "sse.yaml").is_file())
+        self.assertTrue((home / "WebScraping" / "papers" / "ledger.sqlite").is_file())  # a new ledger, in the new folder
+        self.assertEqual(Path(os.getcwd()).resolve(), home.resolve())
+
+    def test_delete_outputs_offers_the_jobs_own_folders(self):
+        from LocalExtraction.gui.delete_outputs import DeleteOutputsDialog
+        web = self.app.panel
+        web.job = load_job(self.job_path)
+        groups = {group.key: group for group in web.output_groups()}
+        self.assertEqual(Path(groups["papers"].folder), Path(self.web_folder))
+        self.assertEqual(Path(groups["database"].folder), Path(self.web_output))
+        self.assertEqual(groups["dois"].names[:2], ("dois.csv", "dois.txt"))
+        web.delete_button.invoke()
+        dialog, = [w for w in web.delete_button.master.winfo_children() if isinstance(w, DeleteOutputsDialog)]
+        self.addCleanup(dialog.close)
+        self.assertEqual([g.folder for g in dialog.groups], [g.folder for g in web.output_groups()])
+
 
 def _count_dois(path):
     with open(path, newline="", encoding="utf-8-sig") as f:
         return sum(1 for _ in csv.DictReader(f))
+
+
+@unittest.skipUnless(has_screen(), "the window needs a screen")
+class SmallestWindowTests(WindowTest):
+    """The window on the job file a new user starts with (configs/sse.yaml), at its minimum size."""
+
+    def prepare(self):
+        import shutil
+        import mme_home
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        os.chdir(self.root_folder)  # the job's folders are relative: made here, never in the repository
+        os.makedirs("configs")
+        shutil.copy(os.path.join(mme_home.folder("configs"), "sse.yaml"), "configs/sse.yaml")
+
+    def make_app(self, root):
+        from WebScraping.averageScrap.gui.app import App
+        return App(root, job_path="configs/sse.yaml", output_dir="", workers=2)
+
+    def test_the_values_to_check_and_their_buttons_stay_in_view(self):
+        width, height = self.root.minsize()
+        self.root.geometry(f"{width}x{height}")
+        self.app.panel.book.select(self.app.panel.verify)
+        self.pump(0.5)
+        view = self.app.panel.verify
+        self.assertGreater(view.table.tree.winfo_height(), 100)  # five rows of the list or more
+        for button in view.buttons:
+            self.assertTrue(button.winfo_ismapped() and button.winfo_height() > 10, button.cget("text"))
+        from LocalExtraction.tests.test_layout import seen
+        panel = self.app.panel
+        for widget in (panel.search_button, panel.download_button, panel.book, view.table.tree, *view.buttons):
+            self.assertTrue(seen(widget), widget)  # drawn in view, not merely laid out behind another widget
+        for button in view.buttons:  # whole: not cut at the bottom of the tab
+            self.assertLessEqual(button.winfo_rooty() + button.winfo_height(), view.winfo_rooty() + view.winfo_height(),
+                                 button.cget("text"))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,347 @@
+# Oxide conductors by structure type: spinel, pyrochlore, scheelite, brownmillerite, olivine-related
+#
+# Lithium and sodium conductors of structure types without a file of their own: spinel, pyrochlore (including
+# the pyrochlore-type oxyfluorides), scheelite, brownmillerite, olivine-related and layered oxide frameworks.
+#
+# Kind: crystal-structure types not covered elsewhere.
+#   Prototype: spinel (Fd-3m), pyrochlore (Fd-3m), scheelite (I41/a), brownmillerite, olivine-related,
+#   layered.
+#
+# 114 queries, 15 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/oxide_structure.yaml          # extracts into WebScraping/web_output_oxide_structure
+#   mme-rank --domain electrolyte --source WebScraping/web_output_oxide_structure --kind arrhenius
+
+name: oxide_structure
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Structure types: transport
+    - "spinel lithium ion conductor solid electrolyte"
+    - "spinel structure lithium diffusion pathway"
+    - "pyrochlore lithium ion conductor"
+    - "pyrochlore oxyfluoride lithium conductivity"
+    - "scheelite structure ionic conductivity"
+    - "brownmillerite ionic conductivity vacancy ordering"
+    - "olivine structure lithium ion conduction electrolyte"
+    - "layered oxide fast lithium ion conductor"
+    - "new structure type lithium superionic conductor discovery"
+
+    # spinel lithium ion conductor: every transport measurement and method
+    - "spinel lithium ion conductor ionic conductivity"
+    - "spinel lithium ion conductor activation energy"
+    - "spinel lithium ion conductor lithium ion diffusion"
+    - "spinel lithium ion conductor sodium ion diffusion"
+    - "spinel lithium ion conductor lithium migration barrier"
+    - "spinel lithium ion conductor sodium migration barrier"
+    - "spinel lithium ion conductor ion transport mechanism"
+    - "spinel lithium ion conductor grain boundary conductivity"
+    - "spinel lithium ion conductor bulk ionic conductivity"
+    - "spinel lithium ion conductor impedance spectroscopy"
+    - "spinel lithium ion conductor temperature dependent conductivity"
+    - "spinel lithium ion conductor diffusion coefficient"
+    - "spinel lithium ion conductor doping ionic conductivity"
+    - "spinel lithium ion conductor electronic conductivity"
+    - "spinel lithium ion conductor electrochemical stability window"
+    - "spinel lithium ion conductor interfacial resistance"
+    - "spinel lithium ion conductor molecular dynamics lithium diffusion"
+    - "spinel lithium ion conductor molecular dynamics sodium diffusion"
+    - "spinel lithium ion conductor density functional theory migration"
+    - "spinel lithium ion conductor NMR lithium dynamics"
+    - "spinel lithium ion conductor NMR sodium dynamics"
+    - "spinel lithium ion conductor synthesis ionic conductivity"
+    - "spinel lithium ion conductor fast ion conductor"
+    - "spinel lithium ion conductor superionic conductor"
+
+    # pyrochlore lithium ion conductor: every transport measurement and method
+    - "pyrochlore lithium ion conductor ionic conductivity"
+    - "pyrochlore lithium ion conductor activation energy"
+    - "pyrochlore lithium ion conductor lithium ion diffusion"
+    - "pyrochlore lithium ion conductor sodium ion diffusion"
+    - "pyrochlore lithium ion conductor lithium migration barrier"
+    - "pyrochlore lithium ion conductor sodium migration barrier"
+    - "pyrochlore lithium ion conductor ion transport mechanism"
+    - "pyrochlore lithium ion conductor grain boundary conductivity"
+    - "pyrochlore lithium ion conductor bulk ionic conductivity"
+    - "pyrochlore lithium ion conductor impedance spectroscopy"
+    - "pyrochlore lithium ion conductor temperature dependent conductivity"
+    - "pyrochlore lithium ion conductor diffusion coefficient"
+    - "pyrochlore lithium ion conductor doping ionic conductivity"
+    - "pyrochlore lithium ion conductor electronic conductivity"
+    - "pyrochlore lithium ion conductor electrochemical stability window"
+    - "pyrochlore lithium ion conductor interfacial resistance"
+    - "pyrochlore lithium ion conductor molecular dynamics lithium diffusion"
+    - "pyrochlore lithium ion conductor molecular dynamics sodium diffusion"
+    - "pyrochlore lithium ion conductor density functional theory migration"
+    - "pyrochlore lithium ion conductor NMR lithium dynamics"
+    - "pyrochlore lithium ion conductor NMR sodium dynamics"
+    - "pyrochlore lithium ion conductor synthesis ionic conductivity"
+    - "pyrochlore lithium ion conductor fast ion conductor"
+    - "pyrochlore lithium ion conductor superionic conductor"
+
+    # scheelite type ion conductor: every transport measurement and method
+    - "scheelite type ion conductor ionic conductivity"
+    - "scheelite type ion conductor activation energy"
+    - "scheelite type ion conductor lithium ion diffusion"
+    - "scheelite type ion conductor sodium ion diffusion"
+    - "scheelite type ion conductor lithium migration barrier"
+    - "scheelite type ion conductor sodium migration barrier"
+    - "scheelite type ion conductor ion transport mechanism"
+    - "scheelite type ion conductor grain boundary conductivity"
+    - "scheelite type ion conductor bulk ionic conductivity"
+    - "scheelite type ion conductor impedance spectroscopy"
+    - "scheelite type ion conductor temperature dependent conductivity"
+    - "scheelite type ion conductor diffusion coefficient"
+    - "scheelite type ion conductor doping ionic conductivity"
+    - "scheelite type ion conductor electronic conductivity"
+    - "scheelite type ion conductor electrochemical stability window"
+    - "scheelite type ion conductor interfacial resistance"
+    - "scheelite type ion conductor molecular dynamics lithium diffusion"
+    - "scheelite type ion conductor molecular dynamics sodium diffusion"
+    - "scheelite type ion conductor density functional theory migration"
+    - "scheelite type ion conductor NMR lithium dynamics"
+    - "scheelite type ion conductor NMR sodium dynamics"
+    - "scheelite type ion conductor synthesis ionic conductivity"
+    - "scheelite type ion conductor fast ion conductor"
+    - "scheelite type ion conductor superionic conductor"
+
+    # brownmillerite ion conductor: every transport measurement and method
+    - "brownmillerite ion conductor ionic conductivity"
+    - "brownmillerite ion conductor activation energy"
+    - "brownmillerite ion conductor lithium ion diffusion"
+    - "brownmillerite ion conductor sodium ion diffusion"
+    - "brownmillerite ion conductor lithium migration barrier"
+    - "brownmillerite ion conductor sodium migration barrier"
+    - "brownmillerite ion conductor ion transport mechanism"
+    - "brownmillerite ion conductor grain boundary conductivity"
+    - "brownmillerite ion conductor bulk ionic conductivity"
+    - "brownmillerite ion conductor impedance spectroscopy"
+    - "brownmillerite ion conductor temperature dependent conductivity"
+    - "brownmillerite ion conductor diffusion coefficient"
+    - "brownmillerite ion conductor doping ionic conductivity"
+    - "brownmillerite ion conductor electronic conductivity"
+    - "brownmillerite ion conductor electrochemical stability window"
+    - "brownmillerite ion conductor interfacial resistance"
+    - "brownmillerite ion conductor molecular dynamics lithium diffusion"
+    - "brownmillerite ion conductor molecular dynamics sodium diffusion"
+    - "brownmillerite ion conductor density functional theory migration"
+    - "brownmillerite ion conductor NMR lithium dynamics"
+    - "brownmillerite ion conductor NMR sodium dynamics"
+    - "brownmillerite ion conductor synthesis ionic conductivity"
+    - "brownmillerite ion conductor fast ion conductor"
+    - "brownmillerite ion conductor superionic conductor"
+
+    # spinel lithium ion conductor: transport mechanisms
+    - "spinel lithium ion conductor concerted migration"
+    - "spinel lithium ion conductor vacancy mechanism"
+    - "spinel lithium ion conductor interstitial mechanism"
+    - "spinel lithium ion conductor interstitialcy mechanism"
+    - "spinel lithium ion conductor paddle-wheel mechanism"
+    - "spinel lithium ion conductor correlated ion hopping"
+    - "spinel lithium ion conductor percolation conduction pathway"
+    - "spinel lithium ion conductor bottleneck size migration"
+    - "spinel lithium ion conductor anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_oxide_structure.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Structure-type aliases
+    - "spinel-type solid electrolyte"
+    - "spinel solid electrolyte"
+    - "spinel lithium ion conductor"
+    - "spinel-type lithium conductor"
+    - "pyrochlore solid electrolyte"
+    - "pyrochlore-type solid electrolyte"
+    - "pyrochlore lithium conductor"
+    - "pyrochlore-type oxyfluoride"
+    - "scheelite-type solid electrolyte"
+    - "scheelite ion conductor"
+    - "brownmillerite"
+    - "brownmillerite-type"
+    - "olivine-type ion conductor"
+    - "layered oxide ion conductor"
+    - "Ruddlesden-Popper lithium conductor"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "phosphor"
+    - "luminescence"
+    - "photoluminescence"
+    - "spin ice"
+    - "frustrated magnet"
+    - "magnetic frustration"
+    - "ferrimagnetic"
+    - "oxygen evolution"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_oxide_structure
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

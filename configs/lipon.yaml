@@ -1,0 +1,352 @@
+# LiPON and oxide-glass thin-film electrolytes
+#
+# Lithium phosphorus oxynitride (LiPON) and its relatives (LiSiPON, LiBON, LiPOS), amorphous Li3PO4 and lithium
+# borate, borophosphate and silicate glasses used as thin-film or glassy oxide electrolytes.
+#
+# Kind: material class (amorphous thin films and oxide glasses).
+#   Prototype: amorphous Li-P-O-N; lithium borate and borophosphate glasses.
+#
+# 103 queries, 31 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/lipon.yaml          # extracts into WebScraping/web_output_lipon
+#   mme-rank --domain electrolyte --source WebScraping/web_output_lipon --kind arrhenius
+
+name: lipon
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # LiPON: nitrogen, structure and transport
+    - "LiPON nitrogen content conductivity"
+    - "LiPON apical bridging nitrogen conductivity"
+    - "LiPON sputtering conditions conductivity"
+    - "LiPON thin film lithium metal stability"
+    - "LiPON interface dendrite suppression"
+    - "LiPON atomic layer deposition conductivity"
+    - "LiPON amorphous structure lithium diffusion simulation"
+    - "LiPON electrochemical stability window"
+    - "LiSiPON thin film conductivity"
+    - "LiBON thin film electrolyte"
+
+    # Oxide glasses
+    - "lithium borate glass ionic conductivity"
+    - "lithium borophosphate glass conductivity"
+    - "mixed glass former effect lithium conductivity"
+    - "lithium silicate glass conductivity"
+    - "Li3BO3 sintering aid conductivity"
+    - "oxide glass electrolyte thin film battery"
+
+    # LiPON: every transport measurement and method
+    - "LiPON ionic conductivity"
+    - "LiPON activation energy"
+    - "LiPON lithium ion diffusion"
+    - "LiPON lithium migration barrier"
+    - "LiPON ion transport mechanism"
+    - "LiPON grain boundary conductivity"
+    - "LiPON bulk ionic conductivity"
+    - "LiPON impedance spectroscopy"
+    - "LiPON temperature dependent conductivity"
+    - "LiPON diffusion coefficient"
+    - "LiPON doping ionic conductivity"
+    - "LiPON electronic conductivity"
+    - "LiPON interfacial resistance"
+    - "LiPON molecular dynamics lithium diffusion"
+    - "LiPON density functional theory migration"
+    - "LiPON NMR lithium dynamics"
+    - "LiPON synthesis ionic conductivity"
+    - "LiPON fast ion conductor"
+    - "LiPON superionic conductor"
+
+    # lithium phosphorus oxynitride: every transport measurement and method
+    - "lithium phosphorus oxynitride ionic conductivity"
+    - "lithium phosphorus oxynitride activation energy"
+    - "lithium phosphorus oxynitride lithium ion diffusion"
+    - "lithium phosphorus oxynitride lithium migration barrier"
+    - "lithium phosphorus oxynitride ion transport mechanism"
+    - "lithium phosphorus oxynitride grain boundary conductivity"
+    - "lithium phosphorus oxynitride bulk ionic conductivity"
+    - "lithium phosphorus oxynitride impedance spectroscopy"
+    - "lithium phosphorus oxynitride temperature dependent conductivity"
+    - "lithium phosphorus oxynitride diffusion coefficient"
+    - "lithium phosphorus oxynitride doping ionic conductivity"
+    - "lithium phosphorus oxynitride electronic conductivity"
+    - "lithium phosphorus oxynitride electrochemical stability window"
+    - "lithium phosphorus oxynitride interfacial resistance"
+    - "lithium phosphorus oxynitride molecular dynamics lithium diffusion"
+    - "lithium phosphorus oxynitride density functional theory migration"
+    - "lithium phosphorus oxynitride NMR lithium dynamics"
+    - "lithium phosphorus oxynitride synthesis ionic conductivity"
+    - "lithium phosphorus oxynitride fast ion conductor"
+    - "lithium phosphorus oxynitride superionic conductor"
+
+    # LiPON thin film: every transport measurement and method
+    - "LiPON thin film ionic conductivity"
+    - "LiPON thin film activation energy"
+    - "LiPON thin film lithium ion diffusion"
+    - "LiPON thin film lithium migration barrier"
+    - "LiPON thin film ion transport mechanism"
+    - "LiPON thin film grain boundary conductivity"
+    - "LiPON thin film bulk ionic conductivity"
+    - "LiPON thin film impedance spectroscopy"
+    - "LiPON thin film temperature dependent conductivity"
+    - "LiPON thin film diffusion coefficient"
+    - "LiPON thin film doping ionic conductivity"
+    - "LiPON thin film electronic conductivity"
+    - "LiPON thin film electrochemical stability window"
+    - "LiPON thin film interfacial resistance"
+    - "LiPON thin film molecular dynamics lithium diffusion"
+    - "LiPON thin film density functional theory migration"
+    - "LiPON thin film NMR lithium dynamics"
+    - "LiPON thin film synthesis ionic conductivity"
+    - "LiPON thin film fast ion conductor"
+    - "LiPON thin film superionic conductor"
+
+    # lithium borate glass: every transport measurement and method
+    - "lithium borate glass activation energy"
+    - "lithium borate glass lithium ion diffusion"
+    - "lithium borate glass lithium migration barrier"
+    - "lithium borate glass ion transport mechanism"
+    - "lithium borate glass grain boundary conductivity"
+    - "lithium borate glass bulk ionic conductivity"
+    - "lithium borate glass impedance spectroscopy"
+    - "lithium borate glass temperature dependent conductivity"
+    - "lithium borate glass diffusion coefficient"
+    - "lithium borate glass doping ionic conductivity"
+    - "lithium borate glass electronic conductivity"
+    - "lithium borate glass electrochemical stability window"
+    - "lithium borate glass interfacial resistance"
+    - "lithium borate glass molecular dynamics lithium diffusion"
+    - "lithium borate glass density functional theory migration"
+    - "lithium borate glass NMR lithium dynamics"
+    - "lithium borate glass synthesis ionic conductivity"
+    - "lithium borate glass fast ion conductor"
+    - "lithium borate glass superionic conductor"
+
+    # LiPON: transport mechanisms
+    - "LiPON concerted migration"
+    - "LiPON vacancy mechanism"
+    - "LiPON interstitial mechanism"
+    - "LiPON interstitialcy mechanism"
+    - "LiPON paddle-wheel mechanism"
+    - "LiPON correlated ion hopping"
+    - "LiPON percolation conduction pathway"
+    - "LiPON bottleneck size migration"
+    - "LiPON anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_lipon.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # LiPON and oxide glass aliases
+    - "LiPON"
+    - "lithium phosphorus oxynitride"
+    - "LiSiPON"
+    - "LiBON"
+    - "LiPOS"
+    - "LiPOxNy"
+    - "nitrided Li3PO4"
+    - "nitrogen-doped Li3PO4"
+    - "amorphous Li3PO4"
+    - "lithium borophosphate"
+    - "lithium borate glass"
+    - "oxide glass electrolyte"
+    - "thin-film electrolyte"
+
+    # Formulas
+    - "Li3.3PO3.9N0.17"
+    - "Li2.9PO3.3N0.46"
+    - "Li3PO4"
+    - "Li3BO3"
+    - "Li2O-B2O3"
+    - "Li2O–B2O3"
+    - "Li2O-B2O3-P2O5"
+    - "Li2O–B2O3–P2O5"
+    - "Li2O-SiO2"
+    - "Li2O–SiO2"
+    - "Li2O-P2O5"
+    - "Li2O–P2O5"
+    - "Li3BO3-Li2SO4"
+    - "Li3BO3–Li2SO4"
+    - "Li2.2C0.8B0.2O3"
+
+    # Parts of formulas (find the other compositions)
+    - "PO3.9N"
+    - "PO3.3N"
+    - "POxNy"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "optical glass"
+    - "bioactive glass"
+    - "glaze"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_lipon
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

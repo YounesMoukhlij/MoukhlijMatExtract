@@ -1,0 +1,573 @@
+# Garnet-type solid electrolytes
+#
+# Lithium garnets: Li7La3Zr2O12 (LLZO) and its Al-, Ga-, Ta-, Nb-, W-doped forms, Li5La3M2O12 (M = Ta, Nb),
+# Li6ALa2M2O12 (A = Ca, Sr, Ba) and the Te, Hf and Sn members.
+#
+# Kind: crystal-structure type.
+#   Prototype: garnet A3B2(XO4)3; Li7La3Zr2O12: cubic Ia-3d, tetragonal I41/acd.
+#
+# 256 queries, 55 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/garnet.yaml          # extracts into WebScraping/web_output_garnet
+#   mme-rank --domain electrolyte --source WebScraping/web_output_garnet --kind arrhenius
+
+name: garnet
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # GARNET: general transport and electrolyte properties
+    - "garnet solid electrolyte ionic conductivity"
+    - "garnet solid electrolyte lithium migration"
+    - "garnet solid electrolyte activation energy"
+    - "garnet-type lithium ion conductor"
+    - "garnet oxide electrolyte grain boundary conductivity"
+    - "garnet electrolyte lithium diffusion coefficient"
+    - "garnet electrolyte electronic conductivity"
+    - "garnet electrolyte lithium metal interface"
+    - "garnet solid electrolyte ion transport mechanism"
+    - "garnet solid electrolyte lithium diffusion mechanism"
+    - "garnet solid electrolyte temperature dependent conductivity"
+    - "garnet electrolyte Arrhenius conductivity"
+    - "garnet electrolyte ionic mobility"
+    - "garnet electrolyte lithium hopping mechanism"
+    - "garnet electrolyte lithium site occupancy"
+    - "garnet electrolyte lithium percolation pathway"
+    - "garnet electrolyte lithium transport bottleneck"
+    - "garnet electrolyte structure property relationship"
+
+    # GARNET: LLZO, LLZTO and related compositions
+    - "LLZO lithium lanthanum zirconium oxide garnet solid electrolyte"
+    - "Li7La3Zr2O12 ionic conductivity activation energy"
+    - "cubic LLZO tetragonal LLZO lithium conductivity"
+    - "Al doped LLZO activation energy ionic conductivity"
+    - "Ta doped LLZO lithium vacancy concentration"
+    - "Ga doped LLZO ionic conductivity"
+    - "Nb doped LLZO lithium ion conductivity"
+    - "LLZTO garnet electrolyte ionic conductivity"
+    - "Li5La3Ta2O12 garnet lithium conductivity"
+    - "Li6La3ZrTaO12 garnet ion transport"
+    - "Li5La3Nb2O12 garnet lithium ion conductor"
+    - "garnet LLZO ab initio molecular dynamics lithium diffusion"
+    - "garnet LLZO DFT lithium migration barrier"
+    - "garnet LLZO machine learning ionic conductivity"
+    - "Li6.4La3Zr1.4Ta0.6O12 ionic conductivity"
+    - "Li6.5La3Zr1.5Ta0.5O12 ionic conductivity"
+    - "Li6.25Al0.25La3Zr2O12 ionic conductivity"
+    - "Li6.75La3Zr1.75Ta0.25O12 ionic conductivity"
+    - "Ga doped Li7La3Zr2O12 lithium diffusion"
+    - "Nb doped Li7La3Zr2O12 ionic conductivity"
+    - "Al doped Li7La3Zr2O12 lithium transport"
+    - "Ta doped Li7La3Zr2O12 lithium diffusion"
+    - "LLZO aliovalent doping lithium conductivity"
+    - "LLZO isovalent doping ionic conductivity"
+    - "LLZO co-doping ionic conductivity"
+    - "LLZO dopant concentration activation energy"
+    - "LLZO composition structure conductivity relationship"
+    - "LLZO cubic phase stabilization ionic conductivity"
+    - "LLZO tetragonal cubic phase transition"
+    - "LLZO phase stability temperature ionic conductivity"
+
+    # GARNET: defects, disorder and migration mechanisms
+    - "LLZO lithium vacancy diffusion"
+    - "LLZO interstitial lithium diffusion"
+    - "LLZO vacancy mediated lithium transport"
+    - "LLZO interstitial mediated lithium transport"
+    - "LLZO lithium hopping mechanism"
+    - "LLZO lithium migration pathways"
+    - "LLZO lithium diffusion pathways crystallographic"
+    - "LLZO lithium site occupancy"
+    - "LLZO lithium sublattice disorder conductivity"
+    - "LLZO oxygen vacancies lithium transport"
+    - "LLZO defect chemistry ionic conductivity"
+    - "LLZO charge compensation mechanism"
+    - "LLZO lithium vacancies concentration conductivity"
+    - "LLZO local lithium dynamics"
+    - "LLZO solid state NMR lithium dynamics"
+    - "garnet electrolyte defect formation energy lithium diffusion"
+    - "garnet electrolyte defect concentration ionic conductivity"
+
+    # GARNET: grain boundaries, microstructure and interfaces
+    - "LLZO grain boundary lithium ion transport"
+    - "LLZO grain boundary activation energy"
+    - "LLZO bulk grain boundary ionic conductivity"
+    - "LLZO grain size ionic conductivity relationship"
+    - "LLZO densification microstructure conductivity"
+    - "LLZO porosity ionic conductivity"
+    - "LLZO sintering temperature ionic conductivity"
+    - "LLZO lithium metal interface resistance"
+    - "LLZO interfacial impedance lithium metal"
+    - "LLZO surface contamination ionic conductivity"
+    - "LLZO space charge layer grain boundary"
+    - "garnet solid electrolyte interfacial resistance"
+    - "garnet electrolyte lithium metal contact"
+    - "garnet electrolyte wetting lithium metal interface"
+
+    # GARNET: the other members of the family (Ta, Nb, Te, Hf, Sn and alkaline-earth garnets)
+    - "Li5La3Nb2O12 lithium ion conductivity"
+    - "Li5La3Ta2O12 ionic conductivity"
+    - "Li6BaLa2Ta2O12 ionic conductivity"
+    - "Li6SrLa2Ta2O12 lithium conductivity"
+    - "Li6CaLa2Nb2O12 garnet conductivity"
+    - "Li3Ln3Te2O12 garnet lithium conduction"
+    - "tellurium doped garnet lithium conductivity"
+    - "Li7La3Hf2O12 garnet electrolyte"
+    - "Li7La3Sn2O12 lithium conductivity"
+    - "Li6La3ZrTaO12 ionic conductivity"
+    - "Li-stuffed garnet lithium ion conduction"
+    - "lithium-rich garnet Li site occupancy"
+
+    # GARNET: dopants of LLZO and the cubic phase
+    - "aluminum doped Li7La3Zr2O12 cubic phase conductivity"
+    - "gallium doped LLZO ionic conductivity"
+    - "tantalum doped LLZO ionic conductivity"
+    - "niobium doped LLZO lithium conductivity"
+    - "tungsten doped LLZO conductivity"
+    - "molybdenum doped LLZO conductivity"
+    - "tellurium doped LLZO conductivity"
+    - "antimony doped LLZO conductivity"
+    - "yttrium doped LLZO conductivity"
+    - "strontium doped LLZO conductivity"
+    - "Ga Al dual doped LLZO"
+    - "Ta Al co-doped LLZO"
+    - "cubic tetragonal phase transition LLZO lithium ordering"
+    - "lithium vacancy concentration garnet conductivity"
+
+    # GARNET: processing that changes transport
+    - "LLZO hot pressing relative density ionic conductivity"
+    - "LLZO field assisted sintering spark plasma conductivity"
+    - "LLZO lithium loss sintering atmosphere conductivity"
+    - "LLZO sintering aid Li3BO3 conductivity"
+    - "garnet thin film sputtering lithium conductivity"
+    - "garnet thin film pulsed laser deposition conductivity"
+    - "LLZO tape casting thin membrane conductivity"
+    - "LLZO nanofiber composite electrolyte conductivity"
+    - "garnet ceramic abnormal grain growth conductivity"
+
+    # GARNET: stability in air and water, and Li+/H+ exchange
+    - "LLZO Li+/H+ exchange proton conductivity"
+    - "garnet Li2CO3 surface layer interfacial resistance"
+    - "LLZO moisture stability ionic conductivity"
+    - "garnet electrolyte air exposure degradation conductivity"
+
+    # METHODS used on these families
+    - "7Li NMR relaxation garnet lithium hopping"
+    - "muon spin relaxation lithium diffusion garnet"
+    - "6Li tracer diffusion garnet SIMS"
+    - "bond valence site energy garnet migration"
+    - "distribution of relaxation times garnet impedance"
+    - "neutron diffraction lithium distribution garnet"
+    - "maximum entropy method nuclear density garnet lithium"
+    - "quasielastic neutron scattering lithium garnet"
+
+    # garnet solid electrolyte: every transport measurement and method
+    - "garnet solid electrolyte lithium ion diffusion"
+    - "garnet solid electrolyte lithium migration barrier"
+    - "garnet solid electrolyte grain boundary conductivity"
+    - "garnet solid electrolyte bulk ionic conductivity"
+    - "garnet solid electrolyte impedance spectroscopy"
+    - "garnet solid electrolyte diffusion coefficient"
+    - "garnet solid electrolyte doping ionic conductivity"
+    - "garnet solid electrolyte electronic conductivity"
+    - "garnet solid electrolyte electrochemical stability window"
+    - "garnet solid electrolyte molecular dynamics lithium diffusion"
+    - "garnet solid electrolyte density functional theory migration"
+    - "garnet solid electrolyte NMR lithium dynamics"
+    - "garnet solid electrolyte synthesis ionic conductivity"
+
+    # LLZO: every transport measurement and method
+    - "LLZO ionic conductivity"
+    - "LLZO activation energy"
+    - "LLZO lithium ion diffusion"
+    - "LLZO lithium migration barrier"
+    - "LLZO ion transport mechanism"
+    - "LLZO grain boundary conductivity"
+    - "LLZO bulk ionic conductivity"
+    - "LLZO impedance spectroscopy"
+    - "LLZO temperature dependent conductivity"
+    - "LLZO diffusion coefficient"
+    - "LLZO doping ionic conductivity"
+    - "LLZO electronic conductivity"
+    - "LLZO electrochemical stability window"
+    - "LLZO interfacial resistance"
+    - "LLZO molecular dynamics lithium diffusion"
+    - "LLZO density functional theory migration"
+    - "LLZO NMR lithium dynamics"
+    - "LLZO synthesis ionic conductivity"
+
+    # LLZTO: every transport measurement and method
+    - "LLZTO ionic conductivity"
+    - "LLZTO activation energy"
+    - "LLZTO lithium ion diffusion"
+    - "LLZTO lithium migration barrier"
+    - "LLZTO ion transport mechanism"
+    - "LLZTO grain boundary conductivity"
+    - "LLZTO bulk ionic conductivity"
+    - "LLZTO impedance spectroscopy"
+    - "LLZTO temperature dependent conductivity"
+    - "LLZTO diffusion coefficient"
+    - "LLZTO doping ionic conductivity"
+    - "LLZTO electronic conductivity"
+    - "LLZTO electrochemical stability window"
+    - "LLZTO interfacial resistance"
+    - "LLZTO molecular dynamics lithium diffusion"
+    - "LLZTO density functional theory migration"
+    - "LLZTO NMR lithium dynamics"
+    - "LLZTO synthesis ionic conductivity"
+
+    # Li7La3Zr2O12: every transport measurement and method
+    - "Li7La3Zr2O12 ionic conductivity"
+    - "Li7La3Zr2O12 activation energy"
+    - "Li7La3Zr2O12 lithium ion diffusion"
+    - "Li7La3Zr2O12 lithium migration barrier"
+    - "Li7La3Zr2O12 ion transport mechanism"
+    - "Li7La3Zr2O12 grain boundary conductivity"
+    - "Li7La3Zr2O12 bulk ionic conductivity"
+    - "Li7La3Zr2O12 impedance spectroscopy"
+    - "Li7La3Zr2O12 temperature dependent conductivity"
+    - "Li7La3Zr2O12 diffusion coefficient"
+    - "Li7La3Zr2O12 doping ionic conductivity"
+    - "Li7La3Zr2O12 electronic conductivity"
+    - "Li7La3Zr2O12 electrochemical stability window"
+    - "Li7La3Zr2O12 interfacial resistance"
+    - "Li7La3Zr2O12 molecular dynamics lithium diffusion"
+    - "Li7La3Zr2O12 density functional theory migration"
+    - "Li7La3Zr2O12 NMR lithium dynamics"
+    - "Li7La3Zr2O12 synthesis ionic conductivity"
+
+    # Ga-LLZO: every transport measurement and method
+    - "Ga-LLZO ionic conductivity"
+    - "Ga-LLZO activation energy"
+    - "Ga-LLZO lithium ion diffusion"
+    - "Ga-LLZO lithium migration barrier"
+    - "Ga-LLZO ion transport mechanism"
+    - "Ga-LLZO grain boundary conductivity"
+    - "Ga-LLZO bulk ionic conductivity"
+    - "Ga-LLZO impedance spectroscopy"
+    - "Ga-LLZO temperature dependent conductivity"
+    - "Ga-LLZO diffusion coefficient"
+    - "Ga-LLZO doping ionic conductivity"
+    - "Ga-LLZO electronic conductivity"
+    - "Ga-LLZO electrochemical stability window"
+    - "Ga-LLZO interfacial resistance"
+    - "Ga-LLZO molecular dynamics lithium diffusion"
+    - "Ga-LLZO density functional theory migration"
+    - "Ga-LLZO NMR lithium dynamics"
+    - "Ga-LLZO synthesis ionic conductivity"
+
+    # COMPUTATIONAL METHODS: DFT, AIMD, MD, NEB and atomistic modelling
+    - "LLZO density functional theory lithium diffusion"
+    - "garnet solid electrolyte first principles calculations"
+    - "LLZO ab initio molecular dynamics"
+    - "LLZO classical molecular dynamics diffusion"
+    - "LLZO nudged elastic band lithium migration"
+    - "LLZO DFT migration energy barriers"
+    - "LLZO kinetic Monte Carlo lithium diffusion"
+    - "LLZO machine learning interatomic potential"
+    - "garnet electrolyte atomistic simulation ionic conductivity"
+    - "LLZO lithium mean squared displacement"
+    - "LLZO Arrhenius diffusion coefficient"
+    - "garnet electrolyte free energy lithium migration"
+
+    # EXPERIMENTAL CHARACTERIZATION
+    - "LLZO electrochemical impedance spectroscopy"
+    - "LLZO impedance spectroscopy activation energy"
+    - "LLZO temperature dependent ionic conductivity"
+    - "LLZO temperature dependent impedance"
+    - "LLZO conductivity Arrhenius plot"
+    - "LLZO ionic conductivity pellet density"
+    - "LLZO blocking electrode conductivity"
+    - "LLZO DC polarization electronic conductivity"
+
+    # MACHINE LEARNING AND DATA-DRIVEN STUDIES
+    - "LLZO machine learning ionic conductivity prediction"
+    - "garnet solid electrolyte machine learning transport"
+    - "LLZO data driven ionic conductivity"
+    - "solid electrolyte activation energy machine learning garnet"
+    - "LLZO machine learning interatomic potential molecular dynamics"
+    - "garnet electrolyte composition property prediction"
+
+    # garnet solid electrolyte: every transport measurement and method
+    - "garnet solid electrolyte fast ion conductor"
+    - "garnet solid electrolyte superionic conductor"
+
+    # LLZO: every transport measurement and method
+    - "LLZO fast ion conductor"
+    - "LLZO superionic conductor"
+
+    # LLZTO: every transport measurement and method
+    - "LLZTO fast ion conductor"
+    - "LLZTO superionic conductor"
+
+    # Li7La3Zr2O12: every transport measurement and method
+    - "Li7La3Zr2O12 fast ion conductor"
+    - "Li7La3Zr2O12 superionic conductor"
+
+    # Ga-LLZO: every transport measurement and method
+    - "Ga-LLZO fast ion conductor"
+    - "Ga-LLZO superionic conductor"
+
+    # garnet solid electrolyte: transport mechanisms
+    - "garnet solid electrolyte concerted migration"
+    - "garnet solid electrolyte vacancy mechanism"
+    - "garnet solid electrolyte interstitial mechanism"
+    - "garnet solid electrolyte interstitialcy mechanism"
+    - "garnet solid electrolyte paddle-wheel mechanism"
+    - "garnet solid electrolyte correlated ion hopping"
+    - "garnet solid electrolyte percolation conduction pathway"
+    - "garnet solid electrolyte bottleneck size migration"
+    - "garnet solid electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_garnet.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Garnet family and aliases
+    - "garnet"
+    - "garnet-type"
+    - "garnet structured"
+    - "LLZO"
+    - "LLZTO"
+    - "Li7La3Zr2O12"
+    - "Li6.4La3Zr1.4Ta0.6O12"
+    - "Li6.5La3Zr1.5Ta0.5O12"
+    - "Li6.25Al0.25La3Zr2O12"
+    - "Li6.75La3Zr1.75Ta0.25O12"
+    - "Li5La3Ta2O12"
+    - "Li5La3Nb2O12"
+    - "Li6La3ZrTaO12"
+    - "Ta-LLZO"
+    - "Ta–LLZO"
+    - "Al-LLZO"
+    - "Al–LLZO"
+    - "Ga-LLZO"
+    - "Ga–LLZO"
+    - "Nb-LLZO"
+    - "Nb–LLZO"
+    - "doped LLZO"
+    - "cubic garnet electrolyte"
+    - "tetragonal garnet electrolyte"
+
+    # More garnet abbreviations and names
+    - "LLZ"
+    - "LLZNO"
+    - "LLZNbO"
+    - "LLZAO"
+    - "LALZO"
+    - "LGLZO"
+    - "LLZGO"
+    - "LLZWO"
+    - "LLZTaO"
+    - "lithium lanthanum zirconate"
+    - "lithium lanthanum zirconium oxide"
+    - "lithium lanthanum zirconium tantalum oxide"
+    - "lithium lanthanum tantalate"
+
+    # More garnet formulas
+    - "La3Zr2O12"
+    - "La3Ta2O12"
+    - "La3Nb2O12"
+    - "La3Hf2O12"
+    - "La3Sn2O12"
+    - "La2Ta2O12"
+    - "La2Nb2O12"
+    - "Li6.4Ga0.2La3Zr2O12"
+    - "Li6.25Ga0.25La3Zr2O12"
+    - "Li6.6La3Zr1.6Ta0.4O12"
+    - "Li6.5La3Zr1.5Nb0.5O12"
+    - "Li6.75La3Zr1.75Nb0.25O12"
+    - "Li7La3Hf2O12"
+    - "Li7La3Sn2O12"
+    - "Li6BaLa2Ta2O12"
+    - "Li6SrLa2Ta2O12"
+    - "La3Zr1"
+    - "Te2O12"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "metamorphic"
+    - "eclogite"
+    - "granulite"
+    - "geothermobarometry"
+    - "mantle"
+    - "petrology"
+    - "YAG"
+    - "yttrium aluminum garnet"
+    - "YIG"
+    - "yttrium iron garnet"
+    - "magnonic"
+    - "ferrimagnetic"
+    - "phosphor"
+    - "luminescence"
+    - "scintillator"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_garnet
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

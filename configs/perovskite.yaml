@@ -1,0 +1,389 @@
+# Perovskite-type lithium-ion conductors (LLTO and relatives)
+#
+# A-site-deficient perovskite lithium-ion conductors: Li3xLa2/3-xTiO3 (LLTO), LSTZ (Li3/8Sr7/16Ta3/4Zr1/4O3),
+# Li-Sr-(Ta,Nb,Hf) perovskites. Halide perovskites for solar cells are kept out.
+#
+# Kind: crystal-structure type.
+#   Prototype: ABO3 perovskite, A-site deficient; Li3xLa2/3-xTiO3 (P4/mmm, Cmmm).
+#
+# 130 queries, 23 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/perovskite.yaml          # extracts into WebScraping/web_output_perovskite
+#   mme-rank --domain electrolyte --source WebScraping/web_output_perovskite --kind arrhenius
+
+name: perovskite
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Perovskite: structure and transport
+    - "LLTO A-site vacancy lithium conduction"
+    - "LLTO bottleneck size lithium migration"
+    - "LLTO octahedral tilting conductivity"
+    - "LLTO lithium content conductivity maximum"
+    - "LLTO superlattice ordering conductivity"
+    - "LLTO grain boundary blocking effect"
+    - "LLTO bulk grain boundary separation impedance"
+    - "LLTO thin film conductivity"
+    - "LLTO single crystal anisotropic conductivity"
+    - "LLTO percolation lithium conduction"
+
+    # Perovskite: substitutions and new members
+    - "LLTO aluminum substitution conductivity"
+    - "LLTO strontium substitution conductivity"
+    - "Li3/8Sr7/16Ta3/4Zr1/4O3 lithium conductivity"
+    - "LSTZ perovskite electrolyte"
+    - "lithium strontium tantalate perovskite conductivity"
+    - "Li3xLa1/3-xNbO3 lithium conductivity"
+    - "perovskite lithium conductor high entropy"
+
+    # Perovskite: stability
+    - "LLTO Ti4+ reduction lithium metal"
+    - "LLTO electronic conductivity reduction"
+    - "LLTO composite polymer electrolyte conductivity"
+    - "LLTO nanofiber composite electrolyte"
+
+    # LLTO: every transport measurement and method
+    - "LLTO ionic conductivity"
+    - "LLTO activation energy"
+    - "LLTO lithium ion diffusion"
+    - "LLTO lithium migration barrier"
+    - "LLTO ion transport mechanism"
+    - "LLTO grain boundary conductivity"
+    - "LLTO bulk ionic conductivity"
+    - "LLTO impedance spectroscopy"
+    - "LLTO temperature dependent conductivity"
+    - "LLTO diffusion coefficient"
+    - "LLTO doping ionic conductivity"
+    - "LLTO electronic conductivity"
+    - "LLTO electrochemical stability window"
+    - "LLTO interfacial resistance"
+    - "LLTO molecular dynamics lithium diffusion"
+    - "LLTO density functional theory migration"
+    - "LLTO NMR lithium dynamics"
+    - "LLTO synthesis ionic conductivity"
+    - "LLTO fast ion conductor"
+    - "LLTO superionic conductor"
+
+    # lithium lanthanum titanate: every transport measurement and method
+    - "lithium lanthanum titanate ionic conductivity"
+    - "lithium lanthanum titanate activation energy"
+    - "lithium lanthanum titanate lithium ion diffusion"
+    - "lithium lanthanum titanate lithium migration barrier"
+    - "lithium lanthanum titanate ion transport mechanism"
+    - "lithium lanthanum titanate grain boundary conductivity"
+    - "lithium lanthanum titanate bulk ionic conductivity"
+    - "lithium lanthanum titanate impedance spectroscopy"
+    - "lithium lanthanum titanate temperature dependent conductivity"
+    - "lithium lanthanum titanate diffusion coefficient"
+    - "lithium lanthanum titanate doping ionic conductivity"
+    - "lithium lanthanum titanate electronic conductivity"
+    - "lithium lanthanum titanate electrochemical stability window"
+    - "lithium lanthanum titanate interfacial resistance"
+    - "lithium lanthanum titanate molecular dynamics lithium diffusion"
+    - "lithium lanthanum titanate density functional theory migration"
+    - "lithium lanthanum titanate NMR lithium dynamics"
+    - "lithium lanthanum titanate synthesis ionic conductivity"
+    - "lithium lanthanum titanate fast ion conductor"
+    - "lithium lanthanum titanate superionic conductor"
+
+    # Li3xLa2/3-xTiO3: every transport measurement and method
+    - "Li3xLa2/3-xTiO3 ionic conductivity"
+    - "Li3xLa2/3-xTiO3 activation energy"
+    - "Li3xLa2/3-xTiO3 lithium ion diffusion"
+    - "Li3xLa2/3-xTiO3 lithium migration barrier"
+    - "Li3xLa2/3-xTiO3 ion transport mechanism"
+    - "Li3xLa2/3-xTiO3 grain boundary conductivity"
+    - "Li3xLa2/3-xTiO3 bulk ionic conductivity"
+    - "Li3xLa2/3-xTiO3 impedance spectroscopy"
+    - "Li3xLa2/3-xTiO3 temperature dependent conductivity"
+    - "Li3xLa2/3-xTiO3 diffusion coefficient"
+    - "Li3xLa2/3-xTiO3 doping ionic conductivity"
+    - "Li3xLa2/3-xTiO3 electronic conductivity"
+    - "Li3xLa2/3-xTiO3 electrochemical stability window"
+    - "Li3xLa2/3-xTiO3 interfacial resistance"
+    - "Li3xLa2/3-xTiO3 molecular dynamics lithium diffusion"
+    - "Li3xLa2/3-xTiO3 density functional theory migration"
+    - "Li3xLa2/3-xTiO3 NMR lithium dynamics"
+    - "Li3xLa2/3-xTiO3 synthesis ionic conductivity"
+    - "Li3xLa2/3-xTiO3 fast ion conductor"
+    - "Li3xLa2/3-xTiO3 superionic conductor"
+
+    # Li0.33La0.56TiO3: every transport measurement and method
+    - "Li0.33La0.56TiO3 ionic conductivity"
+    - "Li0.33La0.56TiO3 activation energy"
+    - "Li0.33La0.56TiO3 lithium ion diffusion"
+    - "Li0.33La0.56TiO3 lithium migration barrier"
+    - "Li0.33La0.56TiO3 ion transport mechanism"
+    - "Li0.33La0.56TiO3 grain boundary conductivity"
+    - "Li0.33La0.56TiO3 bulk ionic conductivity"
+    - "Li0.33La0.56TiO3 impedance spectroscopy"
+    - "Li0.33La0.56TiO3 temperature dependent conductivity"
+    - "Li0.33La0.56TiO3 diffusion coefficient"
+    - "Li0.33La0.56TiO3 doping ionic conductivity"
+    - "Li0.33La0.56TiO3 electronic conductivity"
+    - "Li0.33La0.56TiO3 electrochemical stability window"
+    - "Li0.33La0.56TiO3 interfacial resistance"
+    - "Li0.33La0.56TiO3 molecular dynamics lithium diffusion"
+    - "Li0.33La0.56TiO3 density functional theory migration"
+    - "Li0.33La0.56TiO3 NMR lithium dynamics"
+    - "Li0.33La0.56TiO3 synthesis ionic conductivity"
+    - "Li0.33La0.56TiO3 fast ion conductor"
+    - "Li0.33La0.56TiO3 superionic conductor"
+
+    # perovskite lithium ion conductor: every transport measurement and method
+    - "perovskite lithium ion conductor ionic conductivity"
+    - "perovskite lithium ion conductor activation energy"
+    - "perovskite lithium ion conductor lithium ion diffusion"
+    - "perovskite lithium ion conductor lithium migration barrier"
+    - "perovskite lithium ion conductor ion transport mechanism"
+    - "perovskite lithium ion conductor grain boundary conductivity"
+    - "perovskite lithium ion conductor bulk ionic conductivity"
+    - "perovskite lithium ion conductor impedance spectroscopy"
+    - "perovskite lithium ion conductor temperature dependent conductivity"
+    - "perovskite lithium ion conductor diffusion coefficient"
+    - "perovskite lithium ion conductor doping ionic conductivity"
+    - "perovskite lithium ion conductor electronic conductivity"
+    - "perovskite lithium ion conductor electrochemical stability window"
+    - "perovskite lithium ion conductor interfacial resistance"
+    - "perovskite lithium ion conductor molecular dynamics lithium diffusion"
+    - "perovskite lithium ion conductor density functional theory migration"
+    - "perovskite lithium ion conductor NMR lithium dynamics"
+    - "perovskite lithium ion conductor synthesis ionic conductivity"
+    - "perovskite lithium ion conductor fast ion conductor"
+    - "perovskite lithium ion conductor superionic conductor"
+
+    # LLTO: transport mechanisms
+    - "LLTO concerted migration"
+    - "LLTO vacancy mechanism"
+    - "LLTO interstitial mechanism"
+    - "LLTO interstitialcy mechanism"
+    - "LLTO paddle-wheel mechanism"
+    - "LLTO correlated ion hopping"
+    - "LLTO percolation conduction pathway"
+    - "LLTO bottleneck size migration"
+    - "LLTO anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_perovskite.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Perovskite lithium conductors: aliases
+    - "LLTO"
+    - "lithium lanthanum titanate"
+    - "perovskite-type lithium conductor"
+    - "A-site deficient perovskite"
+    - "perovskite solid electrolyte"
+    - "perovskite-type solid electrolyte"
+    - "LSTZ"
+
+    # Perovskite formulas
+    - "Li3xLa2/3-xTiO3"
+    - "La2/3-xLi3xTiO3"
+    - "Li0.33La0.56TiO3"
+    - "Li0.34La0.51TiO2.94"
+    - "Li0.5La0.5TiO3"
+    - "Li0.35La0.55TiO3"
+    - "Li0.3La0.57TiO3"
+    - "Li3/8Sr7/16Ta3/4Zr1/4O3"
+    - "Li0.375Sr0.4375Ta0.75Zr0.25O3"
+    - "Li0.375Sr0.4375Ta0.75Hf0.25O3"
+    - "LiSr1-xTaO3"
+    - "Li3xLa1/3-xNbO3"
+    - "La1/3NbO3"
+
+    # Parts of perovskite formulas (find the doped members)
+    - "La0.56TiO3"
+    - "La0.5TiO3"
+    - "Sr0.4375Ta0.75"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "perovskite solar"
+    - "photovoltaic"
+    - "halide perovskite"
+    - "lead halide"
+    - "CsPbBr3"
+    - "CsPbI3"
+    - "MAPbI3"
+    - "methylammonium"
+    - "formamidinium"
+    - "light-emitting"
+    - "quantum dot"
+    - "ferroelectric"
+    - "piezoelectric"
+    - "multiferroic"
+    - "proton-conducting"
+    - "oxygen evolution"
+    - "photodetector"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_perovskite
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

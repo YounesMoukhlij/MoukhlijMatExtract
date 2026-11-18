@@ -30,9 +30,41 @@ from . import console, exporters, html_report, loader
 from .about import DEFAULT_RESULTS, NAME, PROJECT_ROOT
 from .criteria import DOMAIN_CRITERIA, POLICIES, Criteria, CriteriaError
 from .models import COMPONENTS, Filters, component_word
-from .selection import select_from_each
+from .selection import BOOTSTRAP, SEED, select_from_each
 
 FORMATS = ("csv", "xlsx", "json", "html")
+# The kinds of energy a value can be (LocalExtraction's energy_kind): --kind and the window rank one of them.
+ENERGY_KINDS = ("arrhenius", "migration_barrier", "bvse", "local_hop", "vtf", "unspecified")
+
+
+def ranking_settings(databases: Sequence[Path], criteria: Criteria, policy: str | None, by_phase: bool,
+                     filters: Filters, top: int | None, formats: Sequence[str], bootstrap: int = BOOTSTRAP) -> dict:
+    """What a ranking is made of, as the command and the window both record it (its fingerprint and its run): with
+    the checks a person made of the values (other checks, another ranking) and the resamplings of the rank
+    intervals."""
+    from LocalExtraction.verification import Verifications
+    return {"databases": [str(Path(d).resolve()) for d in databases], "criteria": repr(criteria),
+            "policy": policy, "by_phase": by_phase, "filters": repr(filters), "top": top,
+            "formats": sorted(formats), "bootstrap": bootstrap, "seed": SEED,
+            "checked_by_hand": {Path(d).name: Verifications.of(Path(d)).digest() for d in databases}}
+
+
+def ranking_stamp(databases: Sequence[Path], settings: dict) -> str:
+    """The fingerprint of a ranking: the databases, the settings and this code."""
+    return fingerprint(databases, settings, code=[Path(__file__).resolve().parent])
+
+
+def ranking_run(out_dir: Path, settings: dict, filters: Filters) -> Run:
+    return Run("ranking", out_dir, settings={**settings, "include_flagged": filters.include_flagged,
+                                            "min_confidence": filters.min_confidence})
+
+
+def record_ranking(out_dir: Path, stamp: str, run: Run, selections, written_by: dict) -> None:
+    """Says what a ranking wrote into `out_dir`: the next one with the same fingerprint is skipped, and the run is
+    in run_manifest.json. Whoever writes the files — the command or the window — records them, or a ranking made
+    with other settings would be taken for the one of the stamp."""
+    mark_done(out_dir, "rank", stamp, [p for paths in written_by.values() for p in paths])
+    _record(run, selections)
 
 
 def _record(run: Run, selections) -> None:
@@ -81,7 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
     values.add_argument("--component", metavar="NAME",
                         help="Rank one transport component only: bulk, grain_boundary (or \"grain boundary\"), "
                              "total. By default each is ranked on its own, into a folder of its own")
-    values.add_argument("--kind", choices=("arrhenius", "migration_barrier", "bvse", "local_hop", "vtf", "unspecified"),
+    values.add_argument("--kind", choices=ENERGY_KINDS,
                         help="Rank one kind of energy only (the energy_kind column): arrhenius (the slope of long-range "
                              "transport: impedance, molecular dynamics), migration_barrier (a static barrier of one hop, "
                              "NEB), bvse, local_hop (NMR relaxation), vtf. Different kinds are different quantities; by "
@@ -90,12 +122,22 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Only the materials that contain these elements (--element Na: the sodium conductors)")
     values.add_argument("--min-confidence", type=_confidence, default=0.0, metavar="0-1",
                         help="Only the values the extraction gave at least this confidence (default: all)")
+    values.add_argument("--materials-project", action="store_true",
+                        help="Also write materials_project.csv: each ranked material beside its Materials Project "
+                             "entry (stability, band gap, space group, link). Needs MP_API_KEY (free); the ranking "
+                             "itself is unchanged")
+    values.add_argument("--verified-only", action="store_true",
+                        help="Rank only the values a person checked (the Verify tab of windows 1 and 2): correct or "
+                             "corrected. Values marked wrong never take part, with or without this option")
     values.add_argument("--include-flagged", action="store_true",
                         help="Also rank the values the extraction flagged (plausibility \"check: …\"): outside "
                              "0.05–1.5 eV, or the transport of electrons or of another element than a conducting "
                              "ion. By default they are left out")
 
     shown = parser.add_argument_group("what is shown and written")
+    shown.add_argument("--bootstrap", type=int, default=BOOTSTRAP, metavar="N",
+                       help=f"Resamplings of the values behind the rank intervals (rank_95, p_top10; default {BOOTSTRAP}, "
+                            "0: none)")
     shown.add_argument("--top", type=_positive, metavar="N",
                        help="Keep the first N materials that pass, in the terminal and in top_materials")
     shown.add_argument("--format", nargs="+", action="extend", choices=FORMATS, metavar="FORMAT",
@@ -138,12 +180,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     filters = Filters(min_confidence=args.min_confidence, origin=args.origin or "",
                       attribution=(args.attribution or "").replace("-", " "), component=args.component or "",
-                      kind=args.kind or "", elements=tuple(dict.fromkeys(args.element or ())), include_flagged=args.include_flagged)
+                      kind=args.kind or "", elements=tuple(dict.fromkeys(args.element or ())), include_flagged=args.include_flagged,
+                      verified_only=args.verified_only)
     # The same databases, criteria, options and code as the ranking already in --out: already done.
-    settings = {"databases": [str(Path(d).resolve()) for d in databases], "criteria": repr(criteria),
-                "policy": args.policy, "by_phase": args.by_phase, "filters": repr(filters), "top": args.top,
-                "formats": sorted(args.format or FORMATS)}
-    stamp = fingerprint(databases, settings, code=[Path(__file__).resolve().parent])
+    settings = ranking_settings(databases, criteria, args.policy, args.by_phase, filters, args.top,
+                                args.format or FORMATS, args.bootstrap)
+    stamp = ranking_stamp(databases, settings)
     when = None if args.force or args.no_files else already_done(out_dir, "rank", stamp)
     if when:
         if not args.quiet:
@@ -154,10 +196,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             webbrowser.open(report.resolve().as_uri())
         return 0
 
-    run = Run("ranking", out_dir, settings={**settings, "include_flagged": args.include_flagged,
-                                            "min_confidence": args.min_confidence})
+    run = ranking_run(out_dir, settings, filters)
     selections = select_from_each(databases, criteria, root=PROJECT_ROOT, policy=args.policy,
-                                  by_phase=args.by_phase, filters=filters)
+                                  by_phase=args.by_phase, filters=filters, bootstrap=args.bootstrap)
     ranked = any(s.materials for s in selections.values())
 
     written_by: dict[str, list[Path]] = {}
@@ -166,8 +207,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             written_by = write_rankings(selections, out_dir, args.format or FORMATS, args.top)
         except OSError as error:
             return _fail(str(error))
-        mark_done(out_dir, "rank", stamp, [p for paths in written_by.values() for p in paths])
-        _record(run, selections)
+        record_ranking(out_dir, stamp, run, selections, written_by)
+        if args.materials_project:  # beside the ranking, not part of it: its fingerprint is unchanged
+            from WebScraping.averageScrap.job import load_env
+            from . import materials_project
+            load_env()  # MP_API_KEY, from ~/MoukhlijMatExtract/.env
+            found = materials_project.link(selections, out_dir)
+            if found is not None:
+                print(f"\n  Materials Project entries: {_shown(found)}")
 
     if not args.quiet or not ranked:
         stream = sys.stdout if ranked else sys.stderr

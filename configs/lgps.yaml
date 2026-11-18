@@ -1,0 +1,369 @@
+# LGPS-type (Li10GeP2S12 family) solid electrolytes
+#
+# Li10GeP2S12 and its relatives: Li10SnP2S12, Li10SiP2S12, Li11Si2PS12, Li9.54Si1.74P1.44S11.7Cl0.3, and the
+# LGPS-type selenides and oxygen- or halogen-substituted phases.
+#
+# Kind: crystal-structure type.
+#   Prototype: Li10GeP2S12, tetragonal P42/nmc.
+#
+# 129 queries, 21 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/lgps.yaml          # extracts into WebScraping/web_output_lgps
+#   mme-rank --domain electrolyte --source WebScraping/web_output_lgps --kind arrhenius
+
+name: lgps
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # LGPS: structure and anisotropic transport
+    - "Li10GeP2S12 one-dimensional diffusion channel"
+    - "LGPS c-axis lithium diffusion"
+    - "LGPS three-dimensional lithium diffusion"
+    - "LGPS tetragonal P42/nmc lithium sites"
+    - "LGPS anisotropic conductivity single crystal"
+    - "Li10GeP2S12 lithium disorder neutron diffraction"
+    - "LGPS framework polyanion lithium transport"
+    - "Li10GeP2S12 vacancy lithium conduction"
+
+    # LGPS: substitutions and new members
+    - "Li10SnP2S12 tin substitution conductivity"
+    - "Li10SiP2S12 silicon substitution conductivity"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 high power"
+    - "Li11Si2PS12 high pressure synthesis conductivity"
+    - "LGPS oxygen substitution stability"
+    - "LGPS halogen substitution conductivity"
+    - "LGPS-type Li10GeP2Se12 conductivity"
+    - "Li10GeP2S12 high entropy substitution"
+
+    # LGPS: stability and interfaces
+    - "Li10GeP2S12 electrochemical decomposition"
+    - "Li10GeP2S12 lithium metal interface reaction"
+    - "LGPS interphase growth impedance"
+    - "LGPS phase stability metastable"
+
+    # LGPS: every transport measurement and method
+    - "LGPS ionic conductivity"
+    - "LGPS activation energy"
+    - "LGPS lithium ion diffusion"
+    - "LGPS lithium migration barrier"
+    - "LGPS ion transport mechanism"
+    - "LGPS grain boundary conductivity"
+    - "LGPS bulk ionic conductivity"
+    - "LGPS impedance spectroscopy"
+    - "LGPS temperature dependent conductivity"
+    - "LGPS diffusion coefficient"
+    - "LGPS doping ionic conductivity"
+    - "LGPS electronic conductivity"
+    - "LGPS electrochemical stability window"
+    - "LGPS interfacial resistance"
+    - "LGPS molecular dynamics lithium diffusion"
+    - "LGPS density functional theory migration"
+    - "LGPS NMR lithium dynamics"
+    - "LGPS synthesis ionic conductivity"
+    - "LGPS fast ion conductor"
+    - "LGPS superionic conductor"
+
+    # Li10GeP2S12: every transport measurement and method
+    - "Li10GeP2S12 ionic conductivity"
+    - "Li10GeP2S12 activation energy"
+    - "Li10GeP2S12 lithium ion diffusion"
+    - "Li10GeP2S12 lithium migration barrier"
+    - "Li10GeP2S12 ion transport mechanism"
+    - "Li10GeP2S12 grain boundary conductivity"
+    - "Li10GeP2S12 bulk ionic conductivity"
+    - "Li10GeP2S12 impedance spectroscopy"
+    - "Li10GeP2S12 temperature dependent conductivity"
+    - "Li10GeP2S12 diffusion coefficient"
+    - "Li10GeP2S12 doping ionic conductivity"
+    - "Li10GeP2S12 electronic conductivity"
+    - "Li10GeP2S12 electrochemical stability window"
+    - "Li10GeP2S12 interfacial resistance"
+    - "Li10GeP2S12 molecular dynamics lithium diffusion"
+    - "Li10GeP2S12 density functional theory migration"
+    - "Li10GeP2S12 NMR lithium dynamics"
+    - "Li10GeP2S12 synthesis ionic conductivity"
+    - "Li10GeP2S12 fast ion conductor"
+    - "Li10GeP2S12 superionic conductor"
+
+    # Li10SnP2S12: every transport measurement and method
+    - "Li10SnP2S12 ionic conductivity"
+    - "Li10SnP2S12 activation energy"
+    - "Li10SnP2S12 lithium ion diffusion"
+    - "Li10SnP2S12 lithium migration barrier"
+    - "Li10SnP2S12 ion transport mechanism"
+    - "Li10SnP2S12 grain boundary conductivity"
+    - "Li10SnP2S12 bulk ionic conductivity"
+    - "Li10SnP2S12 impedance spectroscopy"
+    - "Li10SnP2S12 temperature dependent conductivity"
+    - "Li10SnP2S12 diffusion coefficient"
+    - "Li10SnP2S12 doping ionic conductivity"
+    - "Li10SnP2S12 electronic conductivity"
+    - "Li10SnP2S12 electrochemical stability window"
+    - "Li10SnP2S12 interfacial resistance"
+    - "Li10SnP2S12 molecular dynamics lithium diffusion"
+    - "Li10SnP2S12 density functional theory migration"
+    - "Li10SnP2S12 NMR lithium dynamics"
+    - "Li10SnP2S12 synthesis ionic conductivity"
+    - "Li10SnP2S12 fast ion conductor"
+    - "Li10SnP2S12 superionic conductor"
+
+    # Li10SiP2S12: every transport measurement and method
+    - "Li10SiP2S12 ionic conductivity"
+    - "Li10SiP2S12 activation energy"
+    - "Li10SiP2S12 lithium ion diffusion"
+    - "Li10SiP2S12 lithium migration barrier"
+    - "Li10SiP2S12 ion transport mechanism"
+    - "Li10SiP2S12 grain boundary conductivity"
+    - "Li10SiP2S12 bulk ionic conductivity"
+    - "Li10SiP2S12 impedance spectroscopy"
+    - "Li10SiP2S12 temperature dependent conductivity"
+    - "Li10SiP2S12 diffusion coefficient"
+    - "Li10SiP2S12 doping ionic conductivity"
+    - "Li10SiP2S12 electronic conductivity"
+    - "Li10SiP2S12 electrochemical stability window"
+    - "Li10SiP2S12 interfacial resistance"
+    - "Li10SiP2S12 molecular dynamics lithium diffusion"
+    - "Li10SiP2S12 density functional theory migration"
+    - "Li10SiP2S12 NMR lithium dynamics"
+    - "Li10SiP2S12 synthesis ionic conductivity"
+    - "Li10SiP2S12 fast ion conductor"
+    - "Li10SiP2S12 superionic conductor"
+
+    # Li9.54Si1.74P1.44S11.7Cl0.3: every transport measurement and method
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 ionic conductivity"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 activation energy"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 lithium ion diffusion"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 lithium migration barrier"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 ion transport mechanism"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 grain boundary conductivity"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 bulk ionic conductivity"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 impedance spectroscopy"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 temperature dependent conductivity"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 diffusion coefficient"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 doping ionic conductivity"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 electronic conductivity"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 electrochemical stability window"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 interfacial resistance"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 molecular dynamics lithium diffusion"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 density functional theory migration"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 NMR lithium dynamics"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 synthesis ionic conductivity"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 fast ion conductor"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3 superionic conductor"
+
+    # LGPS: transport mechanisms
+    - "LGPS concerted migration"
+    - "LGPS vacancy mechanism"
+    - "LGPS interstitial mechanism"
+    - "LGPS interstitialcy mechanism"
+    - "LGPS paddle-wheel mechanism"
+    - "LGPS correlated ion hopping"
+    - "LGPS percolation conduction pathway"
+    - "LGPS bottleneck size migration"
+    - "LGPS anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_lgps.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # LGPS family and aliases
+    - "LGPS"
+    - "LGPS-type"
+    - "Li10GeP2S12-type"
+    - "LSiPSCl"
+    - "LSnPS"
+    - "LiMPS"
+
+    # LGPS formulas
+    - "Li10GeP2S12"
+    - "Li10SnP2S12"
+    - "Li10SiP2S12"
+    - "Li11Si2PS12"
+    - "Li9.54Si1.74P1.44S11.7Cl0.3"
+    - "Li9.6P3S12"
+    - "Li10GeP2Se12"
+    - "Li10GeP2S11.7O0.3"
+    - "Li7GePS8"
+    - "Li10+δGe1+δP2-δS12"
+    - "Li10±1MP2X12"
+    - "Li3.45Si0.45P0.55S4"
+
+    # Parts of LGPS formulas (find the doped members)
+    - "P2S12"
+    - "P2S11"
+    - "Si1.74P1.44"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_lgps
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

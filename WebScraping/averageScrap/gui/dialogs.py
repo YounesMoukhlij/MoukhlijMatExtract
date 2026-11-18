@@ -1,6 +1,6 @@
 # WebScraping/gui/dialogs.py
 """The windows that open on top of the window of the web project: the API keys and contact address,
-one card per organization (the WebScraping/averageScrap/.env file), the question asked each time the
+one card per organization (the ~/MoukhlijMatExtract/.env file), the question asked each time the
 Web scraping window opens, the job, and the check of the setup."""
 
 import os
@@ -11,67 +11,25 @@ import webbrowser
 from tkinter import messagebox, ttk
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
+from LocalExtraction.gui import layout
 from LocalExtraction.gui.dialogs import Dialog
 
-from ..job import ENV_PATH, ENV_SETTINGS, KEY_GROUPS, Job, KeyGroup, read_env, save_env
+from ..job import ENV_SETTINGS, KEY_GROUPS, Job, KeyGroup, read_env, save_env
 from .job_dialog import JobDialog, open_job_settings  # noqa: F401  (the settings form lives in its own file)
 
 _EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 _SET, _NOT_SET = "✓ set", "not set"
 
 
-class _Scrollable(ttk.Frame):
-    """A frame whose content scrolls up and down (with the bar or the mouse wheel)."""
-
-    def __init__(self, parent: tk.Misc):
-        super().__init__(parent)
-        background = ttk.Style().lookup("TFrame", "background") or None
-        self.canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0, background=background)
-        bar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.inner = ttk.Frame(self.canvas)
-        self.inner.bind("<Configure>", lambda event: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        window = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
-        self.canvas.bind("<Configure>", lambda event: self.canvas.itemconfigure(window, width=event.width))
-        self.canvas.configure(yscrollcommand=bar.set)
-        self.canvas.pack(side="left", fill="both", expand=True)
-        bar.pack(side="right", fill="y")
-        # The wheel scrolls this frame only while the pointer is over it. Moving onto one of its cards is
-        # reported to the frame as leaving it: the wheel is let go only when the pointer is really out.
-        self.bind("<Enter>", lambda event: self._wheel(True))
-        self.bind("<Leave>", self._leave)
-        self.bind("<Destroy>", lambda event: self._wheel(False) if event.widget is self else None)
-
-    def _inside(self, x_root: int, y_root: int) -> bool:
-        widget = self.winfo_containing(x_root, y_root)
-        return widget is not None and str(widget).startswith(str(self))
-
-    def _leave(self, event: "tk.Event") -> None:
-        if not self._inside(event.x_root, event.y_root):
-            self._wheel(False)
-
-    def _wheel(self, on: bool) -> None:
-        for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
-            if on:
-                self.canvas.bind_all(sequence, self._scroll)
-            else:
-                self.canvas.unbind_all(sequence)
-
-    def _scroll(self, event: "tk.Event") -> None:
-        if not self._inside(event.x_root, event.y_root):
-            return
-        if getattr(event, "num", 0) in (4, 5):  # Linux
-            steps = -1 if event.num == 4 else 1
-        else:  # Windows (steps of 120) and macOS (small steps)
-            steps = -int(event.delta / 120) if abs(event.delta) >= 120 else -event.delta
-        self.canvas.yview_scroll(steps, "units")
+from LocalExtraction.gui.widgets import Scrolled as _Scrollable  # noqa: E402  (one scrolling area for every window)
 
 
 class SettingsDialog(Dialog):
     """The API keys and the contact e-mail of the web project, one card per organization: what its
     key opens, which method uses it, whether it is set, and a link to get one. They live in
-    WebScraping/averageScrap/.env, which git ignores; nothing here is ever written to a log."""
+    ~/MoukhlijMatExtract/.env, readable by you alone; nothing here is ever written to a log."""
 
-    def __init__(self, parent: tk.Misc, on_saved: Optional[Callable[[], None]] = None, path: str = ENV_PATH):
+    def __init__(self, parent: tk.Misc, on_saved: Optional[Callable[[], None]] = None, path: Optional[str] = None):
         super().__init__(parent, "API keys and contact e-mail", "880x760")
         self._on_saved, self._path = on_saved, path
         stored = read_env(path)
@@ -83,7 +41,7 @@ class SettingsDialog(Dialog):
         ttk.Label(self.body, wraplength=820, justify="left", foreground="#8c8c8c",
                   text="Every key is optional, and nearly all are free (The Lens comes with your institution's "
                        "subscription): the web search works without any of them, and each one opens more papers (a source whose key is missing is skipped, with a line saying so). They are "
-                       "saved in WebScraping/averageScrap/.env, which git ignores, and never written to a log."
+                       "saved in ~/MoukhlijMatExtract/.env, readable by you alone, and never written to a log."
                   ).pack(fill="x", pady=(2, 8))
         cards = _Scrollable(self.body)
         cards.pack(fill="both", expand=True)
@@ -188,7 +146,7 @@ class StartDialog(Dialog):
     closing it any other way calls on_cancel."""
 
     def __init__(self, parent: tk.Misc, on_continue: Callable[[], None], on_cancel: Callable[[], None],
-                 path: str = ENV_PATH):
+                 path: Optional[str] = None):
         super().__init__(parent, "Web scraping · before you start")
         self._on_continue, self._on_cancel, self._path = on_continue, on_cancel, path
         self.protocol("WM_DELETE_WINDOW", self._cancel)
@@ -295,3 +253,167 @@ class CheckDialog(Dialog):
             return
         for ok, text in lines:
             self._write(f"{'✓' if ok else '✗'}  {text}\n\n", "ok" if ok else "no")
+
+
+# The colour of each reason a paper was not downloaded (by_hand.REASONS), in the dialog below.
+_REASON_COLOURS = {"Site refuses programs": "#d97706", "Subscription needed": "#2563eb", "No open copy found": "#b3261e",
+                   "Not found at the sources": "#6b7280", "Site busy or not answering": "#2e9e5b"}
+_OPEN_AT_ONCE = 10  # links opened in the browser at once, at most: more asks first
+
+
+class MissedDialog(Dialog):
+    """The papers a download could not get, in one window: how many and why (one line per reason, with what
+    to do about it), the papers themselves (double-click opens a paper's page in the browser), and how to
+    add their PDFs by hand. `rows` are by_hand.missed_rows; `asked` how many papers the download tried
+    (None: the whole list, not one download)."""
+
+    def __init__(self, parent: tk.Misc, rows: Sequence[Dict[str, str]], asked: Optional[int], list_path: str,
+                 by_hand_folder: str, helper: Optional[Callable[[], None]] = None):
+        from LocalExtraction.gui.widgets import Table, WrapLabel
+        from ..by_hand import REASONS
+        super().__init__(parent, "Papers not downloaded automatically", "1000x720")
+        layout.minimum(self, 800, 620)
+        self.rows = {row["key"]: row for row in rows}
+        self.list_path, self.folder = list_path, by_hand_folder
+        grey = "#8c8c8c"
+
+        # Head: the count, and that these papers can still be had.
+        head = ttk.Frame(self.body)
+        head.pack(fill="x")
+        ttk.Label(head, text="!", foreground="#d97706", font=("TkDefaultFont", 22, "bold")).pack(side="left", padx=(2, 12))
+        titles = ttk.Frame(head)
+        titles.pack(side="left", fill="x", expand=True)
+        count = len(rows)
+        ttk.Label(titles, font=("TkDefaultFont", 15, "bold"), text=(
+            f"{count:,} of the {asked:,} paper(s) could not be downloaded automatically" if asked else
+            f"{count:,} paper(s) not downloaded automatically")).pack(anchor="w")
+        WrapLabel(titles, foreground=grey, justify="left", text=(
+            "Most of them can still be had: the reason of each says how. They are all listed, with their link, in "
+            f"{os.path.basename(list_path)}.")).pack(fill="x", anchor="w")
+
+        # Why: one line per reason, with its count and what to do.
+        reasons = ttk.LabelFrame(self.body, text="  Why, and what to do  ", padding=(10, 6))
+        reasons.pack(fill="x", pady=(12, 8))
+        counts: Dict[str, int] = {}
+        for row in rows:
+            counts[row["reason"]] = counts.get(row["reason"], 0) + 1
+        for line, reason in enumerate(r for r in REASONS if counts.get(r)):
+            colour = _REASON_COLOURS.get(reason, grey)
+            ttk.Label(reasons, text="●", foreground=colour).grid(row=line, column=0, sticky="w", padx=(0, 6), pady=2)
+            ttk.Label(reasons, text=f"{counts[reason]:,}", font=("TkDefaultFont", 11, "bold"), width=6,
+                      anchor="e").grid(row=line, column=1, sticky="e", padx=(0, 10))
+            ttk.Label(reasons, text=reason, font=("TkDefaultFont", 11, "bold")).grid(row=line, column=2, sticky="w",
+                                                                                     padx=(0, 16))
+            WrapLabel(reasons, text=REASONS[reason], foreground=grey, justify="left").grid(row=line, column=3, sticky="ew")
+        reasons.columnconfigure(3, weight=1)
+
+        # The papers.
+        self.table = Table(self.body, [("title", "Title", 420), ("journal", "Journal", 180), ("year", "Year", 56),
+                                       ("access", "Open access", 92), ("reason", "Reason", 170)],
+                           on_open=lambda key: self._open([key]), stretch="title", height=12)
+        for reason, colour in _REASON_COLOURS.items():
+            self.table.tag(reason, foreground=colour)
+        self.table.fill([(row["key"], (row["title"] or row["doi"], row["journal"], row["year"], row["open_access"],
+                                       row["reason"]), (row["reason"],)) for row in rows])
+        hint = ttk.Label(self.body, foreground=grey, text="Double-click a paper to open its page in your browser · "
+                                                         "click a heading to sort")
+
+        # How to add them by hand.
+        steps = ttk.LabelFrame(self.body, text="  Adding a PDF by hand  ", padding=(10, 6))
+        for number_, text in enumerate((
+                "Open the paper's page (double-click it, or select papers and press “Open in browser”).",
+                f"Save its PDF into the by_hand folder ({by_hand_folder}), under any file name.",
+                "Run “3 · Download” again: each PDF is checked (its DOI and its title) and taken in, with its source "
+                "recorded like any downloaded paper."), 1):
+            WrapLabel(steps, justify="left", text=f"{number_}.  {text}").pack(fill="x", anchor="w", pady=1)
+
+        buttons = ttk.Frame(self.body)
+        # The rows under the table are given their room first: the table takes what is left.
+        buttons.pack(side="bottom", fill="x", pady=(12, 0))
+        steps.pack(side="bottom", fill="x", pady=(10, 0))
+        hint.pack(side="bottom", anchor="w", pady=(4, 0))
+        self.table.pack(fill="both", expand=True)
+        if helper is not None:  # the browser helper: pages opened in batches, PDFs taken in as they arrive
+            ttk.Button(buttons, text="Get them with my browser…", command=lambda: (self.destroy(), helper())).pack(
+                side="left", padx=(0, 6))
+        ttk.Button(buttons, text="Open in browser", command=lambda: self._open(self.table.selected())).pack(side="left")
+        ttk.Button(buttons, text="Copy the links", command=self._copy).pack(side="left", padx=(6, 0))
+        ttk.Button(buttons, text="Open the list (CSV)", command=lambda: self._reveal(list_path)).pack(side="left", padx=(6, 0))
+        ttk.Button(buttons, text="Open the by_hand folder", command=lambda: self._reveal(by_hand_folder)).pack(
+            side="left", padx=(6, 0))
+        ttk.Button(buttons, text="Close", command=self.destroy).pack(side="right")
+        self.focus_set()
+
+    def _links(self, keys: Sequence[str]) -> List[str]:
+        return [self.rows[key]["link"] for key in keys if key in self.rows and self.rows[key]["link"]]
+
+    def _open(self, keys: Sequence[str]) -> None:
+        links = self._links(keys)
+        if not links:
+            messagebox.showinfo("Open in browser", "Select one or more papers first (click, Shift-click, ⌘/Ctrl-click).",
+                                parent=self)
+            return
+        if len(links) > _OPEN_AT_ONCE and not messagebox.askyesno(
+                "Open in browser", f"Open {len(links):,} pages in your browser at once?", parent=self):
+            return
+        for link in links:
+            webbrowser.open(link)
+
+    def _copy(self) -> None:
+        links = self._links(self.table.selected() or list(self.rows))
+        self.clipboard_clear()
+        self.clipboard_append("\n".join(links))
+        messagebox.showinfo("Copy the links", f"{len(links):,} link(s) copied, one per line.", parent=self)
+
+    def _reveal(self, path: str) -> None:
+        from LocalExtraction.gui.widgets import open_path
+        if not os.path.exists(path):
+            messagebox.showinfo("MoukhlijMatExtract", f"{path} does not exist yet.", parent=self)
+            return
+        open_path(path)
+
+
+class CoverageDialog(Dialog):
+    """How far each job's papers went (found → proposed → downloaded → extracted) and the same by publisher
+    (coverage.py). Opening it writes the tables and the report into WebScraping/coverage/ of the main folder."""
+
+    def __init__(self, parent: tk.Misc, folder: str = os.path.join("WebScraping", "coverage")):
+        from LocalExtraction.gui.widgets import Table, WrapLabel, open_path
+        from .. import coverage
+        super().__init__(parent, "Coverage of the corpus", "1100x720")
+        layout.minimum(self, 820, 560)
+        families, publishers = coverage.by_family(), coverage.by_publisher()
+        self.folder = coverage.write(folder)
+        grey = "#8c8c8c"
+        WrapLabel(self.body, foreground=grey, text=(
+            "How far the papers of each job went: found by the searches, screened, proposed for download, downloaded "
+            "(a legal copy), without a legal copy, and extracted. By publisher, a low share downloaded means that "
+            "publisher's papers are under-represented in the corpus — worth saying in the article's limitations.")
+                  ).pack(fill="x", pady=(0, 8))
+
+        def pct(rate) -> str:
+            return "—" if rate is None else f"{100 * rate:.0f} %"
+        self.families = Table(self.body, [("job", "Job", 150), ("found", "Found", 70), ("screened", "Screened", 80),
+                                          ("proposed", "Proposed", 80), ("downloaded", "Downloaded", 110),
+                                          ("no_copy", "No copy", 70), ("papers", "Papers extracted", 120),
+                                          ("energies", "Activation energies", 140)], stretch="job", height=9)
+        self.families.fill([(r["job"], (r["job"], r["found"], r["screened"], r["proposed"],
+                                        f"{r['downloaded']} ({pct(r['download_rate'])})", r["no_copy"],
+                                        r["extracted_papers"], r["activation_energies"]), ())
+                            for r in families])
+        self.families.pack(fill="both", expand=True)
+        ttk.Label(self.body, text="By publisher, every job together — the most proposed first").pack(
+            anchor="w", pady=(10, 4))
+        self.publishers = Table(self.body, [("publisher", "Publisher", 280), ("found", "Found", 70),
+                                            ("proposed", "Proposed", 80), ("downloaded", "Downloaded", 110),
+                                            ("no_copy", "No copy", 70)], stretch="publisher", height=9)
+        self.publishers.fill([(r["publisher"], (r["publisher"], r["found"], r["proposed"],
+                                                f"{r['downloaded']} ({pct(r['download_rate'])})", r["no_copy"]), ())
+                              for r in publishers])
+        self.publishers.pack(fill="both", expand=True)
+        bar = ttk.Frame(self.body)
+        bar.pack(fill="x", pady=(8, 0))
+        ttk.Button(bar, text="Open the report folder", command=lambda: open_path(self.folder)).pack(side="left")
+        ttk.Label(bar, foreground=grey, text=f"coverage.md and two CSV tables in {self.folder}").pack(
+            side="left", padx=10)
+        ttk.Button(bar, text="Close", command=self.destroy).pack(side="right")

@@ -12,6 +12,15 @@
 
 PYTHON := $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 
+# The mme-* commands of .venv run the code of this folder (pip install -e .). When the package itself changes
+# (pyproject.toml, setup.py: a new part, a new folder), they are registered again before anything runs, by itself,
+# so that mme-gui and the others keep working from any folder. Nothing is downloaded: the dependencies stay.
+STAMP := .venv/.mme-installed
+$(STAMP): pyproject.toml setup.py
+	@if [ -x .venv/bin/python ]; then \
+	    echo "The package changed: registering it again in .venv (no download) ..."; \
+	    .venv/bin/python -m pip install -q --no-deps -e . && rm -rf build *.egg-info && touch $(STAMP); fi
+
 # ---- How an option is written -------------------------------------------------------------------
 # given NAME            : NAME was written on the make command line
 # opt NAME,--flag       : --flag 'value'            (a value, quoted: it may hold spaces)
@@ -32,7 +41,8 @@ WEB_COMMON  = $(call opt,JOB,--job) $(call opt,OUTPUT,--output) $(call opt,WORKE
 WEB_DOIS    = $(if $(call given,DOIS),--dois $(if $(filter 1 yes true on,$(DOIS)),,$(call quote,$(DOIS))))
 WEB_OPTS    = $(WEB_COMMON) $(call opt,STAGE,--stage) $(call switch,YES,--yes) $(call opt,LIMIT,--limit) \
               $(WEB_DOIS) $(call switch,CHECK,--check) $(call opt,PROBE_DOI,--probe-doi) \
-              $(call switch,REFRESH,--refresh) $(call switch,REBUILD,--rebuild)
+              $(call switch,REFRESH,--refresh) $(call switch,REBUILD,--rebuild) $(call switch,RESCREEN,--rescreen) \
+              $(call switch,SNOWBALL,--snowball) $(call switch,UPDATE,--update)
 DOI_OPTS    = $(call opt,COUNT,--count) $(call opt,JOB,--job) $(call opt,MAX,--max) $(call opt,OUT,--out) \
               $(call switch,REFRESH,--refresh) $(call switch,NO_EXPAND,--no-expand) \
               $(if $(call given,KEYWORDS),$(KEYWORDS))
@@ -41,8 +51,9 @@ RANK_OPTS   = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,CRIT
               $(call opt,POLICY,--policy) $(call switch,BY_PHASE,--by-phase) $(call opt,ORIGIN,--origin) \
               $(call opt,ATTRIBUTION,--attribution) $(call opt,COMPONENT,--component) \
               $(call list,ELEMENT,--element) $(call opt,MIN_CONFIDENCE,--min-confidence) $(call opt,TOP,--top) \
-              $(call switch,INCLUDE_FLAGGED,--include-flagged) \
-              $(call list,FORMAT,--format) $(call switch,NO_FILES,--no-files) $(call switch,OPEN,--open) \
+              $(call switch,INCLUDE_FLAGGED,--include-flagged) $(call switch,VERIFIED_ONLY,--verified-only) \
+              $(call switch,MATERIALS_PROJECT,--materials-project) \
+              $(call opt,BOOTSTRAP,--bootstrap) $(call list,FORMAT,--format) $(call switch,NO_FILES,--no-files) $(call switch,OPEN,--open) \
               $(call switch,QUIET,--quiet) $(call switch,NO_COLOR,--no-color) $(call switch,FORCE,--force)
 RANK_GUI_OPTS = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,CRITERIA,--criteria)
 CLASSIFY_OPTS = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call switch,FORCE,--force)
@@ -52,7 +63,8 @@ EVAL_SHEET_OPTS = $(call list,SOURCE,--source) $(call opt,PAPERS,--papers) $(cal
 EVAL_SCORE_OPTS = $(call opt,GOLD,--gold) $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,SEED,--seed) \
               $(call list,PREDICTIONS,--predictions)
 EVAL_REF_OPTS = $(call list,DB,--db) $(call switch,NO_FETCH,--no-fetch) $(call opt,LIMIT,--limit) \
-              $(call switch,REFRESH,--refresh) $(call opt,WORKERS,--workers) $(call list,PREDICTIONS,--predictions)
+              $(call switch,REFRESH,--refresh) $(call opt,WORKERS,--workers) $(call list,PREDICTIONS,--predictions) \
+              $(call opt,AGAINST,--against)
 RELEASE_OPTS = $(call list,SOURCE,--source) $(call list,WITH,--with) $(call switch,NO_RESULTS,--no-results) \
               $(call opt,OUT,--out) $(call switch,KEEP_TEXT,--keep-text) $(call opt,FINISH,--finish) \
               $(call switch,KEEP_UNRECORDED,--keep-unrecorded)
@@ -93,8 +105,11 @@ help:
 	@echo "  make web            the whole run: search (keywords + DOIs), review, download, extract"
 	@echo "                      JOB=<job file> OUTPUT=<folder> WORKERS=<n> VERBOSE=1 STAGE=discover|fetch|extract"
 	@echo "                      YES=1 (approve without review) LIMIT=<papers> DOIS=1|<list.csv> CHECK=1 PROBE_DOI=<doi>"
-	@echo "                      REFRESH=1 (search again) REBUILD=1 (extract again)"
+	@echo "                      REFRESH=1 (search again) REBUILD=1 (extract again) RESCREEN=1 (decide the papers again)"
+	@echo "                      SNOWBALL=1 (also follow the citations of the papers kept) UPDATE=1 (only what is new)"
+	@echo "  make update         every job run before, searched for what was published since    YES=1 WORKERS=<n>"
 	@echo "  make web-check      test the setup: network, API keys, folders       JOB= PROBE_DOI=<an Elsevier DOI>"
+	@echo "  make coverage       how far each job's papers went, and by publisher -> WebScraping/coverage/"
 	@echo "  make web-fetch      after the review: download what is approved, then extract   (STAGE=fetch; LIMIT= YES=1 ...)"
 	@echo "  make web-extract    only extract what is downloaded                              (STAGE=extract; REBUILD=1 ...)"
 	@echo "  make web-dois       the saved DOIs only: checked, then those on topic downloaded and extracted   (DOIS=<list.csv>)"
@@ -127,6 +142,7 @@ help:
 	@echo "                      PREDICTIONS='<other_tool.csv> ...' (other tools scored the same way, compared side by side)"
 	@echo "  make eval-agree     agreement of two annotators      FIRST=<a.xlsx> SECOND=<b.xlsx>"
 	@echo "  make eval-reference recall against curated databases (OBELiX, Liverpool), on their own papers"
+	@echo "                      AGAINST=<results folder>: that database against them, material by material"
 	@echo "                      DB='obelix liverpool' NO_FETCH=1 LIMIT=<papers> REFRESH=1 WORKERS=<n>"
 	@echo "                      PREDICTIONS='<other_tool.csv> ...' (other tools scored the same way, side by side)"
 	@echo ""
@@ -235,6 +251,12 @@ web-dois:
 web-gui:
 	$(PYTHON) -m WebScraping gui $(WEB_COMMON)
 
+update:
+	$(PYTHON) -m WebScraping update $(call switch,YES,--yes) $(call opt,WORKERS,--workers) $(call switch,VERBOSE,--verbose)
+
+coverage:
+	$(PYTHON) -m WebScraping coverage $(call opt,OUTPUT,--output) $(call switch,VERBOSE,--verbose)
+
 web-cathode:
 	$(PYTHON) -m WebScraping run --job configs/cathode.yaml --output WebScraping/web_output_cathode $(WEB_OPTS)
 
@@ -314,6 +336,9 @@ mme-help:
 .PHONY: demo help install install-locked lock dictionary commands manual test clean version gui local local-rebuild local-gui \
         local-cathode local-anode web-cathode web-anode rank-cathode rank-anode mme-help \
         doi web web-check web-fetch web-extract \
-        web-dois web-gui rank rank-gui classify classify-gui gui-help local-help local-gui-help web-help \
+        web-dois web-gui coverage update rank rank-gui classify classify-gui gui-help local-help local-gui-help web-help \
         web-gui-help doi-help rank-help rank-gui-help classify-help classify-gui-help eval-sheet eval-score \
         eval-agree eval-reference eval-help release release-help
+
+# Every target that runs the program first makes sure .venv knows the package as it is now ($(STAMP)).
+test demo dictionary commands manual gui local local-rebuild local-gui local-cathode local-anode doi web web-check web-fetch web-extract web-dois web-gui coverage update web-cathode web-anode rank rank-gui rank-cathode rank-anode classify classify-gui eval-sheet eval-score eval-reference eval-agree release: | $(STAMP)

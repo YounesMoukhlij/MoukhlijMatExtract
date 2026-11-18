@@ -1,0 +1,598 @@
+# NASICON-type solid electrolytes
+#
+# NASICON (Na superionic conductor) frameworks: Na1+xZr2SixP3-xO12 (NZSP) and its dopings, Na3Sc2(PO4)3, and the
+# lithium members Li1+xAlxTi2-x(PO4)3 (LATP), Li1+xAlxGe2-x(PO4)3 (LAGP), LiZr2(PO4)3, LiHf2(PO4)3.
+#
+# Kind: crystal-structure type.
+#   Prototype: NZP / NaZr2(PO4)3 framework, rhombohedral R-3c; Na3Zr2Si2PO12 also monoclinic C2/c.
+#
+# 294 queries, 55 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/nasicon.yaml          # extracts into WebScraping/web_output_nasicon
+#   mme-rank --domain electrolyte --source WebScraping/web_output_nasicon --kind arrhenius
+
+name: nasicon
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # NASICON: general lithium and sodium transport
+    - "NASICON solid electrolyte ionic conductivity"
+    - "NASICON sodium solid electrolyte ionic conductivity"
+    - "NASICON lithium ionic conductivity"
+    - "NASICON oxide electrolyte activation energy"
+    - "NASICON-type ion conductor migration barrier"
+    - "NASICON electrolyte grain boundary conductivity"
+    - "NASICON electrolyte diffusion coefficient"
+    - "NZP type sodium ion conducting solid electrolyte"
+    - "NASICON ion transport mechanism"
+    - "NASICON lithium diffusion mechanism"
+    - "NASICON sodium diffusion mechanism"
+    - "NASICON lithium migration pathways"
+    - "NASICON sodium migration pathways"
+    - "NASICON activation energy ion migration"
+    - "NASICON diffusion pathways crystallographic"
+    - "NASICON ion hopping mechanism"
+    - "NASICON bottleneck size ionic conductivity"
+    - "NASICON mobile ion concentration conductivity"
+    - "NASICON framework structure ion mobility"
+    - "NASICON structural distortion ionic conductivity"
+    - "NASICON lithium site occupancy"
+    - "NASICON sodium site occupancy"
+    - "NASICON cation disorder ionic conductivity"
+    - "NASICON temperature dependent ionic conductivity"
+    - "NASICON Arrhenius conductivity"
+
+    # NASICON: sodium compositions (NZSP and related materials)
+    - "Na3Zr2Si2PO12 NASICON sodium conductivity"
+    - "Na1+xZr2SixP3-xO12 ionic conductivity"
+    - "doped Na3Zr2Si2PO12 activation energy"
+    - "Na3Sc2(PO4)3 NASICON sodium conductivity"
+    - "NASICON sodium ion conductor molecular dynamics"
+    - "Na3Zr2Si2PO12 sodium ion diffusion"
+    - "Na3Zr2Si2PO12 sodium migration barrier"
+    - "Na3Zr2Si2PO12 activation energy"
+    - "Na3Zr2Si2PO12 diffusion coefficient"
+    - "Na3Zr2Si2PO12 ab initio molecular dynamics"
+    - "Na3Zr2Si2PO12 grain boundary resistance"
+    - "Na3Zr2Si2PO12 impedance spectroscopy"
+    - "NZSP sodium ion migration barrier"
+    - "NZSP sodium diffusion coefficient"
+    - "NZSP ionic conductivity temperature"
+    - "NZSP dopant concentration activation energy"
+    - "NZSP aliovalent substitution ionic conductivity"
+    - "NZSP phase composition structure conductivity"
+    - "Na3Hf2Si2PO12 sodium ionic conductivity"
+    - "Na3Sc2(PO4)3 sodium diffusion"
+    - "NASICON sodium vacancy diffusion"
+    - "NASICON sodium interstitial diffusion"
+    - "NASICON sodium site occupancy transport"
+
+    # NASICON: lithium compositions (LATP, LAGP and related materials)
+    - "LATP lithium aluminum titanium phosphate ionic conductivity"
+    - "Li1.3Al0.3Ti1.7(PO4)3 activation energy"
+    - "LAGP lithium aluminum germanium phosphate solid electrolyte"
+    - "Li1.5Al0.5Ge1.5(PO4)3 ionic conductivity"
+    - "LiZr2(PO4)3 NASICON lithium conductivity"
+    - "LiTi2(PO4)3 lithium ion conduction"
+    - "NASICON lithium DFT migration barrier"
+    - "LATP lithium ion diffusion mechanism"
+    - "LATP lithium migration barrier"
+    - "LATP activation energy lithium transport"
+    - "LATP lithium diffusion coefficient"
+    - "LATP molecular dynamics simulation"
+    - "LATP grain boundary ionic conductivity"
+    - "LATP titanium reduction electronic conductivity"
+    - "LATP electrochemical stability lithium metal"
+    - "LAGP lithium diffusion mechanism"
+    - "LAGP lithium migration barrier"
+    - "LAGP activation energy ionic conductivity"
+    - "LAGP diffusion coefficient molecular dynamics"
+    - "LAGP grain boundary resistance"
+    - "LAGP electronic conductivity"
+    - "Li1+xAlxTi2-x(PO4)3 ionic conductivity"
+    - "Li1+xAlxGe2-x(PO4)3 lithium diffusion"
+    - "LiTi2(PO4)3 lithium migration"
+    - "LiZr2(PO4)3 lithium diffusion"
+    - "LiGe2(PO4)3 lithium conductivity"
+
+    # NASICON: grain boundaries, microstructure and interfaces
+    - "NASICON grain boundary ionic conductivity"
+    - "NASICON bulk grain boundary resistance"
+    - "NASICON microstructure ionic transport"
+    - "NASICON sintering temperature conductivity"
+    - "NASICON porosity ionic conductivity"
+    - "NASICON interfacial resistance solid state battery"
+    - "NASICON lithium metal interface"
+    - "NASICON sodium metal interface"
+    - "LATP grain boundary activation energy"
+    - "LAGP grain boundary activation energy"
+    - "NASICON space charge layer grain boundary"
+
+    # NASICON: sodium compositions, dopants and Na-rich phases
+    - "scandium doped Na3Zr2Si2PO12 conductivity"
+    - "magnesium doped NZSP ionic conductivity"
+    - "zinc doped Na3Zr2Si2PO12 conductivity"
+    - "calcium doped NASICON sodium conductivity"
+    - "lanthanum doped Na3Zr2Si2PO12 conductivity"
+    - "yttrium doped NASICON sodium conductivity"
+    - "hafnium substituted NASICON sodium conductivity"
+    - "niobium doped NZSP conductivity"
+    - "Na3.4Zr2Si2.4P0.6O12 ionic conductivity"
+    - "Na1+xZr2SixP3-xO12 composition dependent conductivity"
+    - "Na3.4Sc0.4Zr1.6Si2PO12 sodium conductivity"
+    - "Na3Sc2(PO4)3 sodium ion conduction"
+    - "Na3Zr2(SiO4)2(PO4) ceramic conductivity"
+    - "sodium rich NASICON solid electrolyte"
+
+    # NASICON: lithium members other than LATP and LAGP
+    - "LiZr2(PO4)3 rhombohedral phase lithium conductivity"
+    - "calcium doped LiZr2(PO4)3 conductivity"
+    - "yttrium doped LiZr2(PO4)3 conductivity"
+    - "LiHf2(PO4)3 lithium conductivity"
+    - "LiGe2(PO4)3 ionic conductivity"
+    - "Li1+xAlxTi2-x(PO4)3 aluminum content conductivity"
+    - "gallium substituted LiTi2(PO4)3 conductivity"
+    - "scandium substituted LiTi2(PO4)3 conductivity"
+    - "Li1+xYxZr2-x(PO4)3 conductivity"
+    - "Li1+xAlxGe2-x(PO4)3 glass ceramic conductivity"
+    - "LATP glass ceramic crystallization conductivity"
+    - "LAGP glass ceramic crystallization conductivity"
+
+    # NASICON: crystal chemistry of transport
+    - "NASICON monoclinic rhombohedral phase transition conductivity"
+    - "NASICON C2/c R-3c phase transition sodium"
+    - "NASICON bottleneck size sodium migration"
+    - "NASICON Na1 Na2 site occupancy conduction"
+    - "NASICON framework polyanion lithium sodium pathway"
+    - "NASICON lattice parameter ionic conductivity correlation"
+    - "NASICON zirconia secondary phase conductivity"
+    - "LATP AlPO4 secondary phase conductivity"
+    - "LATP TiO2 impurity grain boundary resistance"
+
+    # METHODS used on these families
+    - "23Na NMR NASICON sodium dynamics"
+    - "bond valence site energy NASICON migration"
+    - "distribution of relaxation times NASICON impedance"
+    - "neutron diffraction sodium distribution NASICON"
+
+    # NASICON solid electrolyte: every transport measurement and method
+    - "NASICON solid electrolyte activation energy"
+    - "NASICON solid electrolyte lithium ion diffusion"
+    - "NASICON solid electrolyte sodium ion diffusion"
+    - "NASICON solid electrolyte lithium migration barrier"
+    - "NASICON solid electrolyte sodium migration barrier"
+    - "NASICON solid electrolyte ion transport mechanism"
+    - "NASICON solid electrolyte grain boundary conductivity"
+    - "NASICON solid electrolyte bulk ionic conductivity"
+    - "NASICON solid electrolyte impedance spectroscopy"
+    - "NASICON solid electrolyte temperature dependent conductivity"
+    - "NASICON solid electrolyte diffusion coefficient"
+    - "NASICON solid electrolyte doping ionic conductivity"
+    - "NASICON solid electrolyte electronic conductivity"
+    - "NASICON solid electrolyte electrochemical stability window"
+    - "NASICON solid electrolyte interfacial resistance"
+    - "NASICON solid electrolyte molecular dynamics lithium diffusion"
+    - "NASICON solid electrolyte molecular dynamics sodium diffusion"
+    - "NASICON solid electrolyte density functional theory migration"
+    - "NASICON solid electrolyte NMR lithium dynamics"
+    - "NASICON solid electrolyte NMR sodium dynamics"
+    - "NASICON solid electrolyte synthesis ionic conductivity"
+
+    # NZSP: every transport measurement and method
+    - "NZSP ionic conductivity"
+    - "NZSP activation energy"
+    - "NZSP lithium ion diffusion"
+    - "NZSP sodium ion diffusion"
+    - "NZSP lithium migration barrier"
+    - "NZSP sodium migration barrier"
+    - "NZSP ion transport mechanism"
+    - "NZSP grain boundary conductivity"
+    - "NZSP bulk ionic conductivity"
+    - "NZSP impedance spectroscopy"
+    - "NZSP temperature dependent conductivity"
+    - "NZSP diffusion coefficient"
+    - "NZSP doping ionic conductivity"
+    - "NZSP electronic conductivity"
+    - "NZSP electrochemical stability window"
+    - "NZSP interfacial resistance"
+    - "NZSP molecular dynamics lithium diffusion"
+    - "NZSP molecular dynamics sodium diffusion"
+    - "NZSP density functional theory migration"
+    - "NZSP NMR lithium dynamics"
+    - "NZSP NMR sodium dynamics"
+    - "NZSP synthesis ionic conductivity"
+
+    # Na3Zr2Si2PO12: every transport measurement and method
+    - "Na3Zr2Si2PO12 ionic conductivity"
+    - "Na3Zr2Si2PO12 lithium ion diffusion"
+    - "Na3Zr2Si2PO12 lithium migration barrier"
+    - "Na3Zr2Si2PO12 ion transport mechanism"
+    - "Na3Zr2Si2PO12 grain boundary conductivity"
+    - "Na3Zr2Si2PO12 bulk ionic conductivity"
+    - "Na3Zr2Si2PO12 temperature dependent conductivity"
+    - "Na3Zr2Si2PO12 doping ionic conductivity"
+    - "Na3Zr2Si2PO12 electronic conductivity"
+    - "Na3Zr2Si2PO12 electrochemical stability window"
+    - "Na3Zr2Si2PO12 interfacial resistance"
+    - "Na3Zr2Si2PO12 molecular dynamics lithium diffusion"
+    - "Na3Zr2Si2PO12 molecular dynamics sodium diffusion"
+    - "Na3Zr2Si2PO12 density functional theory migration"
+    - "Na3Zr2Si2PO12 NMR lithium dynamics"
+    - "Na3Zr2Si2PO12 NMR sodium dynamics"
+    - "Na3Zr2Si2PO12 synthesis ionic conductivity"
+
+    # LATP: every transport measurement and method
+    - "LATP ionic conductivity"
+    - "LATP activation energy"
+    - "LATP lithium ion diffusion"
+    - "LATP sodium ion diffusion"
+    - "LATP sodium migration barrier"
+    - "LATP ion transport mechanism"
+    - "LATP grain boundary conductivity"
+    - "LATP bulk ionic conductivity"
+    - "LATP impedance spectroscopy"
+    - "LATP temperature dependent conductivity"
+    - "LATP diffusion coefficient"
+    - "LATP doping ionic conductivity"
+    - "LATP electronic conductivity"
+    - "LATP electrochemical stability window"
+    - "LATP interfacial resistance"
+    - "LATP molecular dynamics lithium diffusion"
+    - "LATP molecular dynamics sodium diffusion"
+    - "LATP density functional theory migration"
+    - "LATP NMR lithium dynamics"
+    - "LATP NMR sodium dynamics"
+    - "LATP synthesis ionic conductivity"
+
+    # LAGP: every transport measurement and method
+    - "LAGP ionic conductivity"
+    - "LAGP activation energy"
+    - "LAGP lithium ion diffusion"
+    - "LAGP sodium ion diffusion"
+    - "LAGP sodium migration barrier"
+    - "LAGP ion transport mechanism"
+    - "LAGP grain boundary conductivity"
+    - "LAGP bulk ionic conductivity"
+    - "LAGP impedance spectroscopy"
+    - "LAGP temperature dependent conductivity"
+    - "LAGP diffusion coefficient"
+    - "LAGP doping ionic conductivity"
+    - "LAGP electrochemical stability window"
+    - "LAGP interfacial resistance"
+    - "LAGP molecular dynamics lithium diffusion"
+    - "LAGP molecular dynamics sodium diffusion"
+    - "LAGP density functional theory migration"
+    - "LAGP NMR lithium dynamics"
+    - "LAGP NMR sodium dynamics"
+    - "LAGP synthesis ionic conductivity"
+
+    # LiZr2(PO4)3: every transport measurement and method
+    - "LiZr2(PO4)3 ionic conductivity"
+    - "LiZr2(PO4)3 activation energy"
+    - "LiZr2(PO4)3 lithium ion diffusion"
+    - "LiZr2(PO4)3 sodium ion diffusion"
+    - "LiZr2(PO4)3 lithium migration barrier"
+    - "LiZr2(PO4)3 sodium migration barrier"
+    - "LiZr2(PO4)3 ion transport mechanism"
+    - "LiZr2(PO4)3 grain boundary conductivity"
+    - "LiZr2(PO4)3 bulk ionic conductivity"
+    - "LiZr2(PO4)3 impedance spectroscopy"
+    - "LiZr2(PO4)3 temperature dependent conductivity"
+    - "LiZr2(PO4)3 diffusion coefficient"
+    - "LiZr2(PO4)3 doping ionic conductivity"
+    - "LiZr2(PO4)3 electronic conductivity"
+    - "LiZr2(PO4)3 electrochemical stability window"
+    - "LiZr2(PO4)3 interfacial resistance"
+    - "LiZr2(PO4)3 molecular dynamics lithium diffusion"
+    - "LiZr2(PO4)3 molecular dynamics sodium diffusion"
+    - "LiZr2(PO4)3 density functional theory migration"
+    - "LiZr2(PO4)3 NMR lithium dynamics"
+    - "LiZr2(PO4)3 NMR sodium dynamics"
+    - "LiZr2(PO4)3 synthesis ionic conductivity"
+
+    # COMPUTATIONAL METHODS: DFT, AIMD, MD, NEB and atomistic modelling
+    - "NASICON density functional theory ion migration"
+    - "NASICON solid electrolyte first principles calculations"
+    - "NASICON ab initio molecular dynamics"
+    - "NASICON classical molecular dynamics diffusion"
+    - "NASICON nudged elastic band ion migration"
+    - "NASICON DFT migration energy barriers"
+    - "NASICON kinetic Monte Carlo ion transport"
+    - "NASICON machine learning interatomic potential"
+    - "NASICON electrolyte atomistic simulation ionic conductivity"
+    - "NASICON sodium mean squared displacement"
+    - "NASICON Arrhenius diffusion coefficient"
+    - "NASICON electrolyte free energy ion migration"
+
+    # EXPERIMENTAL CHARACTERIZATION
+    - "NASICON electrochemical impedance spectroscopy"
+    - "NASICON impedance spectroscopy activation energy"
+    - "NASICON temperature dependent impedance"
+    - "NASICON solid state NMR ion dynamics"
+    - "NASICON conductivity Arrhenius plot"
+    - "NASICON ionic conductivity pellet density"
+    - "NASICON blocking electrode conductivity"
+    - "NASICON DC polarization electronic conductivity"
+
+    # MACHINE LEARNING AND DATA-DRIVEN STUDIES
+    - "NASICON machine learning ionic conductivity prediction"
+    - "NASICON solid electrolyte machine learning transport"
+    - "NASICON data driven ionic conductivity"
+    - "solid electrolyte activation energy machine learning NASICON"
+    - "NASICON machine learning interatomic potential molecular dynamics"
+    - "NASICON electrolyte composition property prediction"
+
+    # NASICON solid electrolyte: every transport measurement and method
+    - "NASICON solid electrolyte fast ion conductor"
+    - "NASICON solid electrolyte superionic conductor"
+
+    # NZSP: every transport measurement and method
+    - "NZSP fast ion conductor"
+    - "NZSP superionic conductor"
+
+    # Na3Zr2Si2PO12: every transport measurement and method
+    - "Na3Zr2Si2PO12 fast ion conductor"
+    - "Na3Zr2Si2PO12 superionic conductor"
+
+    # LATP: every transport measurement and method
+    - "LATP fast ion conductor"
+    - "LATP superionic conductor"
+
+    # LAGP: every transport measurement and method
+    - "LAGP fast ion conductor"
+    - "LAGP superionic conductor"
+
+    # LiZr2(PO4)3: every transport measurement and method
+    - "LiZr2(PO4)3 fast ion conductor"
+    - "LiZr2(PO4)3 superionic conductor"
+
+    # NASICON solid electrolyte: transport mechanisms
+    - "NASICON solid electrolyte concerted migration"
+    - "NASICON solid electrolyte vacancy mechanism"
+    - "NASICON solid electrolyte interstitial mechanism"
+    - "NASICON solid electrolyte interstitialcy mechanism"
+    - "NASICON solid electrolyte paddle-wheel mechanism"
+    - "NASICON solid electrolyte correlated ion hopping"
+    - "NASICON solid electrolyte percolation conduction pathway"
+    - "NASICON solid electrolyte bottleneck size migration"
+    - "NASICON solid electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_nasicon.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # NASICON family and aliases
+    - "NASICON"
+    - "NASICON-type"
+    - "NZP"
+    - "NZSP"
+    - "Na3Zr2Si2PO12"
+    - "Na1+xZr2SixP3-xO12"
+    - "Na3.4Zr2Si2.4P0.6O12"
+    - "Na3Sc2(PO4)3"
+    - "Na3Hf2Si2PO12"
+    - "LATP"
+    - "LAGP"
+    - "LTAP"
+    - "Li1.3Al0.3Ti1.7(PO4)3"
+    - "Li1.5Al0.5Ge1.5(PO4)3"
+    - "Li1+xAlxTi2-x(PO4)3"
+    - "Li1+xAlxGe2-x(PO4)3"
+    - "LiZr2(PO4)3"
+    - "LiTi2(PO4)3"
+    - "LiGe2(PO4)3"
+    - "lithium aluminum titanium phosphate"
+    - "lithium aluminum germanium phosphate"
+    - "sodium zirconium silicon phosphate"
+
+    # More NASICON names and abbreviations ("sodium superionic conductor" is left out: it names sulfides and halides too, not the NASICON family only)
+    - "LZP"
+    - "LCZP"
+    - "LAGTP"
+    - "LATGP"
+    - "lithium titanium phosphate"
+    - "lithium zirconium phosphate"
+    - "lithium germanium phosphate"
+    - "lithium aluminium titanium phosphate"
+    - "lithium aluminium germanium phosphate"
+    - "sodium zirconium phosphate"
+    - "sodium zirconium silicophosphate"
+
+    # More NASICON formulas, and the parts that find the doped members of each family
+    - "Si2PO12"
+    - "Zr2(SiO4)2(PO4)"
+    - "Zr2(PO4)3"
+    - "Hf2(PO4)3"
+    - "Sn2(PO4)3"
+    - "Sc2(PO4)3"
+    - "Ti1.5(PO4)3"
+    - "Ti1.6(PO4)3"
+    - "Ti1.7(PO4)3"
+    - "Ti1.8(PO4)3"
+    - "Ge1.5(PO4)3"
+    - "Ge1.6(PO4)3"
+    - "Ge1.7(PO4)3"
+    - "Li1.4Al0.4Ti1.6(PO4)3"
+    - "Li1.5Al0.5Ti1.5(PO4)3"
+    - "LiHf2(PO4)3"
+    - "LiSn2(PO4)3"
+    - "Li3Sc2(PO4)3"
+    - "Na3.4Sc0.4Zr1.6Si2PO12"
+    - "Na3.2Zr2Si2.2P0.8O12"
+    - "Zr2Si"
+    - "Ge2(PO4)3"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_nasicon
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

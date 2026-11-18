@@ -51,6 +51,15 @@ def discover(project_root: Path) -> list[Path]:
     return [project_root / name for name in KNOWN_DATABASES if (project_root / name / TABLE).is_file()]
 
 
+def job_databases(project_root: Path) -> list[Path]:
+    """The databases of the web jobs other than the default one (WebScraping/web_output_<job>, one per job file),
+    those that hold activation energies."""
+    folder = Path(project_root) / "WebScraping"
+    if not folder.is_dir():
+        return []
+    return sorted(p for p in folder.glob("web_output_*") if p.is_dir() and (p / TABLE).is_file())
+
+
 def polymorph(structure: str) -> str:
     """The phase a structure names — "cubic | garnet" → "cubic", "β-phase" → "β-phase" — and
     nothing when it only names a family (garnet, NASICON): two phases of one composition are two
@@ -86,8 +95,11 @@ def material_key(formula: str, composition: str = "") -> tuple[str, tuple[str, .
     return f"formula:{spelled}", tuple(elements)
 
 
-def load(databases: Sequence[Path], root: Path | None = None) -> tuple[list[Measurement], list[DatabaseReport]]:
-    """Every activation energy of the folders, each paper counted once.
+def load(databases: Sequence[Path], root: Path | None = None,
+         verifications: Path | None = None) -> tuple[list[Measurement], list[DatabaseReport]]:
+    """Every activation energy of the folders, each paper counted once — as a person checked it: a value marked wrong
+    takes no part, a corrected one takes part as corrected (LocalExtraction.verification; `verifications`: the folder
+    holding the checks, ~/MoukhlijMatExtract by default). Each value also carries its Arrhenius cross-check.
 
     A paper that several folders hold — an earlier copy of a database, or an article that sits in
     LocalExtraction/papers/ and was fetched from the web as well — is read from the first
@@ -96,7 +108,7 @@ def load(databases: Sequence[Path], root: Path | None = None) -> tuple[list[Meas
     reports: list[DatabaseReport] = []
     claimed: dict[str, str] = {}  # paper → the folder its values are taken from
     for path in databases:
-        found, report, covered = _load_database(Path(path), root, claimed)
+        found, report, covered = _load_database(Path(path), root, claimed, verifications)
         values.extend(found)
         reports.append(report)
         for paper in covered:
@@ -104,8 +116,8 @@ def load(databases: Sequence[Path], root: Path | None = None) -> tuple[list[Meas
     return values, reports
 
 
-def _load_database(path: Path, root: Path | None,
-                   claimed: dict[str, str]) -> tuple[list[Measurement], DatabaseReport, set[str]]:
+def _load_database(path: Path, root: Path | None, claimed: dict[str, str],
+                   verifications: Path | None = None) -> tuple[list[Measurement], DatabaseReport, set[str]]:
     table = path if path.is_file() else path / TABLE
     folder = table.parent
     report = DatabaseReport(name=folder.name or str(folder), path=_shown(folder, root))
@@ -128,12 +140,28 @@ def _load_database(path: Path, root: Path | None,
     papers = _papers(folder)
     covered = {about["key"] for about in papers.values()}
     kept: dict[tuple, Measurement] = {}
-    already_read = repeated = unreadable = 0
+    already_read = repeated = unreadable = marked_wrong = 0
+    from LocalExtraction.arrhenius import NOT_CHECKABLE, cross_check
+    from LocalExtraction.verification import Verifications, apply, row_id
+    checked = Verifications.of(folder, verifications)
+    arrhenius = cross_check(folder)
     for row in rows:
+        identity = row_id(row)
+        verdict = checked.get(identity)
+        row = apply(row, verdict)
+        if row is None:  # marked wrong by a person
+            marked_wrong += 1
+            continue
         value = _measurement(row, papers, report.name)
         if value is None:
             unreadable += 1
             continue
+        test = arrhenius.get(identity)
+        if test is not None and abs(test.reported_eV - value.energy_eV) > 1e-9:  # a corrected number: judged anew
+            test = test.against(value.energy_eV)
+        value = replace(value, value_id=identity, verification=verdict.verdict if verdict else "",
+                        arrhenius=test.status if test and test.status != NOT_CHECKABLE else "",
+                        arrhenius_text=test.text if test and test.status != NOT_CHECKABLE else "")
         covered.add(value.paper_key)
         if value.paper_key in claimed:
             already_read += 1
@@ -150,7 +178,9 @@ def _load_database(path: Path, root: Path | None,
     found = list(kept.values())
     return found, replace(
         report, rows=len(rows), values=len(found), papers=len({v.paper_key for v in found}),
-        already_read=already_read, repeated=repeated, unreadable=unreadable,
+        already_read=already_read, repeated=repeated, unreadable=unreadable, marked_wrong=marked_wrong,
+        verified=sum(1 for v in found if v.verification),
+        inconsistent=sum(1 for v in found if v.arrhenius == "inconsistent"),
         unassigned=_unassigned(folder, papers, claimed), partial=(folder / PENDING).exists()), covered
 
 
@@ -277,6 +307,11 @@ def describe(report: DatabaseReport) -> str:
         parts.append(f"{_count(report.repeated, 'repeated value')} counted once")
     if report.unreadable:
         parts.append(f"{_count(report.unreadable, 'row')} without a material or a usable energy")
+    if report.verified or report.marked_wrong:
+        parts.append(f"{_count(report.verified, 'value')} checked by hand"
+                     + (f", {report.marked_wrong} marked wrong (left out)" if report.marked_wrong else ""))
+    if report.inconsistent:
+        parts.append(f"{_count(report.inconsistent, 'value')} the paper's own conductivities disagree with (Arrhenius)")
     if report.partial:
         parts.append("only partly rebuilt (a run was stopped): run that part again to rank all its papers")
     return " · ".join(parts)

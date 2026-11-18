@@ -1,0 +1,396 @@
+# Argyrodite-type solid electrolytes
+#
+# Lithium argyrodites Li6PS5X (X = Cl, Br, I), the halide-rich Li6-xPS5-xX1+x, the Ge-, Si- and Sb-substituted
+# members, and the sodium argyrodites.
+#
+# Kind: crystal-structure type.
+#   Prototype: Ag8GeS6 argyrodite; Li6PS5X, cubic F-43m.
+#
+# 147 queries, 26 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/argyrodite.yaml          # extracts into WebScraping/web_output_argyrodite
+#   mme-rank --domain electrolyte --source WebScraping/web_output_argyrodite --kind arrhenius
+
+name: argyrodite
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Argyrodite: halide disorder and lithium excess
+    - "argyrodite S2- Cl- site disorder conductivity"
+    - "argyrodite halide disorder lithium conduction"
+    - "Li6PS5Cl anion disorder ionic conductivity"
+    - "halide rich argyrodite Li5.5PS4.5Cl1.5"
+    - "Li6+xP1-xGexS5I lithium excess conductivity"
+    - "argyrodite intercage intracage lithium jumps"
+    - "argyrodite lithium sublattice polyhedral cages"
+    - "Li6PS5Br Li6PS5I conductivity difference"
+
+    # Argyrodite: synthesis and processing
+    - "argyrodite mechanochemical synthesis conductivity"
+    - "argyrodite solution synthesis conductivity"
+    - "Li6PS5Cl annealing temperature conductivity"
+    - "Li6PS5Cl cold pressing densification conductivity"
+    - "argyrodite thin membrane electrolyte conductivity"
+    - "argyrodite moisture H2S stability"
+
+    # Argyrodite: interfaces and cells
+    - "Li6PS5Cl lithium metal interface"
+    - "Li6PS5Cl cathode composite interface resistance"
+    - "argyrodite electrochemical stability window"
+    - "argyrodite critical current density"
+
+    # argyrodite solid electrolyte: every transport measurement and method
+    - "argyrodite solid electrolyte ionic conductivity"
+    - "argyrodite solid electrolyte activation energy"
+    - "argyrodite solid electrolyte lithium ion diffusion"
+    - "argyrodite solid electrolyte sodium ion diffusion"
+    - "argyrodite solid electrolyte lithium migration barrier"
+    - "argyrodite solid electrolyte sodium migration barrier"
+    - "argyrodite solid electrolyte ion transport mechanism"
+    - "argyrodite solid electrolyte grain boundary conductivity"
+    - "argyrodite solid electrolyte bulk ionic conductivity"
+    - "argyrodite solid electrolyte impedance spectroscopy"
+    - "argyrodite solid electrolyte temperature dependent conductivity"
+    - "argyrodite solid electrolyte diffusion coefficient"
+    - "argyrodite solid electrolyte doping ionic conductivity"
+    - "argyrodite solid electrolyte electronic conductivity"
+    - "argyrodite solid electrolyte electrochemical stability window"
+    - "argyrodite solid electrolyte interfacial resistance"
+    - "argyrodite solid electrolyte molecular dynamics lithium diffusion"
+    - "argyrodite solid electrolyte molecular dynamics sodium diffusion"
+    - "argyrodite solid electrolyte density functional theory migration"
+    - "argyrodite solid electrolyte NMR lithium dynamics"
+    - "argyrodite solid electrolyte NMR sodium dynamics"
+    - "argyrodite solid electrolyte synthesis ionic conductivity"
+    - "argyrodite solid electrolyte fast ion conductor"
+    - "argyrodite solid electrolyte superionic conductor"
+
+    # Li6PS5Cl: every transport measurement and method
+    - "Li6PS5Cl ionic conductivity"
+    - "Li6PS5Cl activation energy"
+    - "Li6PS5Cl lithium ion diffusion"
+    - "Li6PS5Cl sodium ion diffusion"
+    - "Li6PS5Cl lithium migration barrier"
+    - "Li6PS5Cl sodium migration barrier"
+    - "Li6PS5Cl ion transport mechanism"
+    - "Li6PS5Cl grain boundary conductivity"
+    - "Li6PS5Cl bulk ionic conductivity"
+    - "Li6PS5Cl impedance spectroscopy"
+    - "Li6PS5Cl temperature dependent conductivity"
+    - "Li6PS5Cl diffusion coefficient"
+    - "Li6PS5Cl doping ionic conductivity"
+    - "Li6PS5Cl electronic conductivity"
+    - "Li6PS5Cl electrochemical stability window"
+    - "Li6PS5Cl interfacial resistance"
+    - "Li6PS5Cl molecular dynamics lithium diffusion"
+    - "Li6PS5Cl molecular dynamics sodium diffusion"
+    - "Li6PS5Cl density functional theory migration"
+    - "Li6PS5Cl NMR lithium dynamics"
+    - "Li6PS5Cl NMR sodium dynamics"
+    - "Li6PS5Cl synthesis ionic conductivity"
+    - "Li6PS5Cl fast ion conductor"
+    - "Li6PS5Cl superionic conductor"
+
+    # Li6PS5Br: every transport measurement and method
+    - "Li6PS5Br ionic conductivity"
+    - "Li6PS5Br activation energy"
+    - "Li6PS5Br lithium ion diffusion"
+    - "Li6PS5Br sodium ion diffusion"
+    - "Li6PS5Br lithium migration barrier"
+    - "Li6PS5Br sodium migration barrier"
+    - "Li6PS5Br ion transport mechanism"
+    - "Li6PS5Br grain boundary conductivity"
+    - "Li6PS5Br bulk ionic conductivity"
+    - "Li6PS5Br impedance spectroscopy"
+    - "Li6PS5Br temperature dependent conductivity"
+    - "Li6PS5Br diffusion coefficient"
+    - "Li6PS5Br doping ionic conductivity"
+    - "Li6PS5Br electronic conductivity"
+    - "Li6PS5Br electrochemical stability window"
+    - "Li6PS5Br interfacial resistance"
+    - "Li6PS5Br molecular dynamics lithium diffusion"
+    - "Li6PS5Br molecular dynamics sodium diffusion"
+    - "Li6PS5Br density functional theory migration"
+    - "Li6PS5Br NMR lithium dynamics"
+    - "Li6PS5Br NMR sodium dynamics"
+    - "Li6PS5Br synthesis ionic conductivity"
+    - "Li6PS5Br fast ion conductor"
+    - "Li6PS5Br superionic conductor"
+
+    # Li6PS5I: every transport measurement and method
+    - "Li6PS5I ionic conductivity"
+    - "Li6PS5I activation energy"
+    - "Li6PS5I lithium ion diffusion"
+    - "Li6PS5I sodium ion diffusion"
+    - "Li6PS5I lithium migration barrier"
+    - "Li6PS5I sodium migration barrier"
+    - "Li6PS5I ion transport mechanism"
+    - "Li6PS5I grain boundary conductivity"
+    - "Li6PS5I bulk ionic conductivity"
+    - "Li6PS5I impedance spectroscopy"
+    - "Li6PS5I temperature dependent conductivity"
+    - "Li6PS5I diffusion coefficient"
+    - "Li6PS5I doping ionic conductivity"
+    - "Li6PS5I electronic conductivity"
+    - "Li6PS5I electrochemical stability window"
+    - "Li6PS5I interfacial resistance"
+    - "Li6PS5I molecular dynamics lithium diffusion"
+    - "Li6PS5I molecular dynamics sodium diffusion"
+    - "Li6PS5I density functional theory migration"
+    - "Li6PS5I NMR lithium dynamics"
+    - "Li6PS5I NMR sodium dynamics"
+    - "Li6PS5I synthesis ionic conductivity"
+    - "Li6PS5I fast ion conductor"
+    - "Li6PS5I superionic conductor"
+
+    # Li5.5PS4.5Cl1.5: every transport measurement and method
+    - "Li5.5PS4.5Cl1.5 ionic conductivity"
+    - "Li5.5PS4.5Cl1.5 activation energy"
+    - "Li5.5PS4.5Cl1.5 lithium ion diffusion"
+    - "Li5.5PS4.5Cl1.5 sodium ion diffusion"
+    - "Li5.5PS4.5Cl1.5 lithium migration barrier"
+    - "Li5.5PS4.5Cl1.5 sodium migration barrier"
+    - "Li5.5PS4.5Cl1.5 ion transport mechanism"
+    - "Li5.5PS4.5Cl1.5 grain boundary conductivity"
+    - "Li5.5PS4.5Cl1.5 bulk ionic conductivity"
+    - "Li5.5PS4.5Cl1.5 impedance spectroscopy"
+    - "Li5.5PS4.5Cl1.5 temperature dependent conductivity"
+    - "Li5.5PS4.5Cl1.5 diffusion coefficient"
+    - "Li5.5PS4.5Cl1.5 doping ionic conductivity"
+    - "Li5.5PS4.5Cl1.5 electronic conductivity"
+    - "Li5.5PS4.5Cl1.5 electrochemical stability window"
+    - "Li5.5PS4.5Cl1.5 interfacial resistance"
+    - "Li5.5PS4.5Cl1.5 molecular dynamics lithium diffusion"
+    - "Li5.5PS4.5Cl1.5 molecular dynamics sodium diffusion"
+    - "Li5.5PS4.5Cl1.5 density functional theory migration"
+    - "Li5.5PS4.5Cl1.5 NMR lithium dynamics"
+    - "Li5.5PS4.5Cl1.5 NMR sodium dynamics"
+    - "Li5.5PS4.5Cl1.5 synthesis ionic conductivity"
+    - "Li5.5PS4.5Cl1.5 fast ion conductor"
+    - "Li5.5PS4.5Cl1.5 superionic conductor"
+
+    # argyrodite solid electrolyte: transport mechanisms
+    - "argyrodite solid electrolyte concerted migration"
+    - "argyrodite solid electrolyte vacancy mechanism"
+    - "argyrodite solid electrolyte interstitial mechanism"
+    - "argyrodite solid electrolyte interstitialcy mechanism"
+    - "argyrodite solid electrolyte paddle-wheel mechanism"
+    - "argyrodite solid electrolyte correlated ion hopping"
+    - "argyrodite solid electrolyte percolation conduction pathway"
+    - "argyrodite solid electrolyte bottleneck size migration"
+    - "argyrodite solid electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_argyrodite.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Argyrodite family and aliases
+    - "argyrodite"
+    - "argyrodite-type"
+    - "lithium argyrodite"
+    - "sodium argyrodite"
+    - "halide argyrodite"
+
+    # Argyrodite formulas
+    - "Li6PS5Cl"
+    - "Li6PS5Br"
+    - "Li6PS5I"
+    - "Li6PS5X"
+    - "Li5.5PS4.5Cl1.5"
+    - "Li5.4PS4.4Cl1.6"
+    - "Li6-xPS5-xCl1+x"
+    - "Li6PS5Cl0.5Br0.5"
+    - "Li6+xP1-xGexS5I"
+    - "Li6.6P0.4Ge0.6S5I"
+    - "Li6+xP1-xSixS5Br"
+    - "Li7PS6"
+    - "Li7PSe6"
+    - "Li6PO5Cl"
+    - "Li6.6Si0.6Sb0.4S5I"
+    - "Na6PS5Cl"
+
+    # Parts of argyrodite formulas (find the doped members)
+    - "PS5Cl"
+    - "PS5Br"
+    - "PS5I"
+    - "PS4.5Cl"
+    - "PS4.4Cl"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "thermoelectric"
+    - "ore deposit"
+    - "hydrothermal deposit"
+    - "mineralization"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_argyrodite
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

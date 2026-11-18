@@ -81,7 +81,7 @@ class Source:
     A source that needs a key and has none is not used: `available()` says so."""
 
     name = ""
-    key_name = ""          # the WebScraping/averageScrap/.env variable holding its key ("" = it needs none)
+    key_name = ""          # the ~/MoukhlijMatExtract/.env variable holding its key ("" = it needs none)
     key_required = True    # False: the key only lifts the limits
     label = ""             # its name in messages
 

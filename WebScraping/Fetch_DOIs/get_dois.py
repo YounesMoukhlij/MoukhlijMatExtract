@@ -28,7 +28,7 @@ keeps to the keywords given.
     python get_dois.py "solid electrolyte" "LLZO garnet" --count 50
     python get_dois.py --job configs/my_job.yaml --max 50
 
-Keys are read from WebScraping/averageScrap/.env when it exists (MME_EMAIL,
+Keys are read from ~/MoukhlijMatExtract/.env when it exists (MME_EMAIL,
 OPENALEX_API_KEY, SEMANTIC_SCHOLAR_API_KEY); none is required.
 """
 
@@ -53,7 +53,7 @@ if not __package__:  # run as a script (python WebScraping/Fetch_DOIs/get_dois.p
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from LocalExtraction import runcontrol  # noqa: E402
-from LocalExtraction.about import PROJECT_HOME, command_name, enter_project_home, version_text  # noqa: E402
+from LocalExtraction.about import PROJECT_HOME, command_name, enter_project_home, found_here, version_text  # noqa: E402
 
 HERE = Path(__file__).resolve().parent            # WebScraping/Fetch_DOIs (where the code lives)
 # The DOI list and the job file live in ~/MoukhlijMatExtract — not where the package is installed —
@@ -130,6 +130,7 @@ def load_job(path):
         "sources": search.get("sources"),
         "email": job.get("contact_email") or "",
         "topic_words": words(screen.get("topic_words")),
+        "doi_list": str(search.get("doi_list") or ""),
         "property_words": words(screen.get("property_words")),
     }
 
@@ -577,6 +578,28 @@ def spread(items):
     return [items[(k * step) % n] for k in range(n)]
 
 
+def list_of(job, out):
+    """Where the DOIs go: --out when given, else the job's own list (search.doi_list, read from the home
+    folder), else the shared list. A job's DOIs never land in another job's list."""
+    if out is not None:
+        return out
+    if job.get("doi_list"):
+        listed = Path(job["doi_list"])
+        return listed if listed.is_absolute() else PROJECT_HOME / listed
+    return OUTPUT
+
+
+def main_topic(queries, topics):
+    """The job's main topic, to keep its extra keywords on it: its first topic word, when at least half of
+    its queries are about it ("solid electrolyte" in the electrolyte job). None when the job spans several
+    subjects (a job on garnets and NASICONs: "garnet" added to every NASICON keyword would lose them)."""
+    if not topics or not queries:
+        return None
+    first = simple(topics[0])
+    share = sum(1 for query in queries if first in simple(query)) / len(queries)
+    return topics[0] if share >= 0.5 else None
+
+
 def extra_keywords(base, topics, properties, anchor=None):
     """Keywords beyond the base ones, for when those no longer find new DOIs: each topic with each
     property ("argyrodite ionic conductivity"), in an order where both change from one keyword to the
@@ -770,7 +793,8 @@ def main(argv=None):
     parser.add_argument("--max", type=int,
                         help=f"results asked from each source per keyword "
                              f"(default: the job's max_per_query, else {PER_SOURCE})")
-    parser.add_argument("--out", type=Path, default=OUTPUT, help=f"CSV file (default: WebScraping/Fetch_DOIs/{OUTPUT.name})")
+    parser.add_argument("--out", type=Path, default=None,
+                        help=f"CSV file (default: the job's doi_list, else WebScraping/Fetch_DOIs/{OUTPUT.name})")
     parser.add_argument("--refresh", action="store_true",
                         help=f"ask the sources again the keywords they already answered (by default a keyword a "
                              f"source answered in the last {SEARCH_KEPT_DAYS} days is skipped)")
@@ -778,15 +802,17 @@ def main(argv=None):
                         help="use only the keywords given: do not go on with keywords made of topic and "
                              "property words when they run dry")
     args = parser.parse_args(argv)
+    args.job = found_here(args.job)  # before the move into the home folder
     enter_project_home("dois")
 
+    # A job the package ships, not made yet (a fresh folder): made from the shipped one, with the others.
+    from WebScraping.averageScrap.about import starter_job
+    if not args.job.exists() and (args.job != JOB_FILE or not args.keywords):
+        starter_job(str(args.job))
     if not args.job.exists() and args.job != JOB_FILE:
         sys.exit(f"There is no job file {args.job}")
-    # No keywords given and no job file yet (a fresh folder): make a starter one from the shipped job.
-    if not args.keywords and args.job == JOB_FILE and not args.job.exists():
-        from WebScraping.averageScrap.about import ensure_default_job
-        ensure_default_job(str(args.job))
     job = load_job(args.job)
+    args.out = list_of(job, args.out)
     set_contact(os.environ.get("MME_EMAIL") or job.get("email", ""))
 
     keywords = args.keywords or job.get("queries")
@@ -806,7 +832,7 @@ def main(argv=None):
         extra = extra_keywords(keywords, keywords, properties)
     else:  # the job's queries: its topic words with its property words, kept on the job's main topic
         topics = job.get("topic_words") or FALLBACK_TOPICS
-        extra = extra_keywords(keywords, topics, properties, anchor=topics[0])
+        extra = extra_keywords(keywords, topics, properties, anchor=main_topic(keywords, topics))
 
     wanted = job.get("sources")
     sources = [(name, search) for name, key, search in SOURCES if not wanted or key in wanted]

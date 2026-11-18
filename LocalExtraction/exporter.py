@@ -828,10 +828,16 @@ class StrictExporter:
                   for name, frame in frames.items()}
         json_path = os.path.join(self.output_dir, "database.json")
         papers = [p for p in self._read_json(json_path) if (p.get("paper_id") or p.get("filename")) not in replaced]
-        _write_atomically(json_path, lambda part: self._dump_json(part, papers + records))
+        # In paper order, whatever order the workers finished the papers in: the same papers give the same files,
+        # byte for byte (the checksums of a release). A paper's own rows keep their order.
+        papers = sorted(papers + records, key=lambda p: str(p.get("paper_id") or p.get("filename") or ""))
+        _write_atomically(json_path, lambda part: self._dump_json(part, papers))
         for name in sorted(merged, key=lambda name: name == "papers"):
+            frame = merged[name]
+            if "paper_id" in frame.columns:
+                frame = frame.sort_values("paper_id", kind="mergesort", key=lambda ids: ids.astype(str)).reset_index(drop=True)
             _write_atomically(os.path.join(self.output_dir, f"{name}.csv"),
-                              lambda part, frame=merged[name]: frame.to_csv(part, index=False, encoding="utf-8-sig"))
+                              lambda part, frame=frame: frame.to_csv(part, index=False, encoding="utf-8-sig"))
         from .schema import write_csv  # what every column holds, next to the tables (schema imports this module)
         write_csv(self.output_dir)
 

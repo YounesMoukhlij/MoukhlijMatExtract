@@ -1,0 +1,386 @@
+# Composite and framework electrolytes (polymer-ceramic, MOF, COF, plastic crystals, ionogels)
+#
+# Polymer-ceramic composite electrolytes (ceramic-in-polymer, polymer-in-ceramic), inorganic-organic hybrids,
+# metal-organic framework (MOF) and covalent organic framework (COF) electrolytes, porous framework, organic
+# ionic plastic crystal and ionogel electrolytes.
+#
+# Kind: material class (composites and framework electrolytes).
+#   Prototype: polymer-ceramic composites, MOF and COF electrolytes, plastic crystals, ionogels.
+#
+# 142 queries, 24 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/hybrid.yaml          # extracts into WebScraping/web_output_hybrid
+#   mme-rank --domain electrolyte --source WebScraping/web_output_hybrid --kind arrhenius
+
+name: hybrid
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Composites
+    - "PEO LLZO composite electrolyte conductivity"
+    - "PEO LATP composite electrolyte conductivity"
+    - "ceramic filler polymer electrolyte interface conduction"
+    - "polymer ceramic interface lithium transport"
+    - "percolation ceramic filler composite electrolyte"
+    - "vertically aligned ceramic polymer electrolyte"
+
+    # Frameworks, plastic crystals and ionogels
+    - "metal organic framework solid electrolyte lithium conductivity"
+    - "MOF single ion conductor"
+    - "covalent organic framework lithium ion conduction"
+    - "ionic covalent organic framework conductivity"
+    - "succinonitrile plastic crystal electrolyte conductivity"
+    - "organic ionic plastic crystal conductivity"
+    - "ionogel electrolyte lithium conductivity"
+
+    # composite polymer electrolyte: every transport measurement and method
+    - "composite polymer electrolyte ionic conductivity"
+    - "composite polymer electrolyte activation energy"
+    - "composite polymer electrolyte lithium ion diffusion"
+    - "composite polymer electrolyte sodium ion diffusion"
+    - "composite polymer electrolyte lithium migration barrier"
+    - "composite polymer electrolyte sodium migration barrier"
+    - "composite polymer electrolyte ion transport mechanism"
+    - "composite polymer electrolyte grain boundary conductivity"
+    - "composite polymer electrolyte bulk ionic conductivity"
+    - "composite polymer electrolyte impedance spectroscopy"
+    - "composite polymer electrolyte temperature dependent conductivity"
+    - "composite polymer electrolyte diffusion coefficient"
+    - "composite polymer electrolyte doping ionic conductivity"
+    - "composite polymer electrolyte electronic conductivity"
+    - "composite polymer electrolyte electrochemical stability window"
+    - "composite polymer electrolyte interfacial resistance"
+    - "composite polymer electrolyte molecular dynamics lithium diffusion"
+    - "composite polymer electrolyte molecular dynamics sodium diffusion"
+    - "composite polymer electrolyte density functional theory migration"
+    - "composite polymer electrolyte NMR lithium dynamics"
+    - "composite polymer electrolyte NMR sodium dynamics"
+    - "composite polymer electrolyte synthesis ionic conductivity"
+    - "composite polymer electrolyte fast ion conductor"
+    - "composite polymer electrolyte superionic conductor"
+
+    # polymer ceramic composite electrolyte: every transport measurement and method
+    - "polymer ceramic composite electrolyte ionic conductivity"
+    - "polymer ceramic composite electrolyte activation energy"
+    - "polymer ceramic composite electrolyte lithium ion diffusion"
+    - "polymer ceramic composite electrolyte sodium ion diffusion"
+    - "polymer ceramic composite electrolyte lithium migration barrier"
+    - "polymer ceramic composite electrolyte sodium migration barrier"
+    - "polymer ceramic composite electrolyte ion transport mechanism"
+    - "polymer ceramic composite electrolyte grain boundary conductivity"
+    - "polymer ceramic composite electrolyte bulk ionic conductivity"
+    - "polymer ceramic composite electrolyte impedance spectroscopy"
+    - "polymer ceramic composite electrolyte temperature dependent conductivity"
+    - "polymer ceramic composite electrolyte diffusion coefficient"
+    - "polymer ceramic composite electrolyte doping ionic conductivity"
+    - "polymer ceramic composite electrolyte electronic conductivity"
+    - "polymer ceramic composite electrolyte electrochemical stability window"
+    - "polymer ceramic composite electrolyte interfacial resistance"
+    - "polymer ceramic composite electrolyte molecular dynamics lithium diffusion"
+    - "polymer ceramic composite electrolyte molecular dynamics sodium diffusion"
+    - "polymer ceramic composite electrolyte density functional theory migration"
+    - "polymer ceramic composite electrolyte NMR lithium dynamics"
+    - "polymer ceramic composite electrolyte NMR sodium dynamics"
+    - "polymer ceramic composite electrolyte synthesis ionic conductivity"
+    - "polymer ceramic composite electrolyte fast ion conductor"
+    - "polymer ceramic composite electrolyte superionic conductor"
+
+    # MOF solid electrolyte: every transport measurement and method
+    - "MOF solid electrolyte ionic conductivity"
+    - "MOF solid electrolyte activation energy"
+    - "MOF solid electrolyte lithium ion diffusion"
+    - "MOF solid electrolyte sodium ion diffusion"
+    - "MOF solid electrolyte lithium migration barrier"
+    - "MOF solid electrolyte sodium migration barrier"
+    - "MOF solid electrolyte ion transport mechanism"
+    - "MOF solid electrolyte grain boundary conductivity"
+    - "MOF solid electrolyte bulk ionic conductivity"
+    - "MOF solid electrolyte impedance spectroscopy"
+    - "MOF solid electrolyte temperature dependent conductivity"
+    - "MOF solid electrolyte diffusion coefficient"
+    - "MOF solid electrolyte doping ionic conductivity"
+    - "MOF solid electrolyte electronic conductivity"
+    - "MOF solid electrolyte electrochemical stability window"
+    - "MOF solid electrolyte interfacial resistance"
+    - "MOF solid electrolyte molecular dynamics lithium diffusion"
+    - "MOF solid electrolyte molecular dynamics sodium diffusion"
+    - "MOF solid electrolyte density functional theory migration"
+    - "MOF solid electrolyte NMR lithium dynamics"
+    - "MOF solid electrolyte NMR sodium dynamics"
+    - "MOF solid electrolyte synthesis ionic conductivity"
+    - "MOF solid electrolyte fast ion conductor"
+    - "MOF solid electrolyte superionic conductor"
+
+    # covalent organic framework electrolyte: every transport measurement and method
+    - "covalent organic framework electrolyte ionic conductivity"
+    - "covalent organic framework electrolyte activation energy"
+    - "covalent organic framework electrolyte lithium ion diffusion"
+    - "covalent organic framework electrolyte sodium ion diffusion"
+    - "covalent organic framework electrolyte lithium migration barrier"
+    - "covalent organic framework electrolyte sodium migration barrier"
+    - "covalent organic framework electrolyte ion transport mechanism"
+    - "covalent organic framework electrolyte grain boundary conductivity"
+    - "covalent organic framework electrolyte bulk ionic conductivity"
+    - "covalent organic framework electrolyte impedance spectroscopy"
+    - "covalent organic framework electrolyte temperature dependent conductivity"
+    - "covalent organic framework electrolyte diffusion coefficient"
+    - "covalent organic framework electrolyte doping ionic conductivity"
+    - "covalent organic framework electrolyte electronic conductivity"
+    - "covalent organic framework electrolyte electrochemical stability window"
+    - "covalent organic framework electrolyte interfacial resistance"
+    - "covalent organic framework electrolyte molecular dynamics lithium diffusion"
+    - "covalent organic framework electrolyte molecular dynamics sodium diffusion"
+    - "covalent organic framework electrolyte density functional theory migration"
+    - "covalent organic framework electrolyte NMR lithium dynamics"
+    - "covalent organic framework electrolyte NMR sodium dynamics"
+    - "covalent organic framework electrolyte synthesis ionic conductivity"
+    - "covalent organic framework electrolyte fast ion conductor"
+    - "covalent organic framework electrolyte superionic conductor"
+
+    # plastic crystal electrolyte: every transport measurement and method
+    - "plastic crystal electrolyte ionic conductivity"
+    - "plastic crystal electrolyte activation energy"
+    - "plastic crystal electrolyte lithium ion diffusion"
+    - "plastic crystal electrolyte sodium ion diffusion"
+    - "plastic crystal electrolyte lithium migration barrier"
+    - "plastic crystal electrolyte sodium migration barrier"
+    - "plastic crystal electrolyte ion transport mechanism"
+    - "plastic crystal electrolyte grain boundary conductivity"
+    - "plastic crystal electrolyte bulk ionic conductivity"
+    - "plastic crystal electrolyte impedance spectroscopy"
+    - "plastic crystal electrolyte temperature dependent conductivity"
+    - "plastic crystal electrolyte diffusion coefficient"
+    - "plastic crystal electrolyte doping ionic conductivity"
+    - "plastic crystal electrolyte electronic conductivity"
+    - "plastic crystal electrolyte electrochemical stability window"
+    - "plastic crystal electrolyte interfacial resistance"
+    - "plastic crystal electrolyte molecular dynamics lithium diffusion"
+    - "plastic crystal electrolyte molecular dynamics sodium diffusion"
+    - "plastic crystal electrolyte density functional theory migration"
+    - "plastic crystal electrolyte NMR lithium dynamics"
+    - "plastic crystal electrolyte NMR sodium dynamics"
+    - "plastic crystal electrolyte synthesis ionic conductivity"
+    - "plastic crystal electrolyte fast ion conductor"
+    - "plastic crystal electrolyte superionic conductor"
+
+    # composite polymer electrolyte: transport mechanisms
+    - "composite polymer electrolyte concerted migration"
+    - "composite polymer electrolyte vacancy mechanism"
+    - "composite polymer electrolyte interstitial mechanism"
+    - "composite polymer electrolyte interstitialcy mechanism"
+    - "composite polymer electrolyte paddle-wheel mechanism"
+    - "composite polymer electrolyte correlated ion hopping"
+    - "composite polymer electrolyte percolation conduction pathway"
+    - "composite polymer electrolyte bottleneck size migration"
+    - "composite polymer electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_hybrid.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Composite and framework aliases
+    - "composite polymer electrolyte"
+    - "composite solid electrolyte"
+    - "polymer-ceramic composite"
+    - "ceramic-polymer composite"
+    - "ceramic-in-polymer"
+    - "polymer-in-ceramic"
+    - "hybrid solid electrolyte"
+    - "inorganic-organic hybrid electrolyte"
+    - "organic-inorganic hybrid electrolyte"
+    - "MOF electrolyte"
+    - "MOF-based electrolyte"
+    - "MOF-based solid electrolyte"
+    - "metal-organic framework electrolyte"
+    - "metal–organic framework electrolyte"
+    - "COF electrolyte"
+    - "covalent organic framework electrolyte"
+    - "ionic covalent organic framework"
+    - "porous framework electrolyte"
+    - "zeolitic imidazolate framework electrolyte"
+    - "organic ionic plastic crystal"
+    - "plastic crystal electrolyte"
+    - "succinonitrile electrolyte"
+    - "ionogel electrolyte"
+    - "quasi-solid-state electrolyte"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "gas adsorption"
+    - "gas separation"
+    - "CO2 capture"
+    - "drug delivery"
+    - "water harvesting"
+    - "heterogeneous catalysis"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_hybrid
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

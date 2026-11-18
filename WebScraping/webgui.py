@@ -11,20 +11,26 @@ def _window(parent):
     """A new top-level window: the application's root when there is no parent (standalone), else a
     child of the window that opened it (inside the project hub)."""
     import tkinter as tk
-    return tk.Tk() if parent is None else tk.Toplevel(parent)
+    if parent is not None:
+        return tk.Toplevel(parent)
+    from LocalExtraction.crashlog import watch
+    root = tk.Tk()
+    watch(root)  # its own errors: written to a crash file, and said
+    return root
 
 
 def open_web(parent=None, job_path=None, output_dir=None, workers=4):
     """The Web scraping window, after the "Before you start" question (closing that closes the window).
     `job_path`, `output_dir`, `workers`: the options of `python -m WebScraping gui` (default: the job
-    file configs/sse.yaml, made from the shipped one if missing, and WebScraping/web_output)."""
-    from WebScraping.averageScrap.about import DEFAULT_OUTPUT, ensure_default_job
+    file configs/sse.yaml, made from the shipped one if missing, and the job's own results folder —
+    WebScraping/web_output for it; about.output_for)."""
+    from WebScraping.averageScrap.about import ensure_default_job, starter_job
     from WebScraping.averageScrap.gui.app import App
     from WebScraping.averageScrap.job import load_env
     load_env()
-    job = job_path or ensure_default_job()  # a fresh folder: start it off with the shipped job file
+    job = starter_job(job_path) if job_path else ensure_default_job()  # a fresh folder: the shipped job files
     win = _window(parent)
-    app = App(win, job if os.path.exists(job) else "", output_dir or DEFAULT_OUTPUT, workers)
+    app = App(win, job if os.path.exists(job) else "", output_dir or "", workers)  # "": the job's own folder
     win.app = app  # a hook for the tests
     ask_before_start(win, app)
     return win
@@ -34,9 +40,8 @@ def ask_before_start(win, app):
     """The question shown each time the window opens (the e-mail, the API keys). The window behind it
     waits until it is answered; cancelling it closes the window."""
     import tkinter as tk
-    from WebScraping.averageScrap import job
     from WebScraping.averageScrap.gui.dialogs import StartDialog
-    question = StartDialog(win, on_continue=lambda: None, on_cancel=app.close, path=job.ENV_PATH)
+    question = StartDialog(win, on_continue=lambda: None, on_cancel=app.close)  # the keys file of the main folder
 
     def hold() -> None:  # a grab needs the dialog on screen: try again until it is
         try:
@@ -60,6 +65,11 @@ def main(argv=None, job_path=None, output_dir=None, workers=4) -> None:
         job_path, output_dir, workers = args.job, args.output, args.workers
         if args.verbose:
             logging.getLogger().setLevel(logging.DEBUG)
+    from LocalExtraction.about import found_here
+    from WebScraping.averageScrap.about import DEFAULT_JOB
+    if job_path and job_path != DEFAULT_JOB:
+        job_path = found_here(job_path)  # a job named on the command line: found before the move into the home
     enter_project_home("web", "dois")
     root = open_web(None, job_path, output_dir, workers)
-    root.mainloop()
+    from LocalExtraction.crashlog import run
+    run(root)  # the loop, then the window closed cleanly

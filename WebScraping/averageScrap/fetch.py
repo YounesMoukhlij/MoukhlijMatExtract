@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import List, Optional, Tuple
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import requests
 
@@ -52,6 +52,53 @@ _NOT_ENTITLED = {
                 "VPN) or with ELSEVIER_INSTTOKEN, and only if the university subscribes to the journal",
     "wiley": f"{NOT_ENTITLED_MARK}: closed Wiley papers download only on your university's network (campus or VPN), "
              "and only if the university subscribes to the journal"}
+# A site that refuses this many downloads in a row (HTTP 403) refuses programs, not one paper: it is not asked
+# again for the rest of the run. Asking it on for every paper of the publisher would only waste the run and get
+# the network flagged. A 403 is an answer: nothing tries to get around it, the paper goes on the list of
+# papers to download by hand (HAND_LIST).
+BLOCK_AFTER = 3
+SITE_BLOCKED_MARK = "refuses automated downloads"
+# Addresses that only send a request on to the publisher (a DOI link): the site that refused is the one they led to.
+_REDIRECTORS = {"doi.org", "dx.doi.org", "hdl.handle.net", "linkinghub.elsevier.com"}
+
+
+class SiteBlocks:
+    """The sites that refused downloads (HTTP 403) several times in a row during this run, shared by the
+    worker threads and by the watcher's rounds. Any download a site lets through clears its count."""
+
+    def __init__(self, after: int = BLOCK_AFTER):
+        self.after = after
+        self._refusals = {}
+        self._blocked = set()
+        self._lock = threading.Lock()
+
+    def refused(self, host: str) -> None:
+        with self._lock:
+            if host in self._blocked:
+                return
+            self._refusals[host] = self._refusals.get(host, 0) + 1
+            if self._refusals[host] < self.after:
+                return
+            self._blocked.add(host)
+        logging.warning(f"{host} refused {self.after} downloads in a row (HTTP 403): it {SITE_BLOCKED_MARK}, so it is "
+                        "not asked again in this run. Its papers are tried at the other sources, and those found nowhere "
+                        f"else go on the list to download by hand ({HAND_LIST}).")
+
+    def answered(self, host: str) -> None:
+        with self._lock:
+            self._refusals.pop(host, None)
+
+    def blocked(self, host: str) -> bool:
+        with self._lock:
+            return host in self._blocked
+
+    def hosts(self) -> List[str]:
+        with self._lock:
+            return sorted(self._blocked)
+
+
+# The papers sites refused with HTTP 403, to open in a browser and save into the papers folder (harvest.py).
+HAND_LIST = "to_download_by_hand.csv"
 
 
 @dataclass
@@ -133,14 +180,23 @@ class Outcome:
     # The services and sites that refused (too many requests, busy, no answer) while this paper was
     # looked for: it was not really checked, and the watcher checks it again later.
     refused: List[str] = field(default_factory=list)
+    # Every site that had this paper was skipped, being blocked for the run (SiteBlocks): the paper itself
+    # was not asked for, so the try does not count against it.
+    not_asked: bool = False
+
+
+def _host(url: str) -> str:
+    return urlsplit(url).netloc.lower()
 
 
 class Downloader:
-    def __init__(self, folder: str, client: PoliteClient, resolver: Resolver, max_mb: int = 60):
+    def __init__(self, folder: str, client: PoliteClient, resolver: Resolver, max_mb: int = 60,
+                 blocks: Optional[SiteBlocks] = None):
         self.folder, self.client, self.resolver = folder, client, resolver
         self.max_bytes = max_mb * 1024 * 1024
         self._disabled = set()
         self._lock = threading.Lock()
+        self.blocks = blocks if blocks is not None else SiteBlocks()
 
     def _disable(self, service: str, reason: str) -> None:
         with self._lock:
@@ -194,6 +250,14 @@ class Downloader:
                 self._disable("elsevier", "the API key was refused (is ELSEVIER_API_KEY right?)")
             if status == 403 and option.service in _NOT_ENTITLED:
                 return None, f"HTTP 403 ({_NOT_ENTITLED[option.service]})"
+            if option.service not in _NOT_ENTITLED:  # a publisher API's 403 is about the subscription, not programs
+                # The site that answered: where the request ended, after the redirects of a DOI link.
+                answered_by = _host(getattr(response, "url", "") or option.url)
+                if answered_by not in _REDIRECTORS:
+                    if status == 403:
+                        self.blocks.refused(answered_by)
+                    elif status == 200:
+                        self.blocks.answered(answered_by)
             if status != 200:
                 return None, f"HTTP {status}"
             kind = (response.headers.get("Content-Type") or "").lower()
@@ -257,11 +321,15 @@ class Downloader:
                              "— download skipped.")
                 return self._save(candidate, FetchOption("already in the folder", f"file://{existing}"), data,
                                   check, path=existing)
-        tried, offered = [], False
+        tried, offered, skipped = [], False, 0
         for option in self.resolver.options(candidate):
             if option.service in self._disabled:
                 continue
             offered = True
+            if option.service not in _NOT_ENTITLED and self.blocks.blocked(_host(option.url)):
+                tried.append(f"{option.service}: {_host(option.url)} {SITE_BLOCKED_MARK} (HTTP 403), skipped this run")
+                skipped += 1
+                continue
             data, reason = self._attempt(option)
             if data is None:
                 tried.append(f"{option.service}: {reason}")
@@ -269,8 +337,12 @@ class Downloader:
             check = check_pdf(data, candidate.title)
             if check.ok and option.service in _FIRST_PAGE_WHEN_NOT_ENTITLED and check.pages == 1:
                 # What a publisher's API sends a reader its subscription does not cover: the first page.
-                check = PdfCheck(False, f"only the first page ({NOT_ENTITLED_MARK}: the university's network or "
-                                        "ELSEVIER_INSTTOKEN is needed, and a subscription to the journal)", 1)
+                check = PdfCheck(False, f"only the first page ({NOT_ENTITLED_MARK}: "
+                                        + ("the institutional token is set, but your university's subscription does "
+                                           "not cover this journal — your library can say which journals it has)"
+                                           if os.environ.get("ELSEVIER_INSTTOKEN", "").strip() else
+                                           "the university's network or ELSEVIER_INSTTOKEN is needed, and a "
+                                           "subscription to the journal)"), 1)
             if not check.ok:
                 tried.append(f"{option.service}: {check.reason}")
                 continue
@@ -282,35 +354,41 @@ class Downloader:
                            refused=refused)
         if not offered:
             return Outcome(candidate.key, CLOSED, error="no legal copy found: needs a manual PDF")
-        return Outcome(candidate.key, FAILED, error="; ".join(tried)[:500])
+        return Outcome(candidate.key, FAILED, error="; ".join(tried)[:500], not_asked=skipped == len(tried) > 0)
 
     def _save(self, candidate: Candidate, option: FetchOption, data: bytes, check: PdfCheck,
               path: Optional[str] = None) -> Outcome:
-        """Saves the PDF (unless `path`: it is there already) and its sidecar."""
-        os.makedirs(self.folder, exist_ok=True)
-        path_given = path is not None
-        if path is None:
-            path = os.path.join(self.folder, f"{file_stem(candidate.key)}.pdf")
-            part = path + ".part"
-            with open(part, "wb") as f:
-                f.write(data)
-            os.replace(part, path)  # the PDF appears whole or not at all
-        sha256 = hashlib.sha256(data).hexdigest()
-        retrieved = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        # A file already in the folder keeps its own record of where it came from, when it has one.
-        if not (path_given and os.path.exists(sidecar_path(path))):
-            write_sidecar(path, {
-                "key": candidate.key, "arxiv_id": candidate.arxiv_id,
-                # A preprint without a journal DOI has the one arXiv gives it.
-                "doi": candidate.doi or (f"10.48550/arXiv.{candidate.arxiv_id}" if candidate.arxiv_id else ""),
-                "openalex_id": candidate.openalex_id, "title": candidate.title, "authors": candidate.authors,
-                "journal": candidate.journal, "publisher": candidate.publisher, "year": candidate.year,
-                "work_type": candidate.work_type, "is_preprint": candidate.is_preprint,
-                "oa_status": candidate.oa_status, "license": option.license or candidate.license,
-                "source_service": option.service, "source_url": option.url, "retrieved_at": retrieved,
-                "sha256": sha256, "bytes": len(data), "pages": check.pages, "title_match": round(check.title_match, 2),
-                "found_by": candidate.found_by,
-            })
-        return Outcome(candidate.key, DOWNLOADED, file=os.path.basename(path), sha256=sha256, service=option.service,
-                       url=option.url, license=option.license or candidate.license, pages=check.pages,
-                       title_match=check.title_match)
+        return save_copy(self.folder, candidate, option, data, check, path)
+
+
+def save_copy(folder: str, candidate: Candidate, option: FetchOption, data: bytes, check: PdfCheck,
+              path: Optional[str] = None) -> Outcome:
+    """Saves the PDF of a paper in `folder` under its DOI-based name (unless `path`: it is there already),
+    with its sidecar: where it came from (`option`), when, and its checksum."""
+    os.makedirs(folder, exist_ok=True)
+    path_given = path is not None
+    if path is None:
+        path = os.path.join(folder, f"{file_stem(candidate.key)}.pdf")
+        part = path + ".part"
+        with open(part, "wb") as f:
+            f.write(data)
+        os.replace(part, path)  # the PDF appears whole or not at all
+    sha256 = hashlib.sha256(data).hexdigest()
+    retrieved = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    # A file already in the folder keeps its own record of where it came from, when it has one.
+    if not (path_given and os.path.exists(sidecar_path(path))):
+        write_sidecar(path, {
+            "key": candidate.key, "arxiv_id": candidate.arxiv_id,
+            # A preprint without a journal DOI has the one arXiv gives it.
+            "doi": candidate.doi or (f"10.48550/arXiv.{candidate.arxiv_id}" if candidate.arxiv_id else ""),
+            "openalex_id": candidate.openalex_id, "title": candidate.title, "authors": candidate.authors,
+            "journal": candidate.journal, "publisher": candidate.publisher, "year": candidate.year,
+            "work_type": candidate.work_type, "is_preprint": candidate.is_preprint,
+            "oa_status": candidate.oa_status, "license": option.license or candidate.license,
+            "source_service": option.service, "source_url": option.url, "retrieved_at": retrieved,
+            "sha256": sha256, "bytes": len(data), "pages": check.pages, "title_match": round(check.title_match, 2),
+            "found_by": candidate.found_by,
+        })
+    return Outcome(candidate.key, DOWNLOADED, file=os.path.basename(path), sha256=sha256, service=option.service,
+                   url=option.url, license=option.license or candidate.license, pages=check.pages,
+                   title_match=check.title_match)

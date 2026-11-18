@@ -47,6 +47,12 @@ class ManualTests(unittest.TestCase):
 
 
 @unittest.skipUnless(has_screen(), "the window needs a screen")
+def _widgets(widget):
+    for child in widget.winfo_children():
+        yield child
+        yield from _widgets(child)
+
+
 class WindowTests(unittest.TestCase):
     def setUp(self):
         import tkinter as tk
@@ -81,6 +87,33 @@ class WindowTests(unittest.TestCase):
         button = hub.build(self.root)
         self.root.update_idletasks()
         self.assertEqual(str(button.cget("background")), hub._GREEN)
+
+    def test_at_its_smallest_each_part_says_what_it_does_whole(self):
+        """The line under each part's name wraps to the room it has, rather than being cut at the card's edge."""
+        hub.build(self.root)
+        width, height = self.root.minsize()
+        self.root.geometry(f"{width}x{height}")
+        for _ in range(10):
+            self.root.update()
+        descriptions = {d for _, d, _, _ in hub.PARTS}
+        labels = [w for w in _widgets(self.root) if w.winfo_class() == "TLabel" and str(w.cget("text")) in descriptions]
+        self.assertEqual(len(labels), len(descriptions))
+        for label in labels:
+            self.assertLessEqual(label.winfo_reqwidth(), label.winfo_width() + 2, label.cget("text"))
+        # Smaller than all it holds: the rest is a scroll away, never cut off.
+        body = next(w for w in _widgets(self.root) if hasattr(w, "scrolls"))
+        self.assertTrue(body.scrolls())
+
+    def test_it_opens_tall_enough_for_all_it_holds_as_far_as_the_screen_allows(self):
+        from LocalExtraction.gui import layout
+        hub.build(self.root)
+        for _ in range(20):
+            self.root.update()
+        body = next(w for w in _widgets(self.root) if hasattr(w, "scrolls"))
+        content = body.inner.winfo_reqheight()
+        if content + 200 < layout.usable(self.root)[1]:  # a screen tall enough: everything in view, no bar
+            self.assertFalse(body.scrolls())
+        self.assertLessEqual(self.root.winfo_height(), layout.usable(self.root)[1] + 2)
 
     def test_the_guide_opens_with_the_manual(self):
         import tkinter as tk
@@ -135,17 +168,65 @@ class FolderButtonTests(unittest.TestCase):
             self.button(row).invoke()
         told.assert_called_once()
         self.assertTrue((self.home / "LocalExtraction" / "papers").is_dir())
+        self.assertTrue((self.home / "configs" / "garnet_nasicon.yaml").is_file())  # the job files with it
+        self.assertTrue((self.home / "docs" / "MANUAL.md").is_file())  # … and the documents
         self.assertTrue((self.home / "Classification" / "crystal_structure").is_dir())
         self.assertEqual(self.button(row).cget("text"), "Open the main results folder")
         with mock.patch("LocalExtraction.gui.widgets.open_path") as opened:
             self.button(row).invoke()
         opened.assert_called_once_with(str(self.home))
 
-    def test_the_hub_does_not_make_the_folder_but_a_part_does(self):
+    def test_the_hub_does_not_make_the_folder_but_asks_before_a_part_opens(self):
         hub.build(self.root)
         self.assertFalse(self.home.exists())
-        hub._open(self.root, lambda root: None)
-        self.assertTrue(self.home.is_dir())
+        opened = []
+        with mock.patch("tkinter.messagebox.askyesno", return_value=False) as asked:
+            hub._open(self.root, opened.append, what="Web scraping")
+        self.assertIn("Web scraping needs it", asked.call_args[0][1])
+        self.assertEqual((opened, self.home.exists()), ([], False))  # “No”: not opened, nothing made
+        with mock.patch("tkinter.messagebox.askyesno", return_value=True):
+            hub._open(self.root, opened.append, what="Web scraping")
+        self.assertEqual(len(opened), 1)
+        self.assertTrue((self.home / "configs" / "garnet_nasicon.yaml").is_file())
+        self.assertTrue((self.home / "docs" / "MANUAL.md").is_file())
+
+    def test_deleted_job_files_are_said_and_made_again_without_touching_the_edited_ones(self):
+        import mme_home
+        row = hub.folder_button(self.root, self.root)
+        with mock.patch("tkinter.messagebox.showinfo") as told:
+            self.button(row).invoke()  # “Create the main results folder”
+        made = told.call_args[1].get("message") or told.call_args[0][1]
+        jobs, documents = len(mme_home.shipped(mme_home.CONFIGS)), len(mme_home.shipped(mme_home.DOCS))
+        self.assertIn(f"configs — the {jobs} job files", made)
+        self.assertIn("garnet_nasicon.yaml", made)
+        self.assertIn(f"docs — the {documents} documents", made)
+        status = [w for w in row.winfo_children() if w.winfo_class() == "TLabel"][0]
+        self.assertTrue(status.cget("text").startswith(f"✓ {jobs} job files in configs/"))
+
+        (self.home / "configs" / "halide.yaml").unlink()
+        (self.home / "configs" / "garnet.yaml").write_text("name: mine\n", encoding="utf-8")
+        row.refresh()
+        self.assertIn(f"1 of the {jobs} job files are missing", status.cget("text"))
+        self.assertTrue(status.cget("text").startswith("⚠"))
+        restore = [w for w in row.winfo_children() if w.winfo_class() == "TButton"][1]
+        self.assertEqual(restore.cget("text"), "Restore the job files")
+        with mock.patch("tkinter.messagebox.showinfo") as told:
+            restore.invoke()
+        self.assertIn("halide.yaml", told.call_args[0][1] if len(told.call_args[0]) > 1 else told.call_args[1]["message"])
+        self.assertTrue((self.home / "configs" / "halide.yaml").is_file())
+        self.assertEqual((self.home / "configs" / "garnet.yaml").read_text(encoding="utf-8"), "name: mine\n")
+        self.assertEqual(mme_home.status(self.home)["configs"], [])
+
+    def test_the_main_window_warns_at_its_start_when_the_folder_is_missing(self):
+        hub.build(self.root)
+        with mock.patch("tkinter.messagebox.askyesno", return_value=True) as asked, \
+                mock.patch("tkinter.messagebox.showinfo"):
+            hub.warn_if_missing(self.root)
+        self.assertIn("does not exist", asked.call_args[0][1])
+        self.assertTrue((self.home / "configs" / "sse.yaml").is_file())
+        with mock.patch("tkinter.messagebox.askyesno") as asked:
+            hub.warn_if_missing(self.root)  # nothing missing: nothing asked
+        asked.assert_not_called()
 
 
 @unittest.skipUnless(has_screen(), "the window needs a screen")
@@ -167,3 +248,21 @@ class ResultsButtonTests(unittest.TestCase):
         buttons[0].invoke()
         root.update()
         self.assertTrue(any(isinstance(w, ResultsBrowser) for w in walk(root)))
+
+
+class PartStatusTests(unittest.TestCase):
+    def test_each_part_says_what_its_folder_holds(self):
+        import tempfile
+        from LocalExtraction.gui import browser
+        home = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, home, True)
+        web = home / "WebScraping" / "web_output"
+        web.mkdir(parents=True)
+        (web / "papers.csv").write_text("paper_id\na\nb\n", encoding="utf-8")
+        (web / "activation_energy.csv").write_text("paper_id\na\n", encoding="utf-8")
+        real = browser.part_tables
+        with mock.patch.object(browser, "part_tables", side_effect=lambda part: real(part, home)):
+            self.assertEqual(hub.part_status("web"), "database: 2 papers, 1 activation energies · 0 checked by hand")
+            self.assertEqual(hub.part_status("local"), "no database yet")
+            self.assertEqual(hub.part_status("rank"), "no ranking written yet")
+            self.assertEqual(hub.part_status("classify"), "no classes written yet")

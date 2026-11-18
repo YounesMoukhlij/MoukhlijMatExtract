@@ -1,0 +1,407 @@
+# Oxide conductors by chemistry: niobates, tantalates, zirconates, aluminates, borates, silicates, …
+#
+# Lithium and sodium oxides not covered by a structure-type file, grouped by chemistry: niobates (LiNbO3,
+# Li3NbO4), tantalates (LiTaO3, Li7TaO6), zirconates (Li2ZrO3, Li6Zr2O7, Li8ZrO6), aluminates (LiAlO2, Li5AlO4),
+# titanates, tungstates, molybdates, borates, silicates and germanates — as solid electrolytes, amorphous films
+# and cathode coatings.
+#
+# Kind: chemical families (oxide anions).
+#   Prototype: niobates, tantalates, zirconates, aluminates, titanates, tungstates, molybdates, borates,
+#   silicates, germanates.
+#
+# 142 queries, 31 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/oxide_chemistry.yaml          # extracts into WebScraping/web_output_oxide_chemistry
+#   mme-rank --domain electrolyte --source WebScraping/web_output_oxide_chemistry --kind arrhenius
+
+name: oxide_chemistry
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Oxide chemistries: transport and coatings
+    - "LiNbO3 coating ionic conductivity cathode interface"
+    - "amorphous LiNbO3 lithium conductivity"
+    - "LiTaO3 coating lithium conductivity"
+    - "Li7TaO6 lithium ion conductivity"
+    - "Li6Zr2O7 lithium conductivity"
+    - "Li2ZrO3 lithium ion conductivity"
+    - "Li5AlO4 lithium conductivity"
+    - "LiAlO2 coating lithium conductivity"
+    - "Li2SiO3 lithium ion conductivity"
+    - "Li2B4O7 lithium ion conductivity"
+    - "Li2WO4 lithium conductivity"
+    - "lithium borate coating ionic conductivity"
+    - "amorphous oxide lithium conductor thin film"
+
+    # lithium niobate solid electrolyte: every transport measurement and method
+    - "lithium niobate solid electrolyte ionic conductivity"
+    - "lithium niobate solid electrolyte activation energy"
+    - "lithium niobate solid electrolyte lithium ion diffusion"
+    - "lithium niobate solid electrolyte sodium ion diffusion"
+    - "lithium niobate solid electrolyte lithium migration barrier"
+    - "lithium niobate solid electrolyte sodium migration barrier"
+    - "lithium niobate solid electrolyte ion transport mechanism"
+    - "lithium niobate solid electrolyte grain boundary conductivity"
+    - "lithium niobate solid electrolyte bulk ionic conductivity"
+    - "lithium niobate solid electrolyte impedance spectroscopy"
+    - "lithium niobate solid electrolyte temperature dependent conductivity"
+    - "lithium niobate solid electrolyte diffusion coefficient"
+    - "lithium niobate solid electrolyte doping ionic conductivity"
+    - "lithium niobate solid electrolyte electronic conductivity"
+    - "lithium niobate solid electrolyte electrochemical stability window"
+    - "lithium niobate solid electrolyte interfacial resistance"
+    - "lithium niobate solid electrolyte molecular dynamics lithium diffusion"
+    - "lithium niobate solid electrolyte molecular dynamics sodium diffusion"
+    - "lithium niobate solid electrolyte density functional theory migration"
+    - "lithium niobate solid electrolyte NMR lithium dynamics"
+    - "lithium niobate solid electrolyte NMR sodium dynamics"
+    - "lithium niobate solid electrolyte synthesis ionic conductivity"
+    - "lithium niobate solid electrolyte fast ion conductor"
+    - "lithium niobate solid electrolyte superionic conductor"
+
+    # lithium tantalate electrolyte: every transport measurement and method
+    - "lithium tantalate electrolyte ionic conductivity"
+    - "lithium tantalate electrolyte activation energy"
+    - "lithium tantalate electrolyte lithium ion diffusion"
+    - "lithium tantalate electrolyte sodium ion diffusion"
+    - "lithium tantalate electrolyte lithium migration barrier"
+    - "lithium tantalate electrolyte sodium migration barrier"
+    - "lithium tantalate electrolyte ion transport mechanism"
+    - "lithium tantalate electrolyte grain boundary conductivity"
+    - "lithium tantalate electrolyte bulk ionic conductivity"
+    - "lithium tantalate electrolyte impedance spectroscopy"
+    - "lithium tantalate electrolyte temperature dependent conductivity"
+    - "lithium tantalate electrolyte diffusion coefficient"
+    - "lithium tantalate electrolyte doping ionic conductivity"
+    - "lithium tantalate electrolyte electronic conductivity"
+    - "lithium tantalate electrolyte electrochemical stability window"
+    - "lithium tantalate electrolyte interfacial resistance"
+    - "lithium tantalate electrolyte molecular dynamics lithium diffusion"
+    - "lithium tantalate electrolyte molecular dynamics sodium diffusion"
+    - "lithium tantalate electrolyte density functional theory migration"
+    - "lithium tantalate electrolyte NMR lithium dynamics"
+    - "lithium tantalate electrolyte NMR sodium dynamics"
+    - "lithium tantalate electrolyte synthesis ionic conductivity"
+    - "lithium tantalate electrolyte fast ion conductor"
+    - "lithium tantalate electrolyte superionic conductor"
+
+    # lithium zirconate ionic conductor: every transport measurement and method
+    - "lithium zirconate ionic conductor ionic conductivity"
+    - "lithium zirconate ionic conductor activation energy"
+    - "lithium zirconate ionic conductor lithium ion diffusion"
+    - "lithium zirconate ionic conductor sodium ion diffusion"
+    - "lithium zirconate ionic conductor lithium migration barrier"
+    - "lithium zirconate ionic conductor sodium migration barrier"
+    - "lithium zirconate ionic conductor ion transport mechanism"
+    - "lithium zirconate ionic conductor grain boundary conductivity"
+    - "lithium zirconate ionic conductor bulk ionic conductivity"
+    - "lithium zirconate ionic conductor impedance spectroscopy"
+    - "lithium zirconate ionic conductor temperature dependent conductivity"
+    - "lithium zirconate ionic conductor diffusion coefficient"
+    - "lithium zirconate ionic conductor doping ionic conductivity"
+    - "lithium zirconate ionic conductor electronic conductivity"
+    - "lithium zirconate ionic conductor electrochemical stability window"
+    - "lithium zirconate ionic conductor interfacial resistance"
+    - "lithium zirconate ionic conductor molecular dynamics lithium diffusion"
+    - "lithium zirconate ionic conductor molecular dynamics sodium diffusion"
+    - "lithium zirconate ionic conductor density functional theory migration"
+    - "lithium zirconate ionic conductor NMR lithium dynamics"
+    - "lithium zirconate ionic conductor NMR sodium dynamics"
+    - "lithium zirconate ionic conductor synthesis ionic conductivity"
+    - "lithium zirconate ionic conductor fast ion conductor"
+    - "lithium zirconate ionic conductor superionic conductor"
+
+    # lithium borate solid electrolyte: every transport measurement and method
+    - "lithium borate solid electrolyte ionic conductivity"
+    - "lithium borate solid electrolyte activation energy"
+    - "lithium borate solid electrolyte lithium ion diffusion"
+    - "lithium borate solid electrolyte sodium ion diffusion"
+    - "lithium borate solid electrolyte lithium migration barrier"
+    - "lithium borate solid electrolyte sodium migration barrier"
+    - "lithium borate solid electrolyte ion transport mechanism"
+    - "lithium borate solid electrolyte grain boundary conductivity"
+    - "lithium borate solid electrolyte bulk ionic conductivity"
+    - "lithium borate solid electrolyte impedance spectroscopy"
+    - "lithium borate solid electrolyte temperature dependent conductivity"
+    - "lithium borate solid electrolyte diffusion coefficient"
+    - "lithium borate solid electrolyte doping ionic conductivity"
+    - "lithium borate solid electrolyte electronic conductivity"
+    - "lithium borate solid electrolyte electrochemical stability window"
+    - "lithium borate solid electrolyte interfacial resistance"
+    - "lithium borate solid electrolyte molecular dynamics lithium diffusion"
+    - "lithium borate solid electrolyte molecular dynamics sodium diffusion"
+    - "lithium borate solid electrolyte density functional theory migration"
+    - "lithium borate solid electrolyte NMR lithium dynamics"
+    - "lithium borate solid electrolyte NMR sodium dynamics"
+    - "lithium borate solid electrolyte synthesis ionic conductivity"
+    - "lithium borate solid electrolyte fast ion conductor"
+    - "lithium borate solid electrolyte superionic conductor"
+
+    # lithium silicate solid electrolyte: every transport measurement and method
+    - "lithium silicate solid electrolyte ionic conductivity"
+    - "lithium silicate solid electrolyte activation energy"
+    - "lithium silicate solid electrolyte lithium ion diffusion"
+    - "lithium silicate solid electrolyte sodium ion diffusion"
+    - "lithium silicate solid electrolyte lithium migration barrier"
+    - "lithium silicate solid electrolyte sodium migration barrier"
+    - "lithium silicate solid electrolyte ion transport mechanism"
+    - "lithium silicate solid electrolyte grain boundary conductivity"
+    - "lithium silicate solid electrolyte bulk ionic conductivity"
+    - "lithium silicate solid electrolyte impedance spectroscopy"
+    - "lithium silicate solid electrolyte temperature dependent conductivity"
+    - "lithium silicate solid electrolyte diffusion coefficient"
+    - "lithium silicate solid electrolyte doping ionic conductivity"
+    - "lithium silicate solid electrolyte electronic conductivity"
+    - "lithium silicate solid electrolyte electrochemical stability window"
+    - "lithium silicate solid electrolyte interfacial resistance"
+    - "lithium silicate solid electrolyte molecular dynamics lithium diffusion"
+    - "lithium silicate solid electrolyte molecular dynamics sodium diffusion"
+    - "lithium silicate solid electrolyte density functional theory migration"
+    - "lithium silicate solid electrolyte NMR lithium dynamics"
+    - "lithium silicate solid electrolyte NMR sodium dynamics"
+    - "lithium silicate solid electrolyte synthesis ionic conductivity"
+    - "lithium silicate solid electrolyte fast ion conductor"
+    - "lithium silicate solid electrolyte superionic conductor"
+
+    # lithium niobate solid electrolyte: transport mechanisms
+    - "lithium niobate solid electrolyte concerted migration"
+    - "lithium niobate solid electrolyte vacancy mechanism"
+    - "lithium niobate solid electrolyte interstitial mechanism"
+    - "lithium niobate solid electrolyte interstitialcy mechanism"
+    - "lithium niobate solid electrolyte paddle-wheel mechanism"
+    - "lithium niobate solid electrolyte correlated ion hopping"
+    - "lithium niobate solid electrolyte percolation conduction pathway"
+    - "lithium niobate solid electrolyte bottleneck size migration"
+    - "lithium niobate solid electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_oxide_chemistry.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Oxide chemistry aliases
+    - "lithium niobate"
+    - "amorphous LiNbO3"
+    - "lithium tantalate"
+    - "lithium zirconate"
+    - "lithium aluminate"
+    - "lithium borate"
+    - "lithium silicate"
+    - "lithium germanate"
+    - "lithium tungstate"
+    - "lithium molybdate"
+    - "titanate solid electrolyte"
+    - "lithium-ion conducting oxide"
+    - "oxide solid electrolyte"
+
+    # Oxide formulas
+    - "LiNbO3"
+    - "Li3NbO4"
+    - "Li7NbO6"
+    - "LiTaO3"
+    - "Li3TaO4"
+    - "Li7TaO6"
+    - "Li2ZrO3"
+    - "Li6Zr2O7"
+    - "Li8ZrO6"
+    - "LiAlO2"
+    - "Li5AlO4"
+    - "Li2SiO3"
+    - "Li2Si2O5"
+    - "Li2GeO3"
+    - "Li2B4O7"
+    - "LiBO2"
+    - "Li2WO4"
+    - "Li2MoO4"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "waveguide"
+    - "nonlinear optical"
+    - "nonlinear optics"
+    - "surface acoustic wave"
+    - "electro-optic"
+    - "photonic"
+    - "modulator"
+    - "second harmonic"
+    - "periodically poled"
+    - "piezoelectric"
+    - "ferroelectric"
+    - "CO2 capture"
+    - "CO2 sorption"
+    - "tritium"
+    - "breeder blanket"
+    - "thermoluminescence"
+    - "dosimeter"
+    - "dosimetry"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_oxide_chemistry
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

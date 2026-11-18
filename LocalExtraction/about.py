@@ -22,6 +22,9 @@ DESCRIPTION = (
 
 # The "About" of the windows: the project and its author, and where to find them.
 REPOSITORY = "https://github.com/YounesMoukhlij/MoukhlijMatExtract"
+# The project's website: how to use the program, step by step, and an overview of the project. Every window links to
+# it (its footer); the main window announces it when it opens.
+WEBSITE = "https://moukhlijmatextract.vercel.app"
 CONTACT_EMAIL = "younes.moukhlij@usms.ac.ma"
 LICENSE_NAME = "GNU AGPL-3.0-or-later"
 ABOUT_PROJECT = (
@@ -95,6 +98,19 @@ def require_tk(command: str) -> None:
             "The terminal commands (mme-local extract, mme-web run, mme-rank, mme-classify, …) work without it.")
 
 
+def found_here(path):
+    """A path named on the command line, made ready for the move into PROJECT_HOME. Relative paths are read from
+    the home folder, so one naming a file there is kept as it is; one naming a file only in the folder the command
+    was started from (configs/my_job.yaml of a source checkout) is made absolute, so the move does not lose it.
+    Anything else is left as it is, for the command to say what is missing."""
+    if not path:
+        return path
+    given = Path(path)
+    if given.is_absolute() or (PROJECT_HOME / given).exists() or not given.exists():
+        return path
+    return type(path)(given.resolve()) if isinstance(path, Path) else str(given.resolve())
+
+
 def enter_project_home(*parts: str) -> Path:
     """Makes ~/MoukhlijMatExtract and the folders of these parts (keys of PART_FOLDERS) when they are
     missing, then works from there, so every relative path of the project lands inside it."""
@@ -102,7 +118,12 @@ def enter_project_home(*parts: str) -> Path:
     for part in parts:
         for folder in PART_FOLDERS[part]:
             (PROJECT_HOME / folder).mkdir(parents=True, exist_ok=True)
+    # configs/ (the job files, made when missing) and docs/ (the manuals, kept up to date), shipped with the package.
+    from mme_home import populate
+    populate(PROJECT_HOME)
     os.chdir(PROJECT_HOME)
+    from .crashlog import install
+    install()  # an error the program did not expect: written to ~/MoukhlijMatExtract/logs/, said where
     return PROJECT_HOME
 
 

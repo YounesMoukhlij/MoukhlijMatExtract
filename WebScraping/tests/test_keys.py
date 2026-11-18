@@ -177,3 +177,54 @@ class StartTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KeysFileTests(unittest.TestCase):
+    """The keys live in the main folder (~/MoukhlijMatExtract/.env), where an upgrade of the package never reaches:
+    inside the installed package, `pip install --upgrade` deleted them."""
+
+    def setUp(self):
+        from WebScraping.averageScrap import job
+        self.job = job
+        self.default = job.ENV_PATH  # where the keys go, before this test points it elsewhere
+        base = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, base, True)
+        self.home = os.path.join(base, "MoukhlijMatExtract")
+        self.new = os.path.join(self.home, ".env")
+        self.old = os.path.join(base, "package", ".env")
+        os.makedirs(os.path.dirname(self.old))
+        for patcher in (mock.patch.dict(os.environ), mock.patch.object(job, "ENV_PATH", self.new),
+                        mock.patch.object(job, "OLD_ENV_PATH", self.old)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        os.environ.pop("MP_API_KEY", None)
+
+    def test_the_keys_file_is_in_the_main_folder(self):
+        from LocalExtraction.about import PROJECT_HOME
+        self.assertEqual(self.default, str(PROJECT_HOME / ".env"))
+
+    def test_keys_saved_before_are_carried_over_once_and_kept_private(self):
+        with open(self.old, "w", encoding="utf-8") as f:
+            f.write("MP_API_KEY=old-key\n")
+        os.makedirs(self.home)
+        self.assertEqual(self.job.load_env(), 1)
+        self.assertEqual(os.environ["MP_API_KEY"], "old-key")
+        self.assertEqual(self.job.read_env(), {"MP_API_KEY": "old-key"})
+        self.assertTrue(os.path.isfile(self.new))
+        if os.name == "posix":
+            self.assertEqual(os.stat(self.new).st_mode & 0o777, 0o600)  # yours alone
+        self.assertTrue(os.path.isfile(self.old))  # the old file left as it was
+
+    def test_without_the_main_folder_the_old_keys_are_read_and_no_folder_is_made(self):
+        with open(self.old, "w", encoding="utf-8") as f:
+            f.write("MP_API_KEY=old-key\n")
+        self.assertEqual(self.job.read_env(), {"MP_API_KEY": "old-key"})
+        self.job.load_env()
+        self.assertEqual(os.environ["MP_API_KEY"], "old-key")
+        self.assertFalse(os.path.exists(self.home))
+
+    def test_saving_makes_the_main_folder_when_it_is_missing(self):
+        self.job.save_env({"MP_API_KEY": "new-key"})
+        self.assertEqual(self.job.read_env(), {"MP_API_KEY": "new-key"})
+        self.assertTrue(os.path.isfile(self.new))
+        self.assertFalse(os.path.exists(self.old))  # nothing written where an upgrade deletes it

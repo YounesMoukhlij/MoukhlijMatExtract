@@ -74,6 +74,14 @@ def extraction_outcome(output_dir: str, before: Set[str], *, failed: int = 0, st
             highlights.append(f"Highest ionic conductivity: {row['material_formula']} — {row[column]} S/cm  "
                               f"({_short(titles.get(row['paper_id'], row['paper_id']))})")
     stats.append(Stat(number(len(_new(materials, new))), "materials", hint=f"{number(len(materials))} in all"))
+    energies = _new(tables["activation_energy"], new)
+    if "needs_check" in energies and len(energies):
+        flagged = int(energies["needs_check"].astype(str).str.lower().str.startswith("yes").sum())
+        if flagged:
+            stats.append(Stat(number(flagged), "to look at", "#d97706", "check them in the Verify tab"))
+    if "energy_kind" in energies and len(energies):
+        kinds = energies["energy_kind"].astype(str).replace("", "unspecified").value_counts()
+        highlights.append("Kinds of activation energy: " + ", ".join(f"{k.replace('_', ' ')} {n}" for k, n in kinds.items()))
     if failed:
         stats.append(Stat(number(failed), "PDFs not read", accent=BAD, hint="see the log"))
     silent = len(new - gave)

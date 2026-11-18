@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import csv
 import json
-import os
 import shutil
 import tempfile
 import time
@@ -160,14 +159,7 @@ class ComponentTests(unittest.TestCase):
         self.assertEqual(set(energies.component_basis), {"not given by the database"})
 
 
-def _has_screen() -> bool:
-    if tk is None or os.environ.get("MME_NO_WINDOW_TESTS"):
-        return False
-    try:
-        tk.Tk().destroy()
-        return True
-    except tk.TclError:
-        return False
+from LocalExtraction.tests.test_gui import has_screen as _has_screen  # noqa: E402  (one check, made safely)
 
 
 @unittest.skipUnless(_has_screen(), "the window needs a screen")
@@ -206,6 +198,37 @@ class WindowTests(unittest.TestCase):
     def cells(self, table, row):
         return dict(zip(table.columns, table.tree.item(row, "values")))
 
+    def test_with_many_databases_at_its_smallest_every_button_shows_whole(self):
+        """A database per job file: their boxes wrap onto more lines, the buttons keep a line of their own."""
+        for name in ("garnet", "nasicon", "lisicon", "argyrodite", "halide", "perovskite"):
+            self.app._add_source(self.tmp / f"web_output_{name}", ticked=False)
+        width, height = self.root.minsize()
+        self.root.geometry(f"{width}x{height}")
+        self.settle(0.3)
+        stack = [self.root]
+        while stack:
+            widget = stack.pop()
+            stack.extend(widget.winfo_children())
+            if widget.winfo_class() == "TButton" and str(widget.cget("text")) in (
+                    "Add a database…", "Classify", "Open the results folder", "Browse the CSV files…", "Delete outputs…"):
+                self.assertTrue(widget.winfo_ismapped(), widget.cget("text"))
+                self.assertLessEqual(widget.winfo_reqwidth(), widget.winfo_width() + 2, widget.cget("text"))
+        from LocalExtraction.tests.test_layout import seen
+        self.assertTrue(seen(self.app.classify_button))  # drawn in view, not merely laid out behind another widget
+        self.assertTrue(seen(self.app.book))
+
+    def test_a_classification_asked_for_after_the_main_folder_was_deleted_asks_first(self):
+        from unittest import mock
+        from LocalExtraction.gui import home_guard
+        asked = []
+        before = self.app.result.classified
+        with mock.patch.object(home_guard, "home_lost", return_value=True), \
+                mock.patch("tkinter.messagebox.askyesno", side_effect=lambda *a, **k: asked.append(a) or False):
+            self.app.classify()
+        self.assertEqual(len(asked), 1)
+        self.assertFalse(self.app._busy)            # said no: nothing started
+        self.assertIs(self.app.result.classified, before)
+
     def test_it_classifies_on_opening_and_writes_the_class_folders(self):
         self.assertTrue((self.out / "crystal_structure" / "garnet" / "materials.csv").is_file())
         classes = self.app.classes["crystal_structure"]
@@ -216,6 +239,19 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(self.cells(classes, "argyrodite")["total_min"], NO_VALUE)
         families = self.app.classes["structure_families"]
         self.assertEqual(set(families.tree.get_children()), {"oxide", "sulfide"})
+
+    def test_classes_written_from_the_window_are_recorded_like_those_of_the_command(self):
+        """mme-classify skips the databases it already classified into a folder; the window writes the same folder,
+        so it records what it wrote — else the command would keep the window's classes of other databases."""
+        import json
+        from Classification.cli import classify_stamp
+        from Classification.database import read
+        from LocalExtraction.done import STAMP, already_done
+        stamp = json.loads((self.out / STAMP).read_text())["classify"]
+        self.assertEqual(stamp["fingerprint"], classify_stamp([read(self.database)]))
+        self.assertTrue(already_done(self.out, "classify", classify_stamp([read(self.database)])))
+        run = json.loads((self.out / "run_manifest.json").read_text())["runs"][-1]
+        self.assertEqual(run["part"], "classification")
 
     def test_a_class_lists_its_materials_and_the_filters_recount(self):
         self.app.view.set(SIDE_BY_SIDE)
