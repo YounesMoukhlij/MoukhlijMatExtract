@@ -3,13 +3,16 @@
 
 The program cannot grade its own answers, so the window takes the three steps of `mme-eval`: draw papers at
 random into a workbook, let a person mark each extracted value in it (correct / partly / wrong, and the
-values missed), then compute precision, recall and F1 from those marks. Each window keeps its own workbook
-(Evaluation/annotation_<part>.xlsx) and report (Evaluation/scores_<part>/)."""
+values missed), then compute precision, recall and F1 from those marks. Each results folder keeps its own workbook
+and report: Evaluation/annotation_<part>.xlsx and Evaluation/scores_<part>/ for the part's own folder (local_output,
+web_output), annotation_web_<name>.xlsx and scores_web_<name>/ for another one (web_output_<name>, a job's own
+database) — the scores of one database are never shown, or scored again, as those of another."""
 
 from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -27,12 +30,26 @@ _QUIET = "#8c8c8c"
 _BOLD = ("TkDefaultFont", 11, "bold")
 
 
-def workbook_of(part: str) -> Path:
-    return DEFAULT_DIR / f"annotation_{part}.xlsx"
+_USUAL = {"local": "local_output", "web": "web_output"}  # the folder of each part's own database
 
 
-def scores_of(part: str) -> Path:
-    return DEFAULT_DIR / f"scores_{part}"
+def _tag(part: str, source: "str | os.PathLike | None" = None) -> str:
+    """The name of the evaluation of a results folder: the part ("web") for the part's own folder, and the part
+    with the folder's own name for another ("web_garnet_nasicon" for web_output_garnet_nasicon)."""
+    name = Path(source).name if source else ""
+    usual = _USUAL.get(part, "")
+    if not name or name == usual:
+        return part
+    rest = name[len(usual) + 1:] if usual and name.startswith(usual + "_") else name
+    return f"{part}_{re.sub(r'[^A-Za-z0-9_.-]+', '_', rest)}"
+
+
+def workbook_of(part: str, source: "str | os.PathLike | None" = None) -> Path:
+    return DEFAULT_DIR / f"annotation_{_tag(part, source)}.xlsx"
+
+
+def scores_of(part: str, source: "str | os.PathLike | None" = None) -> Path:
+    return DEFAULT_DIR / f"scores_{_tag(part, source)}"
 
 
 def _pct(x: Optional[float]) -> str:
@@ -46,7 +63,7 @@ class EvaluationDialog(Dialog):
         super().__init__(parent, f"Evaluate — {title}", fit_to_screen(parent, "760x780"))
         theme.apply(self)
         self.source, self.part = Path(source), part
-        self.workbook, self.scores = workbook_of(part), scores_of(part)
+        self.workbook, self.scores = workbook_of(part, source), scores_of(part, source)  # this folder's own
         self._busy = False
         body = self.body
 

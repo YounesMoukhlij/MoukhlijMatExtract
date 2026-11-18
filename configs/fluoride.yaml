@@ -1,0 +1,399 @@
+# Fluoride, oxyfluoride and fluoride-ion solid electrolytes
+#
+# Lithium and sodium fluorides and oxyfluorides used as solid electrolytes or coatings, and the fluoride-ion
+# conductors of fluoride-ion batteries (tysonite LaF3, fluorite BaF2-based, PbSnF4 type).
+#
+# Kind: chemical family (anion: F-, with oxyfluorides).
+#   Prototype: tysonite LaF3 (P-3c1), fluorite (Fm-3m); Li3AlF6.
+#
+# 135 queries, 32 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/fluoride.yaml          # extracts into WebScraping/web_output_fluoride
+#   mme-rank --domain electrolyte --source WebScraping/web_output_fluoride --kind arrhenius
+
+name: fluoride
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Fluoride-ion conductors
+    - "tysonite LaF3 fluoride ion conductivity"
+    - "La1-xBaxF3-x fluoride ion conductivity"
+    - "BaF2 CaF2 nanocrystalline fluoride conductivity"
+    - "PbSnF4 fluoride ion conductor"
+    - "BaSnF4 fluoride ion conductivity"
+    - "fluoride ion battery solid electrolyte"
+    - "fluoride ion conductor room temperature"
+    - "fluoride ion migration mechanism"
+
+    # Lithium and sodium fluorides
+    - "Li3AlF6 lithium conductivity"
+    - "LiAlF4 glass lithium conductivity"
+    - "Li2ZrF6 lithium conductivity"
+    - "lithium fluoride based solid electrolyte"
+    - "oxyfluoride lithium ion conductor"
+    - "fluoride coating lithium ion conductivity cathode"
+
+    # fluoride solid electrolyte: every transport measurement and method
+    - "fluoride solid electrolyte ionic conductivity"
+    - "fluoride solid electrolyte activation energy"
+    - "fluoride solid electrolyte lithium ion diffusion"
+    - "fluoride solid electrolyte sodium ion diffusion"
+    - "fluoride solid electrolyte fluoride ion diffusion"
+    - "fluoride solid electrolyte lithium migration barrier"
+    - "fluoride solid electrolyte sodium migration barrier"
+    - "fluoride solid electrolyte fluoride migration barrier"
+    - "fluoride solid electrolyte ion transport mechanism"
+    - "fluoride solid electrolyte grain boundary conductivity"
+    - "fluoride solid electrolyte bulk ionic conductivity"
+    - "fluoride solid electrolyte impedance spectroscopy"
+    - "fluoride solid electrolyte temperature dependent conductivity"
+    - "fluoride solid electrolyte diffusion coefficient"
+    - "fluoride solid electrolyte doping ionic conductivity"
+    - "fluoride solid electrolyte electronic conductivity"
+    - "fluoride solid electrolyte electrochemical stability window"
+    - "fluoride solid electrolyte interfacial resistance"
+    - "fluoride solid electrolyte molecular dynamics lithium diffusion"
+    - "fluoride solid electrolyte molecular dynamics sodium diffusion"
+    - "fluoride solid electrolyte molecular dynamics fluoride diffusion"
+    - "fluoride solid electrolyte density functional theory migration"
+    - "fluoride solid electrolyte NMR lithium dynamics"
+    - "fluoride solid electrolyte NMR sodium dynamics"
+    - "fluoride solid electrolyte NMR fluoride dynamics"
+    - "fluoride solid electrolyte synthesis ionic conductivity"
+    - "fluoride solid electrolyte fast ion conductor"
+    - "fluoride solid electrolyte superionic conductor"
+
+    # fluoride ion conductor: every transport measurement and method
+    - "fluoride ion conductor ionic conductivity"
+    - "fluoride ion conductor activation energy"
+    - "fluoride ion conductor lithium ion diffusion"
+    - "fluoride ion conductor sodium ion diffusion"
+    - "fluoride ion conductor fluoride ion diffusion"
+    - "fluoride ion conductor lithium migration barrier"
+    - "fluoride ion conductor sodium migration barrier"
+    - "fluoride ion conductor fluoride migration barrier"
+    - "fluoride ion conductor ion transport mechanism"
+    - "fluoride ion conductor grain boundary conductivity"
+    - "fluoride ion conductor bulk ionic conductivity"
+    - "fluoride ion conductor impedance spectroscopy"
+    - "fluoride ion conductor temperature dependent conductivity"
+    - "fluoride ion conductor diffusion coefficient"
+    - "fluoride ion conductor doping ionic conductivity"
+    - "fluoride ion conductor electronic conductivity"
+    - "fluoride ion conductor electrochemical stability window"
+    - "fluoride ion conductor interfacial resistance"
+    - "fluoride ion conductor molecular dynamics lithium diffusion"
+    - "fluoride ion conductor molecular dynamics sodium diffusion"
+    - "fluoride ion conductor molecular dynamics fluoride diffusion"
+    - "fluoride ion conductor density functional theory migration"
+    - "fluoride ion conductor NMR lithium dynamics"
+    - "fluoride ion conductor NMR sodium dynamics"
+    - "fluoride ion conductor NMR fluoride dynamics"
+    - "fluoride ion conductor synthesis ionic conductivity"
+    - "fluoride ion conductor fast ion conductor"
+    - "fluoride ion conductor superionic conductor"
+
+    # LaF3: every transport measurement and method
+    - "LaF3 ionic conductivity"
+    - "LaF3 activation energy"
+    - "LaF3 lithium ion diffusion"
+    - "LaF3 sodium ion diffusion"
+    - "LaF3 fluoride ion diffusion"
+    - "LaF3 lithium migration barrier"
+    - "LaF3 sodium migration barrier"
+    - "LaF3 fluoride migration barrier"
+    - "LaF3 ion transport mechanism"
+    - "LaF3 grain boundary conductivity"
+    - "LaF3 bulk ionic conductivity"
+    - "LaF3 impedance spectroscopy"
+    - "LaF3 temperature dependent conductivity"
+    - "LaF3 diffusion coefficient"
+    - "LaF3 doping ionic conductivity"
+    - "LaF3 electronic conductivity"
+    - "LaF3 electrochemical stability window"
+    - "LaF3 interfacial resistance"
+    - "LaF3 molecular dynamics lithium diffusion"
+    - "LaF3 molecular dynamics sodium diffusion"
+    - "LaF3 molecular dynamics fluoride diffusion"
+    - "LaF3 density functional theory migration"
+    - "LaF3 NMR lithium dynamics"
+    - "LaF3 NMR sodium dynamics"
+    - "LaF3 NMR fluoride dynamics"
+    - "LaF3 synthesis ionic conductivity"
+    - "LaF3 fast ion conductor"
+    - "LaF3 superionic conductor"
+
+    # Li3AlF6: every transport measurement and method
+    - "Li3AlF6 ionic conductivity"
+    - "Li3AlF6 activation energy"
+    - "Li3AlF6 lithium ion diffusion"
+    - "Li3AlF6 sodium ion diffusion"
+    - "Li3AlF6 fluoride ion diffusion"
+    - "Li3AlF6 lithium migration barrier"
+    - "Li3AlF6 sodium migration barrier"
+    - "Li3AlF6 fluoride migration barrier"
+    - "Li3AlF6 ion transport mechanism"
+    - "Li3AlF6 grain boundary conductivity"
+    - "Li3AlF6 bulk ionic conductivity"
+    - "Li3AlF6 impedance spectroscopy"
+    - "Li3AlF6 temperature dependent conductivity"
+    - "Li3AlF6 diffusion coefficient"
+    - "Li3AlF6 doping ionic conductivity"
+    - "Li3AlF6 electronic conductivity"
+    - "Li3AlF6 electrochemical stability window"
+    - "Li3AlF6 interfacial resistance"
+    - "Li3AlF6 molecular dynamics lithium diffusion"
+    - "Li3AlF6 molecular dynamics sodium diffusion"
+    - "Li3AlF6 molecular dynamics fluoride diffusion"
+    - "Li3AlF6 density functional theory migration"
+    - "Li3AlF6 NMR lithium dynamics"
+    - "Li3AlF6 NMR sodium dynamics"
+    - "Li3AlF6 NMR fluoride dynamics"
+    - "Li3AlF6 synthesis ionic conductivity"
+    - "Li3AlF6 fast ion conductor"
+    - "Li3AlF6 superionic conductor"
+
+    # fluoride solid electrolyte: transport mechanisms
+    - "fluoride solid electrolyte concerted migration"
+    - "fluoride solid electrolyte vacancy mechanism"
+    - "fluoride solid electrolyte interstitial mechanism"
+    - "fluoride solid electrolyte interstitialcy mechanism"
+    - "fluoride solid electrolyte paddle-wheel mechanism"
+    - "fluoride solid electrolyte correlated ion hopping"
+    - "fluoride solid electrolyte percolation conduction pathway"
+    - "fluoride solid electrolyte bottleneck size migration"
+    - "fluoride solid electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_fluoride.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Fluoride aliases
+    - "fluoride solid electrolyte"
+    - "fluoride-ion conductor"
+    - "fluoride ion conductor"
+    - "fluoride-ion battery"
+    - "fluoride ion battery"
+    - "fluoride-ion conducting"
+    - "tysonite"
+    - "tysonite-type"
+    - "fluorite-type conductor"
+    - "oxyfluoride solid electrolyte"
+    - "lithium oxyfluoride"
+    - "fluoride glass electrolyte"
+    - "lithium fluoride coating"
+
+    # Fluoride formulas
+    - "LaF3"
+    - "La1-xBaxF3-x"
+    - "La0.9Ba0.1F2.9"
+    - "CeF3"
+    - "BaF2"
+    - "CaF2-BaF2"
+    - "CaF2–BaF2"
+    - "Ba1-xLaxF2+x"
+    - "Ba0.6La0.4F2.4"
+    - "PbSnF4"
+    - "BaSnF4"
+    - "Li3AlF6"
+    - "LiAlF4"
+    - "Li2ZrF6"
+    - "Li3ScF6"
+    - "Li3GaF6"
+    - "Li3InF6"
+    - "LiF-AlF3"
+    - "LiF–AlF3"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+    # Fluoride transport
+    - "fluoride ion conductivity"
+    - "fluoride-ion conductivity"
+    - "F- conductivity"
+    - "fluoride ion migration"
+
+  exclude_words:
+    - "dental"
+    - "toothpaste"
+    - "fluorosis"
+    - "defluoridation"
+    - "drinking water"
+    - "radiotracer"
+    - "PET imaging"
+    - "scintillator"
+    - "upconversion"
+    - "luminescence"
+    - "phosphor"
+    - "optical fiber"
+    - "laser crystal"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_fluoride
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

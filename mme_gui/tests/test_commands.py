@@ -15,7 +15,7 @@ from mme_gui import commands, manual
 ROOT = manual.ROOT
 # The make target that runs each command, and the targets that may hold some of its options too.
 MAKE_TARGET = {"mme": None, "mme-gui": "gui", "mme-local": "local", "mme-local gui": "local-gui", "mme-dois": "doi",
-               "mme-web": "web", "mme-web gui": "web-gui", "mme-rank": "rank", "mme-rank gui": "rank-gui",
+               "mme-web": "web", "mme-web gui": "web-gui", "mme-web coverage": "coverage", "mme-web update": "update", "mme-rank": "rank", "mme-rank gui": "rank-gui",
                "mme-classify": "classify", "mme-classify gui": "classify-gui", "mme-eval sheet": "eval-sheet",
                "mme-eval score": "eval-score", "mme-eval agree": "eval-agree",
                "mme-eval reference": "eval-reference", "mme-release": "release"}

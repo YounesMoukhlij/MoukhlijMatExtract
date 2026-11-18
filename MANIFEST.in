@@ -1,0 +1,6 @@
+# The source archive keeps the job files and the documents: the build copies them into the package (setup.py).
+include setup.py
+recursive-include configs *.yaml
+recursive-include docs *.md
+# The program's icon, drawn by scripts/make_icon.py.
+recursive-include LocalExtraction/gui/assets *.png

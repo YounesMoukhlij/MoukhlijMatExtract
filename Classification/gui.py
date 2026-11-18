@@ -69,10 +69,13 @@ def run(folders: Sequence[Path], out_dir: Path | None) -> Result:
                             "Run the extraction first: python -m LocalExtraction, or python -m WebScraping.")
     if out_dir is not None and any(s.path.resolve() == out_dir.resolve() for s in sources):
         return Result(error=f"{out_dir} is a database it reads: choose another folder to write the classes into.")
+    from .cli import classify_run, record_classes  # recorded as the command records it
+    record = classify_run(sources, out_dir) if out_dir is not None else None
     classified = classify(sources)
     result = Result(sources, classified, energies_of(classified), conductivities_of(classified))
     if out_dir is not None:
         write(classified, out_dir)
+        record_classes(out_dir, sources, record, classified)
         result.written = out_dir
     return result
 
@@ -176,6 +179,9 @@ class ClassTree(ttk.Frame):
         return len(self._branches)
 
 
+_PER_LINE = 4  # database boxes on one line of the window
+
+
 class App:
     def __init__(self, root: tk.Tk, sources: Sequence[Path] | None = None, out_dir: Path = DEFAULT_OUT,
                  write_files: bool = True, start: bool = True):
@@ -183,14 +189,19 @@ class App:
         from LocalExtraction.gui import theme
         theme.apply(root)  # buttons that light up under the mouse and show the step that runs
         root.title(TITLE)
-        root.geometry("1320x860")
-        root.minsize(980, 640)
+        from LocalExtraction.gui import layout
+        layout.place(root, (1320, 860), (980, 640))  # fitted to the screen it opens on, centred
         self.result = Result()
         self._queue: queue.Queue = queue.Queue()
         self._busy = False
         self._started: float | None = None  # when the classification running began
         self._rows: dict[str, dict[str, object]] = {}
-        self._build(list(sources) if sources else list(DEFAULT_SOURCES), out_dir, write_files, chosen=bool(sources))
+        # The databases of the other web jobs (WebScraping/web_output_<job>) are offered, not ticked: each is a corpus
+        # of its own, classified with the others only when asked.
+        from SelectingTopMaterial.loader import job_databases
+        self._other_jobs = [] if sources else job_databases(PROJECT_ROOT)
+        self._build(list(sources) if sources else [*DEFAULT_SOURCES, *self._other_jobs], out_dir, write_files,
+                    chosen=bool(sources))
         if start and any(var.get() for var in self.sources.values()):
             self.classify()
         elif start:  # a fresh project: nothing extracted yet, so nothing to tick
@@ -201,7 +212,16 @@ class App:
     # The window
     # ------------------------------------------------------------------
     def _build(self, folders: list[Path], out_dir: Path, write_files: bool, chosen: bool) -> None:
-        top = ttk.Frame(self.root, padding=(10, 8, 10, 0))
+        from LocalExtraction.gui import design
+        from LocalExtraction.gui.about_window import open_about
+        design.header(self.root, "Classification", "the materials by crystal-structure type and structure family",
+                      compact=True)
+        design.footer(self.root, about=lambda: open_about(self.root)).pack(side="bottom", fill="x")
+        # The settings above (they scroll when short), the classes below, a line to drag between them.
+        from LocalExtraction.gui.layout import Stack
+        self.stack = Stack(self.root, keep=0.5)
+        host = self.stack.host
+        top = ttk.Frame(host, padding=(10, 8, 10, 0))
         top.pack(fill="x")
         line = ttk.Frame(top)
         line.pack(fill="x")
@@ -210,13 +230,17 @@ class App:
         self.sources_frame.pack(side="left")
         self.sources: dict[Path, tk.BooleanVar] = {}
         for folder in folders:  # the databases named on the command line; else those of the two extractions that exist
-            self._add_source(Path(folder), ticked=chosen or (Path(folder) / "materials.csv").is_file())
-        ttk.Button(line, text="Add a database…", command=self._pick_source).pack(side="left", padx=8)
-        self.classify_button = ttk.Button(line, text="Classify", command=self.classify)
+            self._add_source(Path(folder), ticked=chosen or ((Path(folder) / "materials.csv").is_file()
+                                                            and Path(folder) not in self._other_jobs))
+        # The buttons on a line of their own: a database per job file wraps onto more lines above them.
+        buttons = ttk.Frame(top)
+        buttons.pack(fill="x", pady=(4, 0))
+        ttk.Button(buttons, text="Add a database…", command=self._pick_source).pack(side="left")
+        self.classify_button = ttk.Button(buttons, text="Classify", command=self.classify)
         self.classify_button.pack(side="right")
         from LocalExtraction.gui.csv_browser import results_buttons
-        results_buttons(line, "4 · Classification", lambda: str(_folder(self.out.get())))
-        self.delete_button = delete_outputs_button(line, "classify", after=self._outputs_deleted)
+        results_buttons(buttons, "4 · Classification", lambda: str(_folder(self.out.get())))
+        self.delete_button = delete_outputs_button(buttons, "classify", after=self._outputs_deleted)
         self.delete_button.pack(side="right")
         outputs.register("classify", self.busy, "a classification is running")
 
@@ -228,7 +252,7 @@ class App:
         ttk.Checkbutton(line, text="write the class folders when classifying (as the command does)",
                         variable=self.write_files).pack(side="left", padx=8)
 
-        filters = ttk.LabelFrame(self.root, text="Which activation energies count", padding=(10, 4))
+        filters = ttk.LabelFrame(host, text="Which activation energies count", padding=(10, 4))
         filters.pack(fill="x", padx=10, pady=(8, 0))
         self.origin = tk.StringVar(value="measured and computed")
         ttk.Combobox(filters, textvariable=self.origin, values=list(ORIGINS), state="readonly", width=22).pack(side="left")
@@ -245,7 +269,7 @@ class App:
         self.origin.trace_add("write", lambda *_: self.refresh())
         self.find.trace_add("write", lambda *_: self._fill_materials_all())
 
-        line = ttk.Frame(self.root, padding=(10, 6, 10, 0))
+        line = ttk.Frame(host, padding=(10, 6, 10, 0))
         line.pack(fill="x")
         ttk.Label(line, text="Classes:").pack(side="left")
         self.view = tk.StringVar(value=TREE)
@@ -254,12 +278,12 @@ class App:
         ttk.Button(line, text="Open every class", command=lambda: self._expand(True)).pack(side="left", padx=(12, 4))
         ttk.Button(line, text="Close every class", command=lambda: self._expand(False)).pack(side="left")
 
-        self.status = WrapLabel(self.root, text="", foreground="#8c8c8c", wraplength=1200)
+        self.status = WrapLabel(host, text="", foreground="#8c8c8c", wraplength=1200)
         self.status.pack(fill="x", padx=12, pady=(6, 2))
 
         self.book = ttk.Notebook(self.root)
-        self.card = ResultCard(self.root, before=self.book, padx=10)  # what the last classification found
-        self.book.pack(fill="both", expand=True, padx=10, pady=(2, 4))
+        self.card = ResultCard(host, padx=10)  # what the last classification found
+        self.stack.below(self.book, cards=[self.card])
         self.classes: dict[str, Table] = {}
         self.trees: dict[str, ClassTree] = {}
         self.materials: dict[str, Table] = {}
@@ -330,7 +354,9 @@ class App:
     def _add_source(self, folder: Path, ticked: bool) -> None:
         var = tk.BooleanVar(value=ticked)
         self.sources[folder] = var
-        ttk.Checkbutton(self.sources_frame, text=_shown(folder), variable=var).pack(side="left", padx=4)
+        index = len(self.sources) - 1  # four to a line
+        ttk.Checkbutton(self.sources_frame, text=_shown(folder), variable=var).grid(
+            row=index // _PER_LINE, column=index % _PER_LINE, sticky="w", padx=4)
 
     def _pick_source(self) -> None:
         path = filedialog.askdirectory(title="A database folder (with materials.csv)", initialdir=str(PROJECT_ROOT))
@@ -363,6 +389,9 @@ class App:
 
     def classify(self) -> None:
         if self._busy:
+            return
+        from LocalExtraction.gui.home_guard import ensure_home
+        if not ensure_home(self.root, "The classification"):  # the main folder deleted meanwhile: made again, or not
             return
         folders = [folder for folder, var in self.sources.items() if var.get()]
         if not folders:
@@ -584,10 +613,13 @@ class App:
         material, row = self.result.classified.materials[key], self._rows[key]
         window = tk.Toplevel(self.root)
         window.title(f"{material.name} — {row['crystal_structure']}, {row['structure_family']}")
-        window.geometry("1180x560")
+        from LocalExtraction.gui import layout
+        layout.place(window, (1180, 560), (640, 320), parent=self.root)
         window.bind("<Escape>", lambda event: window.destroy())
         body = ttk.Frame(window, padding=10)
         body.pack(fill="both", expand=True)
+        from LocalExtraction.gui.design import website_line
+        website_line(window)
         about = (f"{material.name}  ·  crystal structure: {row['crystal_structure']} ({row['crystal_structure_basis']})  ·  "
                  f"family: {row['structure_family']} ({row['compound_class']})\n"
                  f"Spellings: {row['spellings']}  ·  {row['n_papers']} paper(s): {row['papers']}  ·  databases: {row['databases']}")
@@ -641,6 +673,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     enter_project_home("classify")  # after the options are read: --help makes no folder
     root = tk.Tk()
+    from LocalExtraction.crashlog import watch
+    watch(root)  # a window's own errors: written to a crash file, and said
     App(root, [_folder(s) for s in args.source] if args.source else None, _folder(args.out), not args.no_write)
-    root.mainloop()
+    from LocalExtraction.crashlog import run
+    run(root)  # the loop, then the window closed cleanly
     return 0

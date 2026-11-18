@@ -28,6 +28,22 @@ _ELEMENT = "Mme.Button.fill"
 _LIGHT = ("#ffffff", "#1f2328", "#cfe0ff", "#1e40af", "#2563eb", "#1d4ed8", "#e4e6e9", "#a0a6ad")
 _DARK = ("#50555d", "#f1f3f4", "#34507a", "#1e40af", "#2563eb", "#3b6fe0", "#383b40", "#8a9097")
 
+# The colours of the windows' design (design.py): a deep navy band, a garnet accent, quiet greys; one set for the
+# light appearance and one for the dark.
+PALETTES = {
+    "light": {"band": "#14325c", "band_text": "#ffffff", "band_muted": "#c3d1e6", "accent": "#1f4e79",
+              "garnet": "#8c1d40", "ink": "#1f2328", "muted": "#6b7280", "line": "#d5dbe3", "stripe": "#f2f5f9",
+              "chip": "#24477a", "selected": "#d6e4f7", "card": "#ffffff"},
+    "dark": {"band": "#0e223f", "band_text": "#ffffff", "band_muted": "#9fb3cf", "accent": "#7fa8e0",
+             "garnet": "#d76a8f", "ink": "#eef0f2", "muted": "#9ba3ad", "line": "#3b414a", "stripe": "#262a30",
+             "chip": "#1c3a66", "selected": "#2f4a72", "card": "#2a2e35"},
+}
+
+
+def palette(widget: tk.Misc) -> dict:
+    """The design colours for the appearance the windows opened in."""
+    return PALETTES["dark" if is_dark(widget) else "light"]
+
 
 def is_dark(root: tk.Misc) -> bool:
     """Is the system in dark mode? (macOS tells Tk; elsewhere the windows are light.)"""
@@ -43,6 +59,8 @@ def apply(root: tk.Misc) -> None:
         return  # this interpreter's buttons are styled already
     from . import tkthreads
     tkthreads.install(root)  # Tk variables freed by a worker thread are released on the main thread
+    from .design import app_icon
+    app_icon(root)  # the program's icon in the Dock / taskbar, once for this Tk and every window it opens
     for part in ("fill", "padding", "label"):
         style.element_create(f"Mme.Button.{part}", "from", "default")
     style.layout("TButton", [(_ELEMENT, {"sticky": "nswe", "children": [
@@ -58,6 +76,16 @@ def apply(root: tk.Misc) -> None:
     style.configure(NEXT, background=current, foreground="white")
     style.map(NEXT, background=[("disabled", disabled), ("pressed", pressed), ("active", current_hover)],
               foreground=[("disabled", disabled_text), ("pressed", "white")])
+    # The tables, tabs and frames of every window: a little more air, bold headings, the accent colour.
+    colours = palette(root)
+    style.configure("Treeview", rowheight=25)
+    style.configure("Treeview.Heading", font=("TkDefaultFont", 11, "bold"), padding=(6, 4))
+    style.map("Treeview", background=[("selected", colours["accent"])], foreground=[("selected", "white")])
+    style.configure("TNotebook.Tab", padding=(14, 5))
+    style.configure("Sash", sashthickness=8, gripcount=12)  # the lines between areas: easy to catch and drag
+    style.configure("TLabelframe.Label", font=("TkDefaultFont", 11, "bold"), foreground=colours["accent"])
+    style.configure("Muted.TLabel", foreground=colours["muted"])
+    style.configure("Section.TLabel", font=("TkDefaultFont", 13, "bold"), foreground=colours["accent"])
     # A hand over a button that can be pressed (added to the class's own bindings, which do the hover colour).
     root.bind_class("TButton", "<Enter>", _hand, add="+")
     root.bind_class("TButton", "<Leave>", _arrow, add="+")

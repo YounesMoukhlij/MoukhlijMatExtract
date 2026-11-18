@@ -7,6 +7,10 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/moukhlijmatextract/)
 [![PyPI](https://img.shields.io/pypi/v/moukhlijmatextract)](https://pypi.org/project/moukhlijmatextract/)
 
+**Website: [moukhlijmatextract.vercel.app](https://moukhlijmatextract.vercel.app)**: how to use the program, step
+by step, and an overview of the project. Every window of the program links to it at the bottom, and the main window
+announces it for a few seconds when it opens.
+
 ## About the project
 
 **MoukhlijMatExtract (MME)** is an open-source research tool for mining the scientific literature on the
@@ -80,6 +84,16 @@ Each part has its own README with every detail: [LocalExtraction](LocalExtractio
 
 ## Installation
 
+**In short.** Install it once, then type `mme-gui` in any terminal, from any folder:
+
+| | Install | Open the main window | Your results, job files and documents |
+|---|---|---|---|
+| **A user** | `pip install moukhlijmatextract` | `mme-gui` | `~/MoukhlijMatExtract/` |
+| **A developer** (this source) | `make install` | `make gui` or `mme-gui` | `~/MoukhlijMatExtract/` (the same) |
+
+On its first start, the main window offers to create `~/MoukhlijMatExtract` with its `configs/` (the job files)
+and `docs/` (the manuals); a terminal command makes them by itself.
+
 ### What you need first
 
 | Requirement | Why | How to get it |
@@ -96,6 +110,12 @@ source .venv/bin/activate                 # enter it (Windows: .venv\Scripts\act
 pip install moukhlijmatextract            # MME and everything it needs
 python -m spacy download en_core_web_sm   # the English language model, once
 ```
+
+The language model decides how sentences are split and parsed, so it changes which values are found:
+- **Order of preference:** MME uses `en_core_sci_sm` (scispaCy) when it is installed, else `en_core_web_sm`, else a plain sentence splitter.
+- **Without any model:** the plain splitter ties fewer values to their material, and the extraction warns about it.
+- **Recorded:** every paper records the model it was read with (`extracted_with` in `papers.csv`).
+- **To reproduce a published result:** install the same model as that result.
 
 ### Option B — from the source code
 
@@ -149,8 +169,13 @@ make demo        # results in examples/output/ — about a minute
 mme-gui
 ```
 
-This opens the main window: one card per part, each with an **Open** button and a
-**Delete outputs…** button. The **⚠ Requirements** button at the top opens a short guide to what MME
+This opens the main window. On a new computer, a small window first offers to create
+`~/MoukhlijMatExtract`, with every job file (`configs/`) and every document (`docs/`). Under the folder buttons, a
+line says whether the folder, its job files and documents are all there. If one is missing (deleted, say), the line
+turns orange, and **Restore the job files** makes it again; a job file you edited is kept. **Open the documents**
+opens `docs/`.
+
+The window shows one card per part, each with an **Open** button and a **Delete outputs…** button. The **⚠ Requirements** button at the top opens a short guide to what MME
 needs; it turns green (**✓ Requirements**) once you have read it. The **☰ Manual** button beside it lists
 every command with all of its options (`mme-local`, `mme-web`, `mme-dois`, `mme-rank`, `mme-classify`, their
 `python -m` forms and the `make` shortcuts), with typical runs and a search box. The options are each
@@ -163,14 +188,19 @@ Every part can also be run from the terminal — each step below gives both ways
 
 Every part works inside **`~/MoukhlijMatExtract`** (the folder `MoukhlijMatExtract` in your home
 folder), the **main results folder**, whatever folder you start it from. In the main window, press
-**Create the main results folder** to make it with every part's folders; once it exists the button reads
+**Create the main results folder** to make it with every part's folders, its `configs/` (every job file) and its
+`docs/` (the documents), both installed with the package from the repository's [`configs/`](configs) and
+[`docs/`](docs); once it exists the button reads
 **Open the main results folder** and opens it. Opening a part also makes it when it is missing, so the
 parts always find each other's files:
 
 ```
 ~/MoukhlijMatExtract/
-├── configs/sse.yaml                      ← what the web search looks for: electrolytes (the job file)
-├── configs/cathode.yaml, anode.yaml      ← … cathodes, anodes (made next to it on the first run)
+├── configs/                              ← the job files of the web search (yours to edit; never written over):
+│   ├── sse.yaml, cathode.yaml, anode.yaml       electrolytes, cathodes, anodes
+│   └── garnet.yaml, nasicon.yaml, … halide.yaml one per family of solid electrolytes, and garnet_nasicon.yaml
+├── docs/                                 ← the manual, every command, the data dictionary, the limitations,
+│                                           the evaluation protocol (kept up to date with the installed version)
 ├── LocalExtraction/papers/               ← put your own PDFs here
 ├── LocalExtraction/local_output/         ← database of part 1
 ├── WebScraping/papers/                   ← PDFs downloaded by part 2
@@ -519,6 +549,8 @@ Add `--help` to any command for all its options.
 | scanned PDFs give no values | install Tesseract (see *What you need first*) |
 | `Can't find model 'en_core_web_sm'` | `python -m spacy download en_core_web_sm` inside the venv |
 | `mme-…: command not found` | enter the venv: `source .venv/bin/activate` |
+| `No module named …` after updating the source code | run the program with `make` (it registers the new code by itself), or `pip install -e .` once |
+| the main window says job files are missing | press **Restore the job files** (your edited job files are kept) |
 | `mme-gui needs Tk` / `No module named '_tkinter'` | install Tk (see *What you need first*), then create the venv again |
 | the web search finds few papers | add free API keys (**API keys…**), or run `mme-web run --check` |
 | few papers have a free copy | the download's message says why. *Your e-mail was refused*: set your own academic or professional address in **API keys…** (Unpaywall refuses made-up ones such as `@example.com`). Otherwise add the Elsevier and Wiley keys, or download from your university's network or VPN |

@@ -110,14 +110,14 @@ class ResultsBrowser(tk.Toplevel):
         super().__init__(parent)
         self.folder = Path(folder)
         self.title(f"Results — {title}")
-        width, height = 1240, 800
-        self.geometry(f"{min(width, int(self.winfo_screenwidth() * 0.95))}x"
-                      f"{min(height, int(self.winfo_screenheight() * 0.85))}")
-        self.minsize(720, 460)
+        from . import layout
+        layout.place(self, (1240, 800), (720, 460), parent=parent)  # fitted to the screen, centred
         self.bind("<Escape>", lambda e: self.destroy())
 
         body = ttk.Frame(self, padding=12)
         body.pack(fill="both", expand=True)
+        from .design import website_line
+        website_line(self)
         ttk.Label(body, text=title, font=("TkDefaultFont", 14, "bold")).pack(anchor="w")
         self.headline = tk.StringVar()
         WrapLabel(body, textvariable=self.headline, foreground="#8c8c8c", justify="left").pack(fill="x", pady=(2, 8))

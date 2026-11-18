@@ -13,6 +13,8 @@ hand. How to use the commands, in order, and how to reproduce a result: [MANUAL.
 | [`mme-dois`](#mme-dois) | `python -m WebScraping.Fetch_DOIs.get_dois` | `make doi` | 1 · Fetch DOIs: collects the DOIs of the topic |
 | [`mme-web`](#mme-web) | `python -m WebScraping run` | `make web` | search, review, download and extract |
 | [`mme-web gui`](#mme-web-gui) | `python -m WebScraping gui` | `make web-gui` | the same, in its window |
+| [`mme-web update`](#mme-web-update) | `python -m WebScraping update` | `make update` | every job run before, searched for the papers published since |
+| [`mme-web coverage`](#mme-web-coverage) | `python -m WebScraping coverage` | `make coverage` | how far each job's papers went, and by publisher |
 | [`mme-rank`](#mme-rank) | `python -m SelectingTopMaterial` | `make rank` | ranks the materials by activation energy |
 | [`mme-rank gui`](#mme-rank-gui) | `python -m SelectingTopMaterial gui` | `make rank-gui` | the same, in its window |
 | [`mme-classify`](#mme-classify) | `python -m Classification` | `make classify` | sorts the materials by crystal and structure family |
@@ -144,7 +146,7 @@ options:
                  configs/sse.yaml)
   --max MAX      results asked from each source per keyword (default: the job's max_per_query,
                  else 100)
-  --out OUT      CSV file (default: WebScraping/Fetch_DOIs/dois.csv)
+  --out OUT      CSV file (default: the job's doi_list, else WebScraping/Fetch_DOIs/dois.csv)
   --refresh      ask the sources again the keywords they already answered (by default a keyword a
                  source answered in the last 30 days is skipped)
   --no-expand    use only the keywords given: do not go on with keywords made of topic and
@@ -158,14 +160,17 @@ options:
 ```text
 usage: mme-web run [-h] [--job JOB] [--output OUTPUT] [--workers WORKERS] [--verbose]
                    [--stage {discover,fetch,extract}] [--yes] [--limit LIMIT] [--dois [FILE]]
-                   [--check] [--probe-doi PROBE_DOI] [--refresh] [--rebuild]
+                   [--check] [--probe-doi PROBE_DOI] [--rescreen] [--refresh] [--snowball]
+                   [--update] [--rebuild]
 
 options:
   -h, --help            show this help message and exit
   --job JOB             Job file (YAML): what to search for, which papers to keep, what to extract
                         (default: configs/sse.yaml)
-  --output, -o OUTPUT   Directory to write the extracted database into (default:
-                        WebScraping/web_output)
+  --output, -o OUTPUT   Directory to write the extracted database into (default: the job's own,
+                        beside its PDF folder — WebScraping/web_output for WebScraping/papers,
+                        WebScraping/web_output_NAME for WebScraping/papers_NAME — so that two jobs
+                        never share a database)
   --workers, -w WORKERS
                         Number of PDFs to process in parallel (default: 4)
   --verbose, -v         Enable debug-level logging
@@ -183,8 +188,19 @@ options:
   --check               Test the setup (network, API keys, folders) and exit
   --probe-doi PROBE_DOI
                         With --check: an Elsevier DOI to test the Elsevier API key with
+  --rescreen            First decide again, with the job's screening settings of now, the papers
+                        screened before and not downloaded yet (after a word was changed, or
+                        screen.propose_closed set to true). A yes or no set by hand in the review
+                        list is decided again too
   --refresh             Search again the queries already searched (by default a query a source
                         answered in the last 30 days is skipped)
+  --snowball            Also follow the citations of the papers kept, for this run
+                        (search.snowball in the job file): OpenAlex gives the papers each one
+                        cites and the papers citing it, screened like the others
+  --update              Search only for the papers published since this job's last search (from
+                        that year on: the sources take years), then screen, download and extract
+                        as usual — to keep a database current. A job never searched is searched in
+                        full
   --rebuild             Extract every fetched PDF again instead of only the new ones. The present
                         database files are not deleted: they are moved to
                         <output>/previous_<date>/
@@ -201,11 +217,41 @@ options:
   -h, --help            show this help message and exit
   --job JOB             Job file (YAML): what to search for, which papers to keep, what to extract
                         (default: configs/sse.yaml)
-  --output, -o OUTPUT   Directory to write the extracted database into (default:
-                        WebScraping/web_output)
+  --output, -o OUTPUT   Directory to write the extracted database into (default: the job's own,
+                        beside its PDF folder — WebScraping/web_output for WebScraping/papers,
+                        WebScraping/web_output_NAME for WebScraping/papers_NAME — so that two jobs
+                        never share a database)
   --workers, -w WORKERS
                         Number of PDFs to process in parallel (default: 4)
   --verbose, -v         Enable debug-level logging
+```
+
+## mme-web update
+
+*2 · Web scraping* — every job run before, searched for the papers published since. Same as `python -m WebScraping update`; with make: `make update`.
+
+```text
+usage: mme-web update [-h] [--yes] [--workers WORKERS] [--verbose]
+
+options:
+  -h, --help            show this help message and exit
+  --yes                 Approve every paper proposed without a review, for jobs that ask for one
+  --workers, -w WORKERS
+                        PDFs read at once while extracting
+  --verbose, -v         Enable debug-level logging
+```
+
+## mme-web coverage
+
+*2 · Web scraping* — how far each job's papers went, and by publisher. Same as `python -m WebScraping coverage`; with make: `make coverage`.
+
+```text
+usage: mme-web coverage [-h] [--output OUTPUT] [--verbose]
+
+options:
+  -h, --help           show this help message and exit
+  --output, -o OUTPUT  Folder of the tables and the report (default: WebScraping/coverage)
+  --verbose, -v        Enable debug-level logging
 ```
 
 ## mme-rank
@@ -219,9 +265,10 @@ usage: mme-rank [-h] [--source DIR [DIR ...]] [--out DIR] [--criteria FILE]
                 [--origin {experimental,simulation}] [--attribution {this-work,cited}]
                 [--component NAME]
                 [--kind {arrhenius,migration_barrier,bvse,local_hop,vtf,unspecified}]
-                [--element SYMBOL [SYMBOL ...]] [--min-confidence 0-1] [--include-flagged]
-                [--top N] [--format FORMAT [FORMAT ...]] [--no-files] [--open] [--quiet]
-                [--no-color] [--force] [--version]
+                [--element SYMBOL [SYMBOL ...]] [--min-confidence 0-1] [--materials-project]
+                [--verified-only] [--include-flagged] [--bootstrap N] [--top N]
+                [--format FORMAT [FORMAT ...]] [--no-files] [--open] [--quiet] [--no-color]
+                [--force] [--version]
 
 Ranks the materials of the MoukhlijMatExtract database by activation energy and sorts them into
 the classes of criteria.toml (Superionic, Performant, Acceptable, Rejected) — one ranking per
@@ -267,11 +314,19 @@ which values take part:
                         conductors)
   --min-confidence 0-1  Only the values the extraction gave at least this confidence (default:
                         all)
+  --materials-project   Also write materials_project.csv: each ranked material beside its
+                        Materials Project entry (stability, band gap, space group, link). Needs
+                        MP_API_KEY (free); the ranking itself is unchanged
+  --verified-only       Rank only the values a person checked (the Verify tab of windows 1 and 2):
+                        correct or corrected. Values marked wrong never take part, with or without
+                        this option
   --include-flagged     Also rank the values the extraction flagged (plausibility "check: …"):
                         outside 0.05–1.5 eV, or the transport of electrons or of another element
                         than a conducting ion. By default they are left out
 
 what is shown and written:
+  --bootstrap N         Resamplings of the values behind the rank intervals (rank_95, p_top10;
+                        default 1000, 0: none)
   --top N               Keep the first N materials that pass, in the terminal and in top_materials
   --format FORMAT [FORMAT ...]
                         Files to write: csv, xlsx, json, html (default: all of them)
@@ -441,7 +496,7 @@ reference. MoukhlijMatExtract (MME) — Created by Younes Moukhlij.
 
 ```text
 usage: mme-eval reference [-h] [--db {liverpool,obelix} [{liverpool,obelix} ...]] [--no-fetch]
-                          [--limit N] [--refresh] [--workers WORKERS]
+                          [--against FOLDER] [--limit N] [--refresh] [--workers WORKERS]
                           [--predictions CSV [CSV ...]]
 
 Downloads curated databases of solid electrolytes, fetches the legal open copies of their papers
@@ -455,6 +510,10 @@ options:
   --db {liverpool,obelix} [{liverpool,obelix} ...]
                         Which databases (default: all)
   --no-fetch            Do not look for more papers; compare what is there
+  --against FOLDER      Instead: compare a results folder of yours (e.g.
+                        WebScraping/web_output_garnet) with the curated databases, material by
+                        material, whatever the papers — how much of them it covers, and how far
+                        its room-temperature conductivities are from theirs
   --limit N             Look for at most N more papers in this run
   --refresh             Download the curated databases again
   --workers, -w WORKERS

@@ -1,0 +1,345 @@
+# Nitride, amide and imide solid electrolytes
+#
+# Lithium nitride (Li3N) and the lithium nitridophosphates, nitridosilicates, nitridoaluminates and
+# nitridoborates, with lithium amide and imide conductors.
+#
+# Kind: chemical family (anion: N3-, with amides and imides).
+#   Prototype: Li3N (P6/mmm); nitridophosphates (Li7PN4), nitridosilicates (Li2SiN2).
+#
+# 100 queries, 25 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/nitride.yaml          # extracts into WebScraping/web_output_nitride
+#   mme-rank --domain electrolyte --source WebScraping/web_output_nitride --kind arrhenius
+
+name: nitride
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Nitrides: transport
+    - "Li3N single crystal lithium conductivity anisotropy"
+    - "Li3N hydrogen doping conductivity"
+    - "Li3N vacancy lithium migration"
+    - "Li3N decomposition voltage electrolyte"
+    - "Li3N interlayer lithium metal anode"
+    - "Li7PN4 lithium ion conductivity"
+    - "LiPN2 lithium conductivity"
+    - "lithium nitridosilicate ionic conductivity"
+    - "Li2SiN2 lithium conduction"
+    - "nitride solid electrolyte stability lithium metal"
+    - "lithium imide Li2NH conductivity"
+    - "lithium amide LiNH2 ion conduction"
+
+    # lithium nitride: every transport measurement and method
+    - "lithium nitride ionic conductivity"
+    - "lithium nitride activation energy"
+    - "lithium nitride lithium ion diffusion"
+    - "lithium nitride lithium migration barrier"
+    - "lithium nitride ion transport mechanism"
+    - "lithium nitride grain boundary conductivity"
+    - "lithium nitride bulk ionic conductivity"
+    - "lithium nitride impedance spectroscopy"
+    - "lithium nitride temperature dependent conductivity"
+    - "lithium nitride diffusion coefficient"
+    - "lithium nitride doping ionic conductivity"
+    - "lithium nitride electronic conductivity"
+    - "lithium nitride electrochemical stability window"
+    - "lithium nitride interfacial resistance"
+    - "lithium nitride molecular dynamics lithium diffusion"
+    - "lithium nitride density functional theory migration"
+    - "lithium nitride NMR lithium dynamics"
+    - "lithium nitride synthesis ionic conductivity"
+    - "lithium nitride fast ion conductor"
+    - "lithium nitride superionic conductor"
+
+    # Li3N: every transport measurement and method
+    - "Li3N ionic conductivity"
+    - "Li3N activation energy"
+    - "Li3N lithium ion diffusion"
+    - "Li3N lithium migration barrier"
+    - "Li3N ion transport mechanism"
+    - "Li3N grain boundary conductivity"
+    - "Li3N bulk ionic conductivity"
+    - "Li3N impedance spectroscopy"
+    - "Li3N temperature dependent conductivity"
+    - "Li3N diffusion coefficient"
+    - "Li3N doping ionic conductivity"
+    - "Li3N electronic conductivity"
+    - "Li3N electrochemical stability window"
+    - "Li3N interfacial resistance"
+    - "Li3N molecular dynamics lithium diffusion"
+    - "Li3N density functional theory migration"
+    - "Li3N NMR lithium dynamics"
+    - "Li3N synthesis ionic conductivity"
+    - "Li3N fast ion conductor"
+    - "Li3N superionic conductor"
+
+    # lithium nitridophosphate: every transport measurement and method
+    - "lithium nitridophosphate ionic conductivity"
+    - "lithium nitridophosphate activation energy"
+    - "lithium nitridophosphate lithium ion diffusion"
+    - "lithium nitridophosphate lithium migration barrier"
+    - "lithium nitridophosphate ion transport mechanism"
+    - "lithium nitridophosphate grain boundary conductivity"
+    - "lithium nitridophosphate bulk ionic conductivity"
+    - "lithium nitridophosphate impedance spectroscopy"
+    - "lithium nitridophosphate temperature dependent conductivity"
+    - "lithium nitridophosphate diffusion coefficient"
+    - "lithium nitridophosphate doping ionic conductivity"
+    - "lithium nitridophosphate electronic conductivity"
+    - "lithium nitridophosphate electrochemical stability window"
+    - "lithium nitridophosphate interfacial resistance"
+    - "lithium nitridophosphate molecular dynamics lithium diffusion"
+    - "lithium nitridophosphate density functional theory migration"
+    - "lithium nitridophosphate NMR lithium dynamics"
+    - "lithium nitridophosphate synthesis ionic conductivity"
+    - "lithium nitridophosphate fast ion conductor"
+    - "lithium nitridophosphate superionic conductor"
+
+    # lithium nitridosilicate: every transport measurement and method
+    - "lithium nitridosilicate activation energy"
+    - "lithium nitridosilicate lithium ion diffusion"
+    - "lithium nitridosilicate lithium migration barrier"
+    - "lithium nitridosilicate ion transport mechanism"
+    - "lithium nitridosilicate grain boundary conductivity"
+    - "lithium nitridosilicate bulk ionic conductivity"
+    - "lithium nitridosilicate impedance spectroscopy"
+    - "lithium nitridosilicate temperature dependent conductivity"
+    - "lithium nitridosilicate diffusion coefficient"
+    - "lithium nitridosilicate doping ionic conductivity"
+    - "lithium nitridosilicate electronic conductivity"
+    - "lithium nitridosilicate electrochemical stability window"
+    - "lithium nitridosilicate interfacial resistance"
+    - "lithium nitridosilicate molecular dynamics lithium diffusion"
+    - "lithium nitridosilicate density functional theory migration"
+    - "lithium nitridosilicate NMR lithium dynamics"
+    - "lithium nitridosilicate synthesis ionic conductivity"
+    - "lithium nitridosilicate fast ion conductor"
+    - "lithium nitridosilicate superionic conductor"
+
+    # lithium nitride: transport mechanisms
+    - "lithium nitride concerted migration"
+    - "lithium nitride vacancy mechanism"
+    - "lithium nitride interstitial mechanism"
+    - "lithium nitride interstitialcy mechanism"
+    - "lithium nitride paddle-wheel mechanism"
+    - "lithium nitride correlated ion hopping"
+    - "lithium nitride percolation conduction pathway"
+    - "lithium nitride bottleneck size migration"
+    - "lithium nitride anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_nitride.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Nitride aliases
+    - "lithium nitride"
+    - "nitride solid electrolyte"
+    - "nitride ionic conductor"
+    - "lithium nitridophosphate"
+    - "nitridophosphate"
+    - "lithium nitridosilicate"
+    - "nitridosilicate"
+    - "lithium nitridoaluminate"
+    - "lithium nitridoborate"
+    - "lithium amide"
+    - "lithium imide"
+
+    # Nitride, amide and imide formulas
+    - "Li3N"
+    - "α-Li3N"
+    - "β-Li3N"
+    - "Li7PN4"
+    - "LiPN2"
+    - "Li10P4N10"
+    - "Li2SiN2"
+    - "Li5SiN3"
+    - "Li8SiN4"
+    - "LiSi2N3"
+    - "Li3AlN2"
+    - "Li3BN2"
+    - "LiNH2"
+    - "Li2NH"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "gallium nitride"
+    - "GaN"
+    - "light-emitting"
+    - "transistor"
+    - "HEMT"
+    - "hydrogen storage"
+    - "dehydrogenation"
+    - "hard coating"
+    - "cutting tool"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_nitride
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

@@ -15,6 +15,7 @@ from tkinter import messagebox, simpledialog, ttk
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
 
 from LocalExtraction import outputs, runcontrol
+from LocalExtraction.outputs import Group
 from LocalExtraction.gui.delete_outputs import delete_outputs_button
 from LocalExtraction.gui.dialogs import DetailsDialog
 from LocalExtraction.gui.outcomes import extraction_outcome, snapshot
@@ -25,13 +26,17 @@ from LocalExtraction.gui import theme
 from LocalExtraction.gui.widgets import FolderRow, LogPane, Pausable, Row, Stopped, Table, WrapLabel, open_path
 from LocalExtraction.models import PaperData
 
-from ..fetch import Outcome
+from ..about import DEFAULT_OUTPUT, output_for
+from ..fetch import HAND_LIST, Outcome
 from ..harvest import MAX_ATTEMPTS, SEARCH_STEPS, Harvest
 from ..job import Job, load_job
-from ..resolve import NOT_FOUND_ADVICE, REFUSED_EMAIL, email_advice
+from ..resolve import REFUSED_EMAIL, email_advice
 from ..ledger import APPROVED, CLOSED, DOWNLOADED, EXTRACTED, FAILED, NO, REJECTED, SCREENED, YES, Candidate, abstract_basis
-from .dialogs import CheckDialog
+from .. import by_hand
+from .dialogs import CheckDialog, MissedDialog
 from .job_dialog import JobDialog, open_job_settings, when_saved
+
+WARNING_COLOUR = "#d97706"  # the tile of the papers to get by hand
 
 if TYPE_CHECKING:
     from LocalExtraction.gui.window import Window
@@ -42,7 +47,8 @@ _EMPTY = "#b3261e"  # no DOI saved yet
 _GUI_STEPS = tuple(step for step in SEARCH_STEPS if step[0] != "dois")
 _NORMAL_FONT, _BOLD_FONT = ("TkDefaultFont", 11), ("TkDefaultFont", 11, "bold")
 _FILTERS = ("Proposed (yes)", "Not proposed (no)", "Downloaded", "Failed or closed", "All")
-_COLUMNS = (("decision", "✓", 30), ("score", "score", 46), ("access", "access", 60), ("state", "state", 170),
+_COLUMNS = (("decision", "✓", 30), ("score", "score", 46), ("model", "model", 50), ("access", "access", 60),
+            ("state", "state", 170),
             ("year", "year", 46), ("title", "title", 330), ("journal", "journal", 150), ("flags", "flags", 150))
 _REVIEWABLE = (SCREENED, APPROVED, REJECTED)  # not fetched yet: its decision can still change
 _FETCHED = (DOWNLOADED, EXTRACTED)
@@ -63,8 +69,9 @@ def _state(c: Candidate) -> str:
 def _row(c: Candidate) -> Row:
     tags = ("done",) if c.status in _FETCHED else ("failed",) if c.status in (FAILED, CLOSED) else \
         ("no",) if c.decision == NO else ()
-    return (c.key, [_MARK.get(c.decision, "?"), f"{c.score:g}", c.access, _state(c), str(c.year or ""), c.title,
-                    c.journal, " ".join(c.flags)], tags)
+    guess = f"{c.model_yes:.2f}" if c.model_yes >= 0 and c.status == SCREENED else ""  # learn.py: its chance of a yes
+    return (c.key, [_MARK.get(c.decision, "?"), f"{c.score:g}", guess, c.access, _state(c), str(c.year or ""),
+                    c.title, c.journal, " ".join(c.flags)], tags)
 
 
 def _shown(c: Candidate, wanted: str, text: str) -> bool:
@@ -122,6 +129,10 @@ class _LinesTo:
 class WebPanel(Pausable, ttk.LabelFrame):
     def __init__(self, parent: tk.Misc, app: "Window", job_path: str, output_dir: str):
         super().__init__(parent, text=" Web articles — search, download and extract ", padding=10)
+        # The controls above (they scroll when short), the tabs below, a line to drag between them.
+        from LocalExtraction.gui.layout import Stack
+        self.stack = Stack(self)
+        host = self.stack.host
         self.app = app
         self.job: Optional[Job] = None
         self.harvest: Optional[Harvest] = None
@@ -133,7 +144,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self._papers: List[PaperData] = []
         self._done = self._total = 0
 
-        row = ttk.Frame(self)
+        row = ttk.Frame(host)
         row.pack(fill="x")
         self.job_file = FolderRow(row, "Job file:", job_path, pick="file", file_types=[("Job file", "*.yaml *.yml")],
                                   on_change=self.load_job, label_width=15)
@@ -143,12 +154,15 @@ class WebPanel(Pausable, ttk.LabelFrame):
         when_saved(self._settings_saved)
         self.check_button = ttk.Button(row, text="Check setup", command=self._check)
         self.check_button.pack(side="left", padx=(6, 0))
-        self.output = FolderRow(self, "Results folder:", output_dir, label_width=15, on_change=self.show_results)
+        # No folder named (here or with --output): the job's own database, which changes with the job (output_for).
+        self._output_follows_job = not output_dir
+        self.output = FolderRow(host, "Results folder:", output_dir or DEFAULT_OUTPUT, label_width=15,
+                                on_change=self._output_chosen)
         self.output.pack(fill="x", pady=(4, 0))
         self.job_summary = tk.StringVar()
-        WrapLabel(self, textvariable=self.job_summary, foreground="#8c8c8c").pack(fill="x", pady=(2, 8))
+        WrapLabel(host, textvariable=self.job_summary, foreground="#8c8c8c").pack(fill="x", pady=(2, 8))
 
-        steps = ttk.Frame(self)
+        steps = ttk.Frame(host)
         steps.pack(fill="x")
         self.fetch_dois_button = ttk.Button(steps, text="1 · Fetch DOIs", command=self.fetch_dois)
         self.fetch_dois_button.pack(side="left")
@@ -165,13 +179,17 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.stop_button.pack(side="left", padx=(6, 0))
         self.pause_button(steps).pack(side="left", padx=(6, 0))
         # The ledger is let go of while the dialog is open (it may be deleted), and opened again after.
-        self.delete_button = delete_outputs_button(steps, "web", before=self.close, after=self._outputs_deleted)
+        self.delete_button = delete_outputs_button(steps, "web", before=self.close, after=self._outputs_deleted,
+                                                   groups=self.output_groups)
         self.delete_button.pack(side="right")
+        # The papers left on the hand list, fetched with the user's own browser (browser_helper.py).
+        self.browser_button = ttk.Button(steps, text="Get the rest with my browser…", command=self.open_browser_helper)
+        self.browser_button.pack(side="right", padx=(0, 6))
         outputs.register("web", self.running, "a step of the web scraping is running")
         outputs.register("web", self.holds_ledger, "the “Search and download” window has the ledger open: "
                                                    "close it, or delete from that window", groups=("papers",))
         # What "2 · Search" searches with: the DOIs "1 · Fetch DOIs" saved, and the keywords saved in the job.
-        uses = ttk.Frame(self)
+        uses = ttk.Frame(host)
         uses.pack(fill="x", pady=(6, 0))
         ttk.Label(uses, text="2 · Search uses:", foreground=_QUIET).pack(side="left")
         self.dois_note = tk.StringVar()
@@ -181,7 +199,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
         WrapLabel(uses, textvariable=self.keywords_note, foreground=_QUIET).pack(side="left", fill="x", expand=True,
                                                                                 padx=(6, 0))
         # What "2 · Search" does, step by step: the step under way is marked, the ones done ticked.
-        flow = ttk.Frame(self)
+        flow = ttk.Frame(host)
         flow.pack(fill="x", pady=(4, 0))
         ttk.Label(flow, text="2 · Search does:", foreground=_QUIET).pack(side="left")
         self._step_labels: Dict[str, ttk.Label] = {}
@@ -192,9 +210,9 @@ class WebPanel(Pausable, ttk.LabelFrame):
             label.pack(side="left", padx=(6, 0))
             self._step_labels[key] = label
         self._step_texts: Dict[str, str] = {"keywords": "① Keyword search", "check": "② Check the new papers",
-                                            "screen": "③ Score and propose"}
+                                            "snowball": "③ Citations", "screen": "④ Score and propose"}
         self._show_step(None, done=False)
-        options = ttk.Frame(self)
+        options = ttk.Frame(host)
         options.pack(fill="x", pady=(6, 0))
         # 2 · Search can go on by itself into 3 · Download, and 3 · Download into 4 · Extract.
         self.search_then_download = tk.BooleanVar(value=False)
@@ -209,16 +227,21 @@ class WebPanel(Pausable, ttk.LabelFrame):
             side="left", padx=(6, 0))
         self._chain_download = False  # the search under way goes on into the download (the box above)
 
-        progress = ttk.Frame(self)
+        progress = ttk.Frame(host)
         progress.pack(fill="x", pady=(8, 6))
         self.progress = ttk.Progressbar(progress, mode="determinate", length=170)
         self.progress.pack(side="right", padx=(8, 0))
         self.status = tk.StringVar()
         WrapLabel(progress, textvariable=self.status).pack(side="left", fill="x", expand=True)
+        # What the download says of the papers a busy service refused ("too many requests"): they are tried again
+        # at the end, one after another and spaced. Shown under the status while it holds, until the next step.
+        self.notice = tk.StringVar()
+        self._notice_label = WrapLabel(host, textvariable=self.notice, foreground=WARNING_COLOUR)
+        self._notice_after = progress
 
         self.book = ttk.Notebook(self)
-        self.card = ResultCard(self, before=self.book)  # what the last step did, above the tabs
-        self.book.pack(fill="both", expand=True)
+        self.card = ResultCard(host)  # what the last step did, above the tabs
+        self.stack.below(self.book, cards=[self.card])
         self.review = ttk.Frame(self.book, padding=(0, 6, 0, 0))
         bar = ttk.Frame(self.review)
         bar.pack(fill="x", pady=(0, 4))
@@ -236,6 +259,9 @@ class WebPanel(Pausable, ttk.LabelFrame):
         decide.pack(fill="x", pady=(0, 4))
         ttk.Button(decide, text="✓ Yes", command=lambda: self._decide(YES), width=6).pack(side="left")
         ttk.Button(decide, text="✗ No", command=lambda: self._decide(NO), width=6).pack(side="left", padx=4)
+        # The papers screened before, decided again with the settings of now (a box ticked, a word changed).
+        self.rescreen_button = ttk.Button(decide, text="Re-screen with the settings…", command=self.rescreen)
+        self.rescreen_button.pack(side="right")
         self.counts = tk.StringVar()
         WrapLabel(decide, textvariable=self.counts).pack(side="left", fill="x", expand=True, padx=(6, 0))
         self.table = Table(self.review, _COLUMNS, on_open=self._details, stretch="title")
@@ -249,6 +275,9 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.book.add(self.review, text="Candidates")
         self.energies = EnergiesView(self.book, app, self.output.get)
         self.book.add(self.energies, text="Activation energies")
+        from LocalExtraction.gui.verify import verify_tab  # a person checks each value against its page
+        self.verify = verify_tab(self.book, self.output.get,
+                                 lambda: [self.job.fetch.folder] if self.job is not None else [])
         self.activity = LogPane(self.book, height=14, clearable=True, also_clear=lambda: self.app.log.clear())
         self.book.add(self.activity, text="Activity")
 
@@ -281,13 +310,17 @@ class WebPanel(Pausable, ttk.LabelFrame):
         except (OSError, ValueError) as error:
             self._no_job(f"This job file cannot be used — {error}")
             return
+        self._follow_job()
         search = self.job.search
         years = f" · {search.years[0]}–{search.years[1]}" if search.years else ""
         self.job_summary.set(f"{len(search.queries)} keywords{years} in {len(search.sources)} sources · "
-                             f"{len(self.job.fetch.sources)} sources of copies · PDFs go to {self.job.fetch.folder}")
+                             f"{len(self.job.fetch.sources)} sources of copies · PDFs go to {self.job.fetch.folder}"
+                             f" · extracted into {self.output.get()}")
         self._step_texts = {"keywords": f"① Keywords in {len(search.sources)} sources",
                             "check": "② Check the new papers and the saved DOIs",
-                            "screen": "③ Score and propose"}
+                            "snowball": "③ Citations of the papers kept" if search.snowball
+                            else "③ Citations: off (job settings)",
+                            "screen": "④ Score and propose"}
         self._show_step(None, done=False)
         self._buttons()
         if not os.path.exists(os.path.join(self.job.fetch.folder, "ledger.sqlite")):
@@ -313,6 +346,32 @@ class WebPanel(Pausable, ttk.LabelFrame):
             return  # another job since, or a step under way: it fills the table when it ends
         self.show_candidates(papers=papers)
 
+    def _follow_job(self) -> None:
+        """The results folder of the job loaded, unless one was chosen: each job its own database."""
+        wanted = output_for(self.job)
+        if self._output_follows_job and os.path.normpath(self.output.get()) != os.path.normpath(wanted):
+            self.output.set(wanted)
+            self.show_results()
+
+    def _output_chosen(self) -> None:
+        """A results folder chosen by hand: kept whatever job is chosen next."""
+        self._output_follows_job = False
+        self.show_results()
+
+    def output_groups(self) -> Tuple[Group, ...]:
+        """What “Delete outputs…” offers: the DOI list, the PDF folder and the results folder of this job (the
+        usual folders when no job is loaded)."""
+        if self.job is None:
+            return outputs.PARTS["web"][1]
+        dois = self._doi_csv()
+        stem = os.path.splitext(os.path.basename(dois))[0]
+        names = tuple(stem + ending for ending in (".csv", ".txt", ".searched.json", ".tmp", ".txt.tmp",
+                                                   ".searched.json.tmp"))
+        return (Group("dois", f"The DOI list of Fetch DOIs ({stem}.csv, {stem}.txt, the searches done)",
+                      os.path.dirname(dois) or ".", names),
+                Group("papers", "The downloaded PDFs, their records and the ledger of the search", self.job.fetch.folder),
+                Group("database", "The extracted web database (tables, workbook, look-up cache)", self.output.get()))
+
     def _no_job(self, why: str) -> None:
         self.job_summary.set(why)
         self._buttons()
@@ -326,8 +385,26 @@ class WebPanel(Pausable, ttk.LabelFrame):
             self.harvest.watcher.say = lambda text: self.app.post(self.show_status, text)  # its countdown
             self.harvest.on_step = lambda step: self.app.post(self._show_step, step)
             self.harvest.on_line = self._doi_line  # what Fetch DOIs prints, in the log and the status line
+            self.harvest.on_notice = lambda text: self.app.post(self.show_notice, text)  # refused for too many requests
         self.harvest.output_dir = self.output.get()
         return self.harvest
+
+    def _home_ok(self, what: str) -> bool:
+        """The main results folder is there (or was just made again, after it was deleted with this window open):
+        the step can go on, with the job and its ledger read again from the new folder."""
+        from LocalExtraction.gui.home_guard import ensure_home, home_lost
+        lost = home_lost()
+        if not ensure_home(self, what):
+            return False
+        if lost and self.harvest is not None:  # its ledger was in the deleted folder: let go of it, a new one is made
+            try:
+                self.harvest.ledger.close()
+            except Exception:
+                pass
+            self.harvest = None
+        if lost:
+            self.load_job()
+        return self.job is not None
 
     def close(self) -> None:
         if self.harvest is not None and not self.running():
@@ -400,8 +477,10 @@ class WebPanel(Pausable, ttk.LabelFrame):
         changed = 0
         for key in keys if keys is not None else self.table.selected():
             candidate = self._candidates.get(key)
-            if candidate is not None and candidate.status in _REVIEWABLE and candidate.decision != answer:
-                self.harvest.ledger.update(key, decision=answer)
+            # A yes or no given here is a person's, also when it confirms the proposal (learn.py learns from it).
+            if candidate is not None and candidate.status in _REVIEWABLE and (
+                    candidate.decision != answer or candidate.decided_by != "hand"):
+                self.harvest.ledger.update(key, decision=answer, decided_by="hand")
                 changed += 1
         if changed:
             # The review list is the same list: what was decided here is what the terminal will read.
@@ -415,7 +494,11 @@ class WebPanel(Pausable, ttk.LabelFrame):
         link = f"https://doi.org/{c.doi}" if c.doi else (f"https://arxiv.org/abs/{c.arxiv_id}" if c.arxiv_id else c.landing_url)
         pairs = [("Title", c.title), ("Authors", ", ".join(c.authors) or "NONE"),
                  ("Journal, year", f"{c.journal or 'NONE'}, {c.year or 'NONE'} ({c.publisher or 'publisher unknown'})"),
-                 ("Link", link or "NONE"), ("Decision", c.decision or "none yet"), ("State", _state(c)),
+                 ("Link", link or "NONE"),
+                 ("Decision", (c.decision or "none yet") + (" (yours)" if c.decided_by == "hand" else "")),
+                 ("Model of your decisions", f"{c.model_yes:.2f} chance of a yes (it decides nothing)"
+                  if c.model_yes >= 0 and c.status == SCREENED else "no guess"),
+                 ("State", _state(c)),
                  ("Score and why", f"{c.score:g} — {c.why}"), ("Access", f"{c.access} (open-access status: {c.oa_status or 'unknown'})"),
                  ("Flags", " ".join(c.flags) or "none"), ("Found by", "; ".join(c.found_by) or "NONE"),
                  ("Abstract", c.abstract or "NONE"),
@@ -433,7 +516,8 @@ class WebPanel(Pausable, ttk.LabelFrame):
     def _buttons(self) -> None:
         busy = self.running()
         ready = "normal" if self.job is not None and not busy else "disabled"
-        for button in (self.fetch_dois_button, self.search_button, self.download_button, self.extract_button):
+        for button in (self.fetch_dois_button, self.search_button, self.download_button, self.extract_button,
+                       self.rescreen_button):
             button.configure(state=ready)
         self._show_dois_note()
         self.stop_button.configure(state="normal" if busy else "disabled")
@@ -459,12 +543,21 @@ class WebPanel(Pausable, ttk.LabelFrame):
         """The button of the step that runs now stays blue."""
         theme.mark(button, self._steps())
 
+    def show_notice(self, text: str) -> None:
+        """The line of the papers a busy service refused (empty: no line)."""
+        self.notice.set(f"⏳ {text}" if text else "")
+        if text and not self._notice_label.winfo_manager():
+            self._notice_label.pack(fill="x", pady=(0, 6), after=self._notice_after)
+        elif not text and self._notice_label.winfo_manager():
+            self._notice_label.pack_forget()
+
     def _run(self, work: Callable[..., None], *arguments: object) -> None:
         """Starts a step on its own thread; `_finished` puts the buttons back whatever happens."""
         self.stop_event.clear()
         self.card.hide()
+        self.show_notice("")
         self._started, self._services, self._fetched_titles = time.time(), Counter(), []
-        self._missed: List[Tuple[str, str]] = []  # (title, status) of the papers the download did not get
+        self._missed: List[Tuple[str, str]] = []  # (key, status) of the papers the download did not get
 
         def guarded() -> None:
             try:
@@ -521,7 +614,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
     # 2 · Search -----------------------------------------------------------
     def search(self) -> None:
         """2 · Search: the keywords saved in the job, and the DOIs "1 · Fetch DOIs" saved — it fetches none."""
-        if self.job is None or self.running():
+        if self.job is None or self.running() or not self._home_ok("The search"):
             return
         s = self.job.search
         saved = _count_lines(self._doi_txt())
@@ -613,6 +706,56 @@ class WebPanel(Pausable, ttk.LabelFrame):
                     [f"Best match: {c.title or c.key} ({c.year or 'year ?'}, score {c.score:g})" for c in best]
                     + self._watch_lines(), actions, self._started)
 
+    # Re-screen ------------------------------------------------------------
+    def rescreen(self) -> None:
+        """The papers screened before and not downloaded yet, decided again with the job's settings of now."""
+        if self.job is None or self.running() or not self._home_ok("The re-screen"):
+            return
+        harvest = self._harvest()
+        waiting = sum(1 for c in self._candidates.values() if c.status in _REVIEWABLE)
+        if not waiting:
+            messagebox.showinfo("MoukhlijMatExtract", "No paper to re-screen: every paper of the list is downloaded, "
+                                "or was tried already.", parent=self)
+            return
+        closed = ("Papers no free copy is known for are kept: the repositories and the publishers' services are "
+                  "asked, and what none of them has goes to the list of papers to download by hand."
+                  if self.job.screen.propose_closed else
+                  "Papers no free copy is known for are left out. To keep them, tick “Also keep papers no free copy is "
+                  "known for” in “Search settings…” → “3 · Which papers” first.")
+        if not messagebox.askyesno(
+                "Re-screen the papers",
+                f"Decide again, with the settings of the job file now, the {waiting:,} paper(s) not downloaded yet?\n\n"
+                f"{closed}\n\nA yes or no you set by hand in this table is decided again too. Papers downloaded, "
+                "failed or closed are not touched.", parent=self):
+            return
+        self.status.set(f"Re-screening {waiting:,} paper(s) …")
+        self.progress.configure(mode="indeterminate")
+        self.progress.start(12)
+        self.activity.write(f"--- Re-screen of {waiting:,} paper(s) with the settings of {self.job_file.get()}")
+        self._run(self._rescreen_work, harvest)
+
+    def _rescreen_work(self, harvest: Harvest) -> None:
+        counts = harvest.rescreen()
+        self._papers_read = harvest.ledger.all()
+        self.app.post(self._rescreened, counts, self._papers_read)
+
+    def _rescreened(self, counts: Dict[str, int], everything: List[Candidate]) -> None:
+        waiting = [c for c in everything if c.status in _REVIEWABLE and c.decision == YES]
+        changed = counts["proposed"] or counts["dropped"]
+        actions = [("Review the candidates", lambda: self.book.select(self.review))]
+        if waiting:
+            actions.insert(0, (f"Download the {number(len(waiting))} proposed", self.download))
+        self.filter_var.set(_FILTERS[0])
+        self.book.select(self.review)
+        self.card.show(Card(
+            "Re-screened", "done" if changed else NOTHING,
+            f"{number(counts['rescored'])} paper(s) not downloaded yet decided again with the settings of "
+            f"{self.job_file.get()}." + (" Press “3 · Download” to fetch the proposed ones." if waiting else ""),
+            [Stat(number(counts["proposed"]), "newly proposed", GOOD),
+             Stat(number(counts["dropped"]), "no longer proposed", GREY),
+             Stat(number(len(waiting)), "proposed in all", GOOD, "waiting to be downloaded")],
+            [], actions, self._started))
+
     # With DOIs --------------------------------------------------------------
     def results_extra(self) -> List[Tuple[str, str]]:
         """The files of the web scraping kept beside its results folder, for "Browse the CSV files…"."""
@@ -620,6 +763,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
         if self.job is not None:
             files.insert(0, ("Candidates of 2 · Search (the review list)",
                              os.path.join(self.job.fetch.folder, "candidates.csv")))
+            files.append(("Papers to download by hand", os.path.join(self.job.fetch.folder, HAND_LIST)))
         return files
 
     def _doi_csv(self) -> str:
@@ -650,7 +794,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
     def fetch_dois(self) -> None:
         """1 · Fetch DOIs (mme-dois): the job's keywords asked of OpenAlex, Crossref, Semantic Scholar and
         arXiv; the DOIs they give are saved in the DOI list, which "2 · Search" then searches with."""
-        if self.job is None or self.running():
+        if self.job is None or self.running() or not self._home_ok("Fetch DOIs"):
             return
         answer = simpledialog.askstring(
             "MoukhlijMatExtract · Fetch DOIs",
@@ -717,14 +861,15 @@ class WebPanel(Pausable, ttk.LabelFrame):
     def download(self, chained: bool = False) -> None:
         """3 · Download — pressed, or by itself after 2 · Search (`chained`: the box "After 2 · Search, download
         the papers proposed")."""
-        if self.job is None or self.running():
+        if self.job is None or self.running() or not self._home_ok("The download"):
             return
         harvest = self._harvest()
         candidates = list(self._candidates.values()) if chained and self._candidates else harvest.ledger.all()
         # What the fetch will take: every paper marked yes that is not fetched yet, and the failed ones that have tries left.
         wanted = [c for c in candidates if (c.status in _REVIEWABLE and c.decision == YES)
                   or (c.status == FAILED and c.attempts < MAX_ATTEMPTS)]
-        if not wanted:
+        hand = by_hand.waiting(harvest.folder)  # PDFs saved by hand: the download is what takes them in
+        if not wanted and not hand:
             if chained:  # after a search: said in the log and the status line, no window to close
                 waiting = pending_pdfs(harvest.folder, self.output.get()) if self.then_extract.get() else 0
                 self.activity.write("Nothing to download after the search: no paper is proposed."
@@ -750,8 +895,9 @@ class WebPanel(Pausable, ttk.LabelFrame):
         harvest.ledger.write_review(harvest.review_path)
         self._total, self._done = (min(limit, len(wanted)) if limit is not None else len(wanted)), 0
         self.progress.configure(mode="determinate", maximum=max(self._total, 1), value=0)
-        self.status.set(f"Downloading {self._total} paper(s) …")
-        self.activity.write(f"--- Download of {self._total} paper(s) into {self.job.fetch.folder}")
+        what = f"{self._total} paper(s)" + (f" and the {hand} PDF(s) of the by_hand folder" if hand else "")
+        self.status.set(f"Downloading {what} …")
+        self.activity.write(f"--- Download of {what} into {self.job.fetch.folder}")
         self.book.select(self.activity)
         self._current(self.download_button)
         self._run(self._download_work, harvest, limit, then_extract, self.output.get(), self.app.workers())
@@ -778,27 +924,71 @@ class WebPanel(Pausable, ttk.LabelFrame):
 
     def _show_download_card(self, results: Dict[str, int]) -> None:
         got, failed, closed = results.get(DOWNLOADED, 0), results.get(FAILED, 0), results.get(CLOSED, 0)
+        taken = getattr(self.harvest, "taken_in", 0) or 0  # PDFs of the by_hand folder taken in first
         stopped = self.stop_event.is_set()
         status = WARNING if stopped or (failed and got) else CARD_FAILED if failed and not got else \
-            NOTHING if not got else "done"
+            NOTHING if not got and not taken else "done"
         folder = self.job.fetch.folder if self.job else ""
+        by_hand_count = len(self._hand_rows())
+        actions = [("Extract them", self.extract), ("Open the papers folder", lambda: open_path(folder)),
+                   ("Show the log", lambda: self.book.select(self.activity))]
+        if by_hand_count:
+            actions.insert(1, (f"Papers not downloaded ({number(by_hand_count)})…", self.show_missed))
         self.card.show(Card(
             "Download stopped" if stopped else "Download finished",
-            status, f"{number(got)} PDF(s) saved in {folder}." + (" Extract them next (“4 · Extract”)." if got else ""),
+            status, f"{number(got)} PDF(s) saved in {folder}."
+            + (f" {number(taken)} PDF(s) of the by_hand folder taken in, their source recorded." if taken else "")
+            + (" Extract them next (“4 · Extract”)." if got or taken else ""),
             [Stat(number(got), "downloaded", GOOD), Stat(number(failed), "failed", BAD, "tried again next time"),
-             Stat(number(closed), "no copy to be had", GREY), *self._watch_stats("download")],
-            [f"From {service}: {number(n)}" for service, n in self._services.most_common(3)]
+             *([Stat(number(taken), "taken in by hand", GOOD, "from the by_hand folder")] if taken else []),
+             Stat(number(closed), "no copy to be had", GREY),
+             *([Stat(number(by_hand_count), "to get by hand", WARNING_COLOUR, "all downloads: see the list")]
+               if by_hand_count else []), *self._watch_stats("download")],
+            ([self.notice.get()[2:]] if self.notice.get() else [])
+            + [f"From {service}: {number(n)}" for service, n in self._services.most_common(3)]
             + [f"Saved: {title}" for title in self._fetched_titles[:2]] + self._watch_lines(),
-            [("Extract them", self.extract), ("Open the papers folder", lambda: open_path(folder)),
-             ("Show the log", lambda: self.book.select(self.activity))], self._started))
+            actions, self._started))
+
+    def _hand_rows(self, keys: Optional[set] = None) -> List[Dict[str, str]]:
+        """The papers the downloads could not get (by_hand.missed_rows): those `keys` only when given."""
+        if self.harvest is None:
+            return []
+        try:
+            return by_hand.missed_rows(self.harvest.folder, self.harvest.ledger, keys)
+        except Exception as error:  # what shows the list must not stop the window
+            logging.warning(f"The papers not downloaded could not be listed: {error}")
+            return []
+
+    def show_missed(self, keys: Optional[set] = None, asked: Optional[int] = None) -> None:
+        """The window of the papers not downloaded: those of the last download (`keys`), or all of them."""
+        rows = self._hand_rows(keys)
+        if not rows or self.harvest is None:
+            messagebox.showinfo("MoukhlijMatExtract", "Every paper marked yes is downloaded: nothing to get by hand.",
+                                parent=self)
+            return
+        MissedDialog(self, rows, asked, self.harvest.hand_list_path, self.harvest.by_hand_folder,
+                     helper=self.open_browser_helper)
+
+    def open_browser_helper(self) -> None:
+        """“Get the rest with my browser…”: the papers left on the hand list, opened in the user's browser, their
+        PDFs taken in as they arrive in the Downloads folder."""
+        if self.job is None:
+            messagebox.showinfo("MoukhlijMatExtract", "Choose a job file first.", parent=self)
+            return
+        self._harvest()
+        rows = self._hand_rows()
+        if not rows:
+            messagebox.showinfo("MoukhlijMatExtract", "Every paper marked yes is downloaded: nothing left to get.",
+                                parent=self)
+            return
+        from .browser_helper import BrowserHelperDialog
+        BrowserHelperDialog(self, self, rows)
 
     def _paper_fetched(self, key: str, outcome: Outcome, done: int, total: int) -> None:
         self.progress.configure(maximum=max(total, 1), value=done)
         self.show_status(f"Downloading: {done} / {total}")
         refused = bool(outcome.refused) and outcome.status != DOWNLOADED
-        detail = (f"via {outcome.service}" if outcome.status == DOWNLOADED else
-                  f"refused by {', '.join(outcome.refused)} — the watcher checks it again later" if refused else outcome.error)
-        self.activity.write(f"[{done}/{total}] {'waiting' if refused else outcome.status}: {key} {detail}")
+        # The line of the paper is the engine's own ("[3/40] downloaded: … via osti"), shown in the Activity tab.
         candidate = self.harvest.ledger.get(key) if self.harvest is not None else None
         if refused:
             pass  # not an answer: neither got nor missed
@@ -807,7 +997,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
             if candidate is not None and candidate.title:
                 self._fetched_titles.append(candidate.title)
         else:
-            self._missed.append(((candidate.title if candidate is not None else "") or key, outcome.status))
+            self._missed.append((key, outcome.status))
         if candidate is not None:
             self._candidates[key] = candidate
             self.table.update_row(_row(candidate))
@@ -840,8 +1030,6 @@ class WebPanel(Pausable, ttk.LabelFrame):
         if not missed:
             return
         asked = sum(results.get(status, 0) for status in (DOWNLOADED, FAILED, CLOSED)) or len(missed)
-        shown = "\n".join(f"  • {title[:110]}" for title, _ in missed[:8])
-        more = f"\n  … and {len(missed) - 8:,} more (Candidates tab)" if len(missed) > 8 else ""
         if email_problem:
             email = self.job.email() if self.job is not None else ""
             in_job_file = bool(self.job is not None and self.job.contact_email)
@@ -852,17 +1040,14 @@ class WebPanel(Pausable, ttk.LabelFrame):
                     + ("Open the job file now?" if in_job_file else "Open “API keys…” now?"), parent=self):
                 open_path(self.job_file.get()) if in_job_file else self.app.open_keys()
             return
-        failed = sum(1 for _, status in missed if status == FAILED)
-        messagebox.showinfo(
-            f"{len(missed):,} paper(s) not found",
-            f"No legal open-access copy was found for {len(missed):,} of the {asked:,} paper(s):\n{shown}{more}\n\n"
-            + (f"{failed:,} of them failed for now (a site did not answer): they are tried again at the next "
-               "download.\n\n" if failed else "")
-            + NOT_FOUND_ADVICE, parent=self)
+        keys = {key for key, _ in missed}
+        if self._hand_rows(keys):  # all got on a later round of the watcher: nothing to say
+            self.show_missed(keys, asked)
 
     # 4 · Extract ----------------------------------------------------------
     def extract(self) -> None:
-        if self.job is None or self.running() or not self.app.ready_to_extract(self.output.get()):
+        if self.job is None or self.running() or not self._home_ok("The extraction") \
+                or not self.app.ready_to_extract(self.output.get()):
             return
         self.book.select(self.activity)
         self._current(self.extract_button)
@@ -911,6 +1096,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
             output, before, failed=getattr(self, "_failed", 0), stopped=stopped, started=self._started, prefix=prefix,
             pdfs_pending=pending_pdfs(self.job.fetch.folder, output) if stopped and self.job else None,
             actions=[("Show the activation energies", lambda: self.book.select(self.energies)),
+                     ("Check the values (Verify)", lambda: self.book.select(self.verify)),
                      ("Browse every table", self.energies.browse),
                      ("Open the workbook", lambda: open_path(workbook) if os.path.exists(workbook) else None),
                      ("Open the results folder", lambda: open_path(output))]))

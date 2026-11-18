@@ -10,6 +10,7 @@ MME_NO_WINDOW_TESTS=1 to skip them anyway.
 """
 
 import os
+import json
 import shutil
 import sys
 import tempfile
@@ -96,15 +97,24 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(final_summary([]), "No papers were successfully processed.")
 
 
+_SCREEN: dict = {}
+
+
 def has_screen() -> bool:
-    if tk is None or os.environ.get("MME_NO_WINDOW_TESTS"):
-        return False
-    try:
-        root = tk.Tk()
-        root.destroy()
-        return True
-    except tk.TclError:
-        return False
+    """Whether windows can be made here (a screen, Tk). Asked once per run: the window made to find out is shown and
+    its pending work done before it is destroyed — a window destroyed at once left Tk 9 a "show it" step for a window
+    gone, and the next window of the run crashed Python (macOS: "Python quit unexpectedly")."""
+    if "answer" not in _SCREEN:
+        _SCREEN["answer"] = False
+        if tk is not None and not os.environ.get("MME_NO_WINDOW_TESTS"):
+            try:
+                root = tk.Tk()
+                root.update_idletasks()
+                root.destroy()
+                _SCREEN["answer"] = True
+            except tk.TclError:
+                pass
+    return _SCREEN["answer"]
 
 
 class WindowTest(unittest.TestCase):
@@ -176,6 +186,20 @@ class WindowTests(WindowTest):
         return App(root, input_dir=self.pdfs, output_dir=self.output, workers=2)
 
     # ------------------------------------------------------------------
+    def test_the_values_show_what_a_reader_needs_to_judge_them(self):
+        """Kind of energy, the extraction's flag, the hand check and the Arrhenius check, beside each value; the
+        counts in the line above; the card of a run goes on to the Verify tab."""
+        panel = self.app.panel
+        energies = panel.energies
+        for column in ("energy_kind", "needs_check", "checked", "arrhenius", "mobile_ion", "confidence"):
+            self.assertIn(column, energies.table.columns)
+        self.assertIn("to look at · 0 checked by hand · 0 disputed by the Arrhenius check", energies.count.get())
+        row = dict(zip(energies.table.columns, energies.table.tree.item("0", "values")))
+        self.assertEqual(row["checked"], "–")
+        panel.show_outcome()
+        self.assertIn("Check the values (Verify)", [label for label, _ in panel.card.outcome.actions])
+        self.assertIn("Verify", [panel.book.tab(tab, "text") for tab in panel.book.tabs()])
+
     def test_clear_the_log_empties_the_activity_and_the_log_strip(self):
         panel = self.app.panel
         panel.activity.write("a line of the step")
@@ -378,3 +402,131 @@ class WorkerThreadTests(unittest.TestCase):
         self.assertTrue(root.getboolean(root.tk.call("info", "exists", name)))  # not yet: waiting
         self.assertEqual(tkthreads.release_waiting(), 1)
         self.assertFalse(root.getboolean(root.tk.call("info", "exists", name)))
+
+
+class AboutTests(unittest.TestCase):
+    """“About & methods”: what it says is read from the program and from what was measured — never a figure that
+    was not measured on this computer."""
+
+    def test_no_accuracy_is_claimed_before_one_is_measured(self):
+        from LocalExtraction.gui.about_window import measured_accuracy
+        folder = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, folder, True)
+        self.assertEqual(measured_accuracy(folder), [])
+        scores = folder / "scores_web_garnet_nasicon"
+        scores.mkdir()
+        (scores / "metrics.json").write_text(json.dumps({"papers": 60, "gold": 214, "levels": {"record": {"all": {
+            "precision": 0.43, "recall": 0.5, "f1": 0.46, "ci95": {"precision": [0.31, 0.56], "recall": [0.4, 0.6]}}}}}))
+        line, = measured_accuracy(folder)
+        self.assertIn("scores_web_garnet_nasicon: 60 papers, 214 reference values", line)
+        self.assertIn("precision 43 % (95 % CI 31–56 %)", line)
+
+    def test_the_citation_is_read_from_the_citation_file(self):
+        from LocalExtraction.gui.about_window import citation
+        text, bibtex = citation()
+        self.assertIn("Moukhlij, Y.", text)
+        self.assertIn("[Computer software]", text)
+        self.assertTrue(bibtex.startswith("@software{moukhlijmatextract,"))
+        self.assertIn("author  = {Moukhlij, Younes}", bibtex)
+
+    @unittest.skipUnless(has_screen(), "the window needs a screen")
+    def test_the_window_opens_with_every_section_and_the_environment(self):
+        from LocalExtraction.gui.about_window import open_about
+        root = tk.Tk()
+        root.attributes("-alpha", 0.0)
+        self.addCleanup(root.destroy)
+        with mock.patch("LocalExtraction.provenance.environment", return_value={
+                "software": "MoukhlijMatExtract 9.9", "python": "3.13.1", "platform": "Test", "packages": {"spacy": "3.8.0"},
+                "language_model": "en_core_web_sm 3.8.0", "tesseract": "5.5.0"}):
+            window = open_about(root)
+            end = time.time() + 10
+            while not window.environment and time.time() < end:
+                root.update()
+                time.sleep(0.02)
+        shown = next(w for w in _all(window) if isinstance(w, tk.Text)).get("1.0", "end")
+        for section in ("Software", "How to cite", "Method", "Sources, records and research ethics",
+                        "Accuracy measured on this computer", "Environment"):
+            self.assertIn(section, shown)
+        self.assertIn("Python 3.13.1", window.environment)
+        self.assertIn("language model en_core_web_sm 3.8.0", window.environment)
+
+
+def _all(widget):
+    for child in widget.winfo_children():
+        yield child
+        yield from _all(child)
+
+
+@unittest.skipUnless(has_screen(), "the window needs a screen")
+class VerifyTabTests(unittest.TestCase):
+    """The Verify tab: the values most worth checking first, each beside its page, its check kept."""
+
+    def setUp(self):
+        import pymupdf
+        from SelectingTopMaterial.tests.test_selection import row, write_database
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.rows = [row("Li6PS5Cl", 0.22), row("Li3PS4", 0.05, sentence="Li3PS4 shows an activation energy of 0.05 eV.")]
+        self.db = write_database(self.tmp / "local_output", self.rows,
+                                 papers=[{"paper_id": "A.pdf", "title": "A paper", "doi": "10.1/a", "publication_year": "2024"}])
+        pdfs = self.tmp / "pdfs"
+        pdfs.mkdir()
+        document = pymupdf.open()
+        for number in (1, 2, 3):
+            page = document.new_page()
+            page.insert_text((72, 100), f"Page {number}.")
+            if number == 3:
+                page.insert_text((72, 140), "Li3PS4 shows an activation energy of 0.05 eV.")
+        document.save(str(pdfs / "A.pdf"))
+        self.root = tk.Tk()
+        self.root.attributes("-alpha", 0.0)
+        self.root.geometry("1200x800")
+        self.addCleanup(self.root.destroy)
+        from LocalExtraction.gui.verify import VerifyView
+        self.view = VerifyView(self.root, lambda: str(self.db), lambda: [str(pdfs)], verifications=self.tmp / "home")
+        self.view.pack(fill="both", expand=True)
+        self.root.update()
+        self.view.show()
+        self.root.update()
+
+    def test_the_lowest_value_first_beside_its_page_and_each_check_kept(self):
+        from LocalExtraction.verification import CORRECTED, WRONG, Verifications
+        view = self.view
+        first = view.current()
+        self.assertEqual(view.rows[first]["material_formula"], "Li3PS4")  # the lowest energy leads
+        self.assertIsNotNone(view._page_image)  # page 3 of A.pdf, drawn
+        self.assertTrue(view.canvas.find_withtag("all")[1:])  # … with the sentence marked on it
+        self.assertIn("0 of 2 values checked", view.progress.get())
+        view.mark(WRONG)
+        store = Verifications.of(self.db, self.tmp / "home")
+        self.assertEqual(store.get(first).verdict, WRONG)
+        second = view.current()
+        self.assertEqual(view.rows[second]["material_formula"], "Li6PS5Cl")  # on to the next
+        self.assertEqual(len(view.table), 1)  # “to check” no longer lists the one checked
+        self.assertTrue(view._corrected(second, {"activation_energy_eV": "0.25", "material_formula": "Li6PS5Cl"},
+                                        "the bulk value"))
+        store = Verifications.of(self.db, self.tmp / "home")
+        self.assertEqual((store.get(second).verdict, store.get(second).corrections), (CORRECTED, {"activation_energy_eV": "0.25"}))
+        self.assertIn("2 of 2 values checked", view.progress.get())
+        view.show_var.set("Checked")
+        view.fill()
+        view.table.tree.selection_set(first)
+        view.table.tree.focus(first)
+        view.undo()
+        self.assertIsNone(Verifications.of(self.db, self.tmp / "home").get(first))
+
+    def test_in_a_small_window_the_list_and_the_buttons_keep_their_room(self):
+        """The counts line is long: it wraps across the tab, not into a column one letter wide that pushes the list
+        and the buttons out of the window."""
+        self.root.geometry("820x420")
+        self.view.progress.set("0 of 915 values checked — correct, wrong or corrected; checks kept in "
+                               "/a/rather/long/path/to/the/home/folder/Verification/web_output.csv")
+        for _ in range(5):
+            self.root.update()
+        self.assertGreater(self.view.table.tree.winfo_height(), 100)
+        from LocalExtraction.tests.test_layout import seen
+        for button in self.view.buttons:
+            self.assertTrue(button.winfo_ismapped() and button.winfo_height() > 10, button.cget("text"))
+            bottom = button.winfo_rooty() + button.winfo_height()
+            self.assertLessEqual(bottom, self.view.winfo_rooty() + self.view.winfo_height(), button.cget("text"))
+            self.assertTrue(seen(button), button.cget("text"))  # whole and in view, not cut at the pane's edge

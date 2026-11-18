@@ -17,9 +17,8 @@ from tkinter import messagebox, ttk
 from typing import Any, Callable, Dict, Iterator, Optional
 
 from .. import runcontrol
-from ..about import CREDIT_TEXT
 from ..exporter import StrictExporter, UnreadableTable
-from . import dialogs, theme
+from . import design, dialogs, theme
 from .widgets import LogPane, Stopped
 
 _TICK_MS = 80          # how often the window looks at what the working threads sent it
@@ -29,14 +28,23 @@ _DRAIN_SECONDS = 0.04  # the time the window gives to those messages at each tic
 
 class _ToWindow(logging.Handler):
     """Sends the log records of the engine — written from working threads — to the window's own
-    thread, the only one that may touch a Tkinter widget."""
+    thread, the only one that may touch a Tkinter widget. `busy()` says whether a step of the window runs:
+    its lines then go to the Activity tab too (decided when the line is written, not when it is shown)."""
 
-    def __init__(self, post: Callable[..., None], write: Callable[[str], None]):
+    def __init__(self, post: Callable[..., None], write: Callable[[str, str, bool], None],
+                 busy: Callable[[], bool] = lambda: False):
         super().__init__()
-        self._post, self._write = post, write
+        self._post, self._write, self._busy = post, write, busy
 
     def emit(self, record: logging.LogRecord) -> None:
-        self._post(self._write, self.format(record))
+        try:
+            busy = bool(self._busy())
+        except Exception:
+            busy = False
+        message = record.getMessage()
+        if record.levelno >= logging.WARNING:
+            message = f"{record.levelname}: {message}"
+        self._post(self._write, self.format(record), message, busy)
 
 
 def fit_to_screen(root: tk.Misc, size):
@@ -60,14 +68,14 @@ class Window:
         self.root = root
         theme.apply(root)  # buttons that light up under the mouse and show the step that runs
         root.title(title)
-        root.geometry(fit_to_screen(root, size))
-        root.minsize(*fit_to_screen(root, minsize))
+        from . import layout
+        layout.place(root, size, minsize)  # fitted to the screen it opens on, centred
         self._events: "queue.Queue" = queue.Queue()
         # One extraction at a time writes the files of a folder.
         self._locks: Dict[str, threading.Lock] = {}
 
         self._build(title, subtitle, workers)
-        handler = _ToWindow(self.post, self.log.write)
+        handler = _ToWindow(self.post, self._logged, self._step_running)
         handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"))
         logging.getLogger().setLevel(logging.INFO)
         logging.getLogger().addHandler(handler)
@@ -92,19 +100,18 @@ class Window:
         """Buttons at the right of the title bar; a window has none unless it says so."""
 
     def _build(self, title: str, subtitle: str, workers: int) -> None:
-        top = ttk.Frame(self.root, padding=(12, 10, 12, 8))
+        # The band: the program, the window's title, what it does, the version.
+        kicker, _, part = title.rpartition(" · ")
+        self.band = design.header(self.root, part or title, subtitle, kicker=kicker or design.KICKER, compact=True)
+        top = ttk.Frame(self.root, padding=(12, 8, 12, 6))
         top.pack(fill="x")
-        ttk.Label(top, text=title, font=("TkDefaultFont", 16, "bold")).pack(side="left")
-        # The buttons and the number are packed before the subtitle: when the window narrows, the
-        # subtitle is what gets cut, never a control.
         self.header_buttons(top)
         self.workers_var = tk.IntVar(value=workers)
         ttk.Spinbox(top, from_=1, to=32, textvariable=self.workers_var, width=4).pack(side="right", padx=(4, 16))
         ttk.Label(top, text="PDFs read at once:").pack(side="right")
-        ttk.Label(top, text=subtitle, foreground="#8c8c8c").pack(side="left", padx=12)
+        ttk.Button(top, text="About & methods", command=self.about).pack(side="left")
 
-        ttk.Label(self.root, text=CREDIT_TEXT.partition(" — ")[2], foreground="gray",
-                  font=("TkDefaultFont", 9)).pack(side="bottom", anchor="e", padx=12, pady=(0, 4))
+        design.footer(self.root, about=self.about).pack(side="bottom", fill="x")
         outer = ttk.PanedWindow(self.root, orient="vertical")
         outer.pack(fill="both", expand=True, padx=8, pady=(0, 2))
         self.panel = self.build_panel(outer)
@@ -115,6 +122,24 @@ class Window:
         outer.add(self.log, weight=0)
         self._outer = outer
         outer.bind("<Map>", self._place_divider)
+
+    def _step_running(self) -> bool:
+        running = getattr(self.panel, "running", None)
+        return bool(running()) if running is not None else False
+
+    def _logged(self, line: str, message: str, busy: bool) -> None:
+        """A line of the engine: in the log strip, and — written while a step ran — in the panel's Activity tab, so
+        that the tab holds everything the step did (Fetch DOIs, the search, the download, the extraction)."""
+        self.log.write(line)
+        activity = getattr(self.panel, "activity", None)
+        if busy and activity is not None:
+            activity.write(message)
+
+    def about(self) -> None:
+        """The “About & methods” window: the software, how to cite it, the method, the rules on sources, the
+        accuracy measured here and the environment."""
+        from .about_window import open_about
+        open_about(self.root)
 
     def _place_divider(self, event: "tk.Event") -> None:
         self._outer.unbind("<Map>")

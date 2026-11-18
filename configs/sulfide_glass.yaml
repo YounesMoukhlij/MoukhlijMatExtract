@@ -1,0 +1,424 @@
+# Thiophosphate glasses, glass-ceramics and sodium thio-salts
+#
+# Li2S-P2S5 glasses and glass-ceramics (Li7P3S11, beta-Li3PS4, 75Li2S-25P2S5, with LiI or LiBH4), the Li2S-SiS2
+# / GeS2 / B2S3 glasses, and the sodium thiophosphates and thioantimonates (Na3PS4, Na3SbS4, Na11Sn2PS12).
+#
+# Kind: composition system.
+#   Prototype: Li2S-P2S5 and Na2S-P2S5 glasses and glass-ceramics; Li7P3S11 (P-1), beta-Li3PS4 (Pnma),
+#   cubic Na3PS4 (I-43m).
+#
+# 153 queries, 45 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/sulfide_glass.yaml          # extracts into WebScraping/web_output_sulfide_glass
+#   mme-rank --domain electrolyte --source WebScraping/web_output_sulfide_glass --kind arrhenius
+
+name: sulfide_glass
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Lithium sulfide glasses and glass-ceramics
+    - "Li2S-P2S5 glass ionic conductivity composition"
+    - "Li7P3S11 glass ceramic crystallization conductivity"
+    - "beta-Li3PS4 nanoporous conductivity"
+    - "Li3PS4 glass local structure PS4 units"
+    - "Li2S-P2S5-LiI glass conductivity"
+    - "sulfide glass electrolyte mixed former effect"
+    - "Li2S-SiS2 glass lithium conduction"
+    - "Li2S-GeS2 glass lithium conduction"
+    - "Li2S-B2S3 glass conductivity"
+    - "sulfide glass Raman P2S7 PS4 P2S6 units"
+    - "Li7P3S11 metastable phase decomposition"
+    - "glass-ceramic sulfide electrolyte heat treatment"
+
+    # Sodium thio-salts
+    - "cubic Na3PS4 sodium conductivity"
+    - "tetragonal cubic Na3PS4 phase"
+    - "Na3SbS4 sodium conductivity"
+    - "Na3SbS4 tungsten doping vacancy conductivity"
+    - "Na3PSe4 sodium conductivity"
+    - "Na11Sn2PS12 sodium conductivity"
+    - "Na3PS4 halogen doping conductivity"
+    - "sodium thioantimonate electrolyte"
+    - "Na3PS4 sodium metal interface"
+
+    # Stability of sulfides
+    - "sulfide electrolyte H2S generation moisture"
+    - "sulfide electrolyte oxidation stability"
+    - "sulfide solid electrolyte wet chemical synthesis"
+
+    # Li2S-P2S5 glass: every transport measurement and method
+    - "Li2S-P2S5 glass ionic conductivity"
+    - "Li2S-P2S5 glass activation energy"
+    - "Li2S-P2S5 glass lithium ion diffusion"
+    - "Li2S-P2S5 glass sodium ion diffusion"
+    - "Li2S-P2S5 glass lithium migration barrier"
+    - "Li2S-P2S5 glass sodium migration barrier"
+    - "Li2S-P2S5 glass ion transport mechanism"
+    - "Li2S-P2S5 glass grain boundary conductivity"
+    - "Li2S-P2S5 glass bulk ionic conductivity"
+    - "Li2S-P2S5 glass impedance spectroscopy"
+    - "Li2S-P2S5 glass temperature dependent conductivity"
+    - "Li2S-P2S5 glass diffusion coefficient"
+    - "Li2S-P2S5 glass doping ionic conductivity"
+    - "Li2S-P2S5 glass electronic conductivity"
+    - "Li2S-P2S5 glass electrochemical stability window"
+    - "Li2S-P2S5 glass interfacial resistance"
+    - "Li2S-P2S5 glass molecular dynamics lithium diffusion"
+    - "Li2S-P2S5 glass molecular dynamics sodium diffusion"
+    - "Li2S-P2S5 glass density functional theory migration"
+    - "Li2S-P2S5 glass NMR lithium dynamics"
+    - "Li2S-P2S5 glass NMR sodium dynamics"
+    - "Li2S-P2S5 glass synthesis ionic conductivity"
+    - "Li2S-P2S5 glass fast ion conductor"
+    - "Li2S-P2S5 glass superionic conductor"
+
+    # Li7P3S11: every transport measurement and method
+    - "Li7P3S11 ionic conductivity"
+    - "Li7P3S11 activation energy"
+    - "Li7P3S11 lithium ion diffusion"
+    - "Li7P3S11 sodium ion diffusion"
+    - "Li7P3S11 lithium migration barrier"
+    - "Li7P3S11 sodium migration barrier"
+    - "Li7P3S11 ion transport mechanism"
+    - "Li7P3S11 grain boundary conductivity"
+    - "Li7P3S11 bulk ionic conductivity"
+    - "Li7P3S11 impedance spectroscopy"
+    - "Li7P3S11 temperature dependent conductivity"
+    - "Li7P3S11 diffusion coefficient"
+    - "Li7P3S11 doping ionic conductivity"
+    - "Li7P3S11 electronic conductivity"
+    - "Li7P3S11 electrochemical stability window"
+    - "Li7P3S11 interfacial resistance"
+    - "Li7P3S11 molecular dynamics lithium diffusion"
+    - "Li7P3S11 molecular dynamics sodium diffusion"
+    - "Li7P3S11 density functional theory migration"
+    - "Li7P3S11 NMR lithium dynamics"
+    - "Li7P3S11 NMR sodium dynamics"
+    - "Li7P3S11 synthesis ionic conductivity"
+    - "Li7P3S11 fast ion conductor"
+    - "Li7P3S11 superionic conductor"
+
+    # Li3PS4: every transport measurement and method
+    - "Li3PS4 ionic conductivity"
+    - "Li3PS4 activation energy"
+    - "Li3PS4 lithium ion diffusion"
+    - "Li3PS4 sodium ion diffusion"
+    - "Li3PS4 lithium migration barrier"
+    - "Li3PS4 sodium migration barrier"
+    - "Li3PS4 ion transport mechanism"
+    - "Li3PS4 grain boundary conductivity"
+    - "Li3PS4 bulk ionic conductivity"
+    - "Li3PS4 impedance spectroscopy"
+    - "Li3PS4 temperature dependent conductivity"
+    - "Li3PS4 diffusion coefficient"
+    - "Li3PS4 doping ionic conductivity"
+    - "Li3PS4 electronic conductivity"
+    - "Li3PS4 electrochemical stability window"
+    - "Li3PS4 interfacial resistance"
+    - "Li3PS4 molecular dynamics lithium diffusion"
+    - "Li3PS4 molecular dynamics sodium diffusion"
+    - "Li3PS4 density functional theory migration"
+    - "Li3PS4 NMR lithium dynamics"
+    - "Li3PS4 NMR sodium dynamics"
+    - "Li3PS4 synthesis ionic conductivity"
+    - "Li3PS4 fast ion conductor"
+    - "Li3PS4 superionic conductor"
+
+    # Na3PS4: every transport measurement and method
+    - "Na3PS4 ionic conductivity"
+    - "Na3PS4 activation energy"
+    - "Na3PS4 lithium ion diffusion"
+    - "Na3PS4 sodium ion diffusion"
+    - "Na3PS4 lithium migration barrier"
+    - "Na3PS4 sodium migration barrier"
+    - "Na3PS4 ion transport mechanism"
+    - "Na3PS4 grain boundary conductivity"
+    - "Na3PS4 bulk ionic conductivity"
+    - "Na3PS4 impedance spectroscopy"
+    - "Na3PS4 temperature dependent conductivity"
+    - "Na3PS4 diffusion coefficient"
+    - "Na3PS4 doping ionic conductivity"
+    - "Na3PS4 electronic conductivity"
+    - "Na3PS4 electrochemical stability window"
+    - "Na3PS4 interfacial resistance"
+    - "Na3PS4 molecular dynamics lithium diffusion"
+    - "Na3PS4 molecular dynamics sodium diffusion"
+    - "Na3PS4 density functional theory migration"
+    - "Na3PS4 NMR lithium dynamics"
+    - "Na3PS4 NMR sodium dynamics"
+    - "Na3PS4 synthesis ionic conductivity"
+    - "Na3PS4 fast ion conductor"
+    - "Na3PS4 superionic conductor"
+
+    # Na3SbS4: every transport measurement and method
+    - "Na3SbS4 ionic conductivity"
+    - "Na3SbS4 activation energy"
+    - "Na3SbS4 lithium ion diffusion"
+    - "Na3SbS4 sodium ion diffusion"
+    - "Na3SbS4 lithium migration barrier"
+    - "Na3SbS4 sodium migration barrier"
+    - "Na3SbS4 ion transport mechanism"
+    - "Na3SbS4 grain boundary conductivity"
+    - "Na3SbS4 bulk ionic conductivity"
+    - "Na3SbS4 impedance spectroscopy"
+    - "Na3SbS4 temperature dependent conductivity"
+    - "Na3SbS4 diffusion coefficient"
+    - "Na3SbS4 doping ionic conductivity"
+    - "Na3SbS4 electronic conductivity"
+    - "Na3SbS4 electrochemical stability window"
+    - "Na3SbS4 interfacial resistance"
+    - "Na3SbS4 molecular dynamics lithium diffusion"
+    - "Na3SbS4 molecular dynamics sodium diffusion"
+    - "Na3SbS4 density functional theory migration"
+    - "Na3SbS4 NMR lithium dynamics"
+    - "Na3SbS4 NMR sodium dynamics"
+    - "Na3SbS4 synthesis ionic conductivity"
+    - "Na3SbS4 fast ion conductor"
+    - "Na3SbS4 superionic conductor"
+
+    # Li2S-P2S5 glass: transport mechanisms
+    - "Li2S-P2S5 glass concerted migration"
+    - "Li2S-P2S5 glass vacancy mechanism"
+    - "Li2S-P2S5 glass interstitial mechanism"
+    - "Li2S-P2S5 glass interstitialcy mechanism"
+    - "Li2S-P2S5 glass paddle-wheel mechanism"
+    - "Li2S-P2S5 glass correlated ion hopping"
+    - "Li2S-P2S5 glass percolation conduction pathway"
+    - "Li2S-P2S5 glass bottleneck size migration"
+    - "Li2S-P2S5 glass anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_sulfide_glass.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Thiophosphate and sulfide glass aliases
+    - "thiophosphate"
+    - "lithium thiophosphate"
+    - "sodium thiophosphate"
+    - "sulfide glass"
+    - "sulfide glass-ceramic"
+    - "glass-ceramic electrolyte"
+
+    # Lithium sulfide glass and glass-ceramic formulas
+    - "Li2S-P2S5"
+    - "Li2S–P2S5"
+    - "Li7P3S11"
+    - "Li3PS4"
+    - "β-Li3PS4"
+    - "beta-Li3PS4"
+    - "beta–Li3PS4"
+    - "Li4P2S6"
+    - "Li4P2S7"
+    - "Li2S-P2S5-LiI"
+    - "Li2S–P2S5–LiI"
+    - "75Li2S-25P2S5"
+    - "70Li2S-30P2S5"
+    - "80Li2S-20P2S5"
+    - "Li2S-SiS2"
+    - "Li2S–SiS2"
+    - "Li2S-GeS2"
+    - "Li2S–GeS2"
+    - "Li2S-B2S3"
+    - "Li2S–B2S3"
+    - "Li3PS4-LiI"
+    - "Li3PS4–LiI"
+    - "Li3PS4-LiBH4"
+    - "Li3PS4–LiBH4"
+
+    # Sodium thio-salt formulas
+    - "Na3PS4"
+    - "cubic Na3PS4"
+    - "Na3SbS4"
+    - "Na3PSe4"
+    - "Na3SbSe4"
+    - "Na11Sn2PS12"
+    - "Na11Sn2PSe12"
+    - "Na2S-P2S5"
+    - "Na2S–P2S5"
+    - "Na3-xSbS4-xClx"
+    - "Na2.88Sb0.88W0.12S4"
+    - "Na3P1-xAsxS4"
+
+    # Parts of formulas (find the doped members)
+    - "P3S11"
+    - "SbS4"
+    - "Sn2PS12"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "chalcogenide glass optical"
+    - "infrared optics"
+    - "phase change memory"
+    - "photonic"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_sulfide_glass
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

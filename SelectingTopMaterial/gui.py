@@ -17,6 +17,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+import webbrowser
 from collections.abc import Sequence
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -27,10 +28,12 @@ from LocalExtraction.gui.result_card import NOTHING, Outcome, ResultCard, Stat, 
 from . import loader
 from LocalExtraction.about import command_name, enter_project_home
 
-from .about import DEFAULT_RESULTS, NAME, PROJECT_ROOT, VERSION
-from .cli import FORMATS, source_folder, write_rankings
+from .about import DEFAULT_RESULTS, NAME, PROJECT_ROOT
+from .cli import (ENERGY_KINDS, FORMATS, ranking_run, ranking_settings, ranking_stamp, record_ranking, source_folder,
+                  write_rankings)
 from .console import origin_summary
-from .criteria import POLICIES, Criteria, CriteriaError, format_energy
+from .exporters import rank_interval
+from .criteria import DOMAIN_CRITERIA, POLICIES, Criteria, CriteriaError, format_energy
 from .models import COMPONENTS, Filters, RankedMaterial, Selection, component_word
 from .palette import REJECTED, class_colours
 from .selection import select_from_each
@@ -39,7 +42,8 @@ _ANY = "any"
 # (column, heading, width, anchor)
 _COLUMNS = (("rank", "#", 44, "e"), ("material", "material", 230, "w"), ("class", "class", 104, "w"),
             ("ea", "Ea (eV)", 70, "e"), ("range", "range (eV)", 110, "w"), ("values", "values", 58, "e"),
-            ("papers", "papers", 58, "e"), ("origin", "origin", 130, "w"), ("checks", "checks", 340, "w"))
+            ("papers", "papers", 58, "e"), ("interval", "rank 95 %", 80, "w"), ("evidence", "evidence", 70, "w"),
+            ("origin", "origin", 130, "w"), ("checks", "checks", 300, "w"))
 
 
 def open_path(path: Path) -> None:
@@ -76,8 +80,10 @@ class App:
         from LocalExtraction.gui import theme
         theme.apply(root)  # buttons that light up under the mouse
         root.title(f"MoukhlijMatExtract (MME) · {NAME} · Ranking the materials")
-        root.geometry("1260x820")
-        root.minsize(1000, 640)
+        from LocalExtraction.gui import layout
+        # Fitted to the screen it opens on and centred; at least the settings, the Materials Project line and a table
+        # of a few rows (as far as the screen allows: the settings then scroll).
+        layout.place(root, (1260, 820), (1000, 720))
         self.criteria_path = criteria_path
         self.selections: dict[str, Selection] = {}   # one ranking per transport component
         self.written: list[Path] = []
@@ -86,38 +92,52 @@ class App:
         self._top: int | None = None
         self._ranking = False  # a ranking runs on its thread
         known = [PROJECT_ROOT / name for name in loader.KNOWN_DATABASES]
-        self._build(list(sources) if sources else known, out_dir, ticked_missing=bool(sources))
+        # The databases of the other web jobs (WebScraping/web_output_<job>) are offered, not ticked: each is a
+        # corpus of its own, ranked with the others only when asked.
+        self._other_jobs = [] if sources else loader.job_databases(PROJECT_ROOT)
+        self._build(list(sources) if sources else known + self._other_jobs, out_dir, ticked_missing=bool(sources))
         self.rank(write=False)  # what the folders hold, at once; the files are written on “Rank”
 
     # ------------------------------------------------------------------
     # Layout
     # ------------------------------------------------------------------
     def _build(self, folders: list[Path], out_dir: Path, ticked_missing: bool) -> None:
-        top = ttk.Frame(self.root, padding=(12, 10, 12, 4))
-        top.pack(fill="x")
-        ttk.Label(top, text="Selecting the top materials", font=("TkDefaultFont", 16, "bold")).pack(side="left")
-        ttk.Label(top, text="the materials of the databases, ranked by activation energy",
-                  foreground="#8c8c8c").pack(side="left", padx=12)
-        ttk.Label(top, text=f"{NAME} {VERSION}", foreground="gray").pack(side="right")
+        from LocalExtraction.gui import design
+        from LocalExtraction.gui.about_window import open_about
+        design.header(self.root, "Ranking the materials", "by activation energy, one ranking per transport component",
+                      compact=True)
+        design.footer(self.root, about=lambda: open_about(self.root)).pack(side="bottom", fill="x")
 
-        settings = ttk.Frame(self.root, padding=(12, 4, 12, 4))
+        # The settings and the card of the last ranking above, the ranked materials below, with a divider between:
+        # the tables keep their room in a short window (_fit_split), and the divider can be dragged.
+        split = ttk.PanedWindow(self.root, orient="vertical")
+        split.pack(fill="both", expand=True)
+        from LocalExtraction.gui.widgets import Scrolled
+        holder = Scrolled(split)  # the settings scroll when the divider (or a small screen) leaves them short
+        top = holder.inner
+        split.add(holder, weight=0)
+        self._split, self._upper = split, top
+        settings = ttk.Frame(top, padding=(12, 4, 12, 4))
         settings.pack(fill="x")
-        settings.columnconfigure(0, weight=1)
-        settings.columnconfigure(1, weight=1)
+        self._settings = settings
+        # The two columns side by side, with a line to drag between them: widen the one you are reading.
+        columns = ttk.PanedWindow(settings, orient="horizontal")
+        columns.pack(fill="x")
 
         # Where the values come from
-        sources = ttk.LabelFrame(settings, text=" Results folders — the most trusted first ", padding=8)
-        sources.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        sources = ttk.LabelFrame(columns, text=" Results folders — the most trusted first ", padding=8)
+        columns.add(sources, weight=1)
         self._sources_frame = sources
         self.sources: list[tuple[Path, tk.BooleanVar, tk.StringVar]] = []
         for folder in folders:
-            self._add_source(folder, ticked=ticked_missing or (folder / loader.TABLE).is_file())
+            self._add_source(folder, ticked=ticked_missing or ((folder / loader.TABLE).is_file()
+                                                               and folder not in self._other_jobs))
         ttk.Button(sources, text="Add a folder…", command=self._pick_source).grid(
             row=999, column=0, sticky="w", pady=(6, 0))
 
         # Which values take part, and how one stands for a material
-        options = ttk.LabelFrame(settings, text=" Which values, and which one stands for a material ", padding=8)
-        options.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+        options = ttk.LabelFrame(columns, text=" Which values, and which one stands for a material ", padding=8)
+        columns.add(options, weight=1)
         self.policy_var = tk.StringVar()
         self.origin_var = tk.StringVar(value=_ANY)
         self.attribution_var = tk.StringVar(value=_ANY)
@@ -127,6 +147,11 @@ class App:
         self.by_phase_var = tk.BooleanVar(value=False)
         self.top_var = tk.StringVar()
         self.rejected_var = tk.BooleanVar(value=True)
+        # As mme-rank --domain, --kind and --include-flagged, with the same defaults.
+        self.domain_var = tk.StringVar(value="electrolyte")
+        self.kind_var = tk.StringVar(value=_ANY)
+        self.flagged_var = tk.BooleanVar(value=False)
+        self.verified_var = tk.BooleanVar(value=False)
 
         ttk.Label(options, text="Ea of a material").grid(row=0, column=0, sticky="w")
         policy = ttk.Combobox(options, values=tuple(POLICIES), textvariable=self.policy_var, state="readonly", width=13)
@@ -163,39 +188,124 @@ class App:
         ttk.Checkbutton(options, text="Show the rejected materials too", variable=self.rejected_var,
                         command=self._fill_tables).grid(row=5, column=0, columnspan=5, sticky="w", pady=(2, 0))
 
+        ttk.Label(options, text="Kind of Ea").grid(row=6, column=0, sticky="w", pady=(6, 0))
+        ttk.Combobox(options, values=(_ANY, *ENERGY_KINDS), textvariable=self.kind_var, state="readonly",
+                     width=17).grid(row=6, column=1, sticky="w", padx=4, pady=(6, 0))
+        ttk.Label(options, text="Classes of").grid(row=6, column=2, sticky="e", pady=(6, 0))
+        ttk.Combobox(options, values=tuple(DOMAIN_CRITERIA), textvariable=self.domain_var, state="readonly",
+                     width=11).grid(row=6, column=3, sticky="w", padx=4, pady=(6, 0))
+        ttk.Label(options, text="(arrhenius: the measured Ea only)", foreground="#8c8c8c").grid(
+            row=6, column=4, sticky="w", pady=(6, 0))
+        ttk.Checkbutton(options, text="Include the values the extraction flagged (out of range, not an electrolyte, …)",
+                        variable=self.flagged_var).grid(row=7, column=0, columnspan=3, sticky="w", pady=(2, 0))
+        ttk.Checkbutton(options, text="Verified values only (the Verify tab)", variable=self.verified_var).grid(
+            row=7, column=3, columnspan=2, sticky="w", pady=(2, 0))
+
         # Where the ranking is written, and the buttons
-        actions = ttk.Frame(self.root, padding=(12, 6, 12, 4))
+        actions = ttk.Frame(top, padding=(12, 6, 12, 4))
         actions.pack(fill="x")
+        self._actions = actions
+        # The files of the ranking on a line of their own: on one line with the rest, a narrow window cut them.
+        files = ttk.Frame(top, padding=(12, 0, 12, 4))
+        files.pack(fill="x")
+        self._files_row = files
+        self._materials_project_row(top)
         self.rank_button = ttk.Button(actions, text="Rank", command=self.rank)
         self.rank_button.pack(side="left")
         self.write_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(actions, text="and write the files into", variable=self.write_var).pack(side="left", padx=(10, 4))
         self.out_var = tk.StringVar(value=str(out_dir))
-        ttk.Entry(actions, textvariable=self.out_var, width=30).pack(side="left", fill="x", expand=True)
+        ttk.Entry(actions, textvariable=self.out_var, width=8).pack(side="left", fill="x", expand=True)  # it widens with the window
         ttk.Button(actions, text="Browse…", command=self._pick_out).pack(side="left", padx=4)
-        delete_outputs_button(actions, "rank", after=self._outputs_deleted).pack(side="right", padx=(4, 0))
+        self.open_report_button = ttk.Button(files, text="Open the report", command=lambda: self._open(".html"))
+        self.open_report_button.pack(side="left")
+        self.open_workbook_button = ttk.Button(files, text="Open the workbook", command=lambda: self._open(".xlsx"))
+        self.open_workbook_button.pack(side="left", padx=4)
+        delete_outputs_button(files, "rank", after=self._outputs_deleted).pack(side="right", padx=(4, 0))
         from LocalExtraction.gui.csv_browser import results_buttons
-        self.open_folder_button, self.browse_button = results_buttons(actions, "3 · Ranking",
+        self.open_folder_button, self.browse_button = results_buttons(files, "3 · Ranking",
                                                                       lambda: self.out_var.get())
-        self.open_workbook_button = ttk.Button(actions, text="Open the workbook", command=lambda: self._open(".xlsx"))
-        self.open_workbook_button.pack(side="right", padx=4)
-        self.open_report_button = ttk.Button(actions, text="Open the report", command=lambda: self._open(".html"))
-        self.open_report_button.pack(side="right")
 
         self.summary = tk.StringVar(value="")
-        self.summary_label = ttk.Label(self.root, textvariable=self.summary, wraplength=1200, justify="left",
+        self.summary_label = ttk.Label(top, textvariable=self.summary, wraplength=1200, justify="left",
                                        padding=(12, 4))
         self.summary_label.pack(fill="x")
 
-        self.book = ttk.Notebook(self.root)
-        self.card = ResultCard(self.root, before=self.book, padx=8)  # what the last ranking found
-        self.book.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        self.book = ttk.Notebook(split, padding=(8, 0, 8, 8))
+        split.add(self.book, weight=1)
+        self.card = ResultCard(top, padx=8)  # what the last ranking found
+        for event in ("<Map>", "<Unmap>"):  # the card shown or closed: the divider follows
+            self.card.bind(event, lambda e: self.root.after_idle(self._fit_split), add="+")
+        split.bind("<Configure>", lambda e: self._fit_split(), add="+")
         self.about = tk.Text(self.book, wrap="word", relief="flat", padx=10, pady=8, state="disabled")
         self.book.add(self.about, text="Rule and data")
         for component in COMPONENTS:  # bulk, grain boundary, total: each ranked on its own
             self._ranking_tab(component)
         self.book.select(0)
         self.book.bind("<<NotebookTabChanged>>", lambda event: self._buttons())
+
+    def _materials_project_row(self, parent: ttk.Frame) -> None:
+        """The person's own Materials Project key (typed hidden, saved with the other keys in
+        ~/MoukhlijMatExtract/.env) and whether a ranking also writes each material's entry
+        (materials_project.py)."""
+        from WebScraping.averageScrap.job import load_env
+        load_env()  # a key saved before (here or in the Web scraping window's "API keys…")
+        row = ttk.Frame(parent, padding=(12, 0, 12, 4))
+        row.pack(fill="x")
+        self._mp_row = row
+        ttk.Label(row, text="Materials Project key").pack(side="left")
+        self.mp_key_var = tk.StringVar(value=os.environ.get("MP_API_KEY", ""))
+        self.mp_key_entry = ttk.Entry(row, textvariable=self.mp_key_var, show="•", width=26)
+        self.mp_key_entry.pack(side="left", padx=(6, 4))
+        self.mp_show_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(row, text="Show", variable=self.mp_show_var, command=self._show_mp_key).pack(side="left")
+        ttk.Button(row, text="Save the key", command=self.save_mp_key).pack(side="left", padx=(6, 0))
+        self.mp_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(row, text="and write each material's entry", variable=self.mp_var).pack(side="left",
+                                                                                                padx=(12, 0))
+        self.mp_status = tk.StringVar()
+        status = ttk.Label(row, textvariable=self.mp_status, foreground="#8c8c8c", cursor="hand2")
+        status.pack(side="left", padx=(10, 0))
+        status.bind("<Button-1>", lambda event: None if self.mp_key_var.get().strip() else webbrowser.open(
+            "https://next-gen.materialsproject.org/api"))  # no key yet: where a free one is had
+        self._mp_said()
+
+    def _mp_said(self, saved: bool = False) -> None:
+        """Whether a key is there — never the key itself."""
+        if self.mp_key_var.get().strip():
+            self.mp_status.set("✓ key saved" if saved else "✓ key set")
+        else:
+            self.mp_status.set("no key yet — get one (free) ↗")
+
+    def _show_mp_key(self) -> None:
+        self.mp_key_entry.configure(show="" if self.mp_show_var.get() else "•")
+
+    def save_mp_key(self) -> None:
+        """Saves the key typed (an empty field removes it) where the other keys are, and uses it at once."""
+        from WebScraping.averageScrap import job as web_job
+        key = self.mp_key_var.get().strip()
+        try:
+            web_job.save_env({"MP_API_KEY": key})  # ~/MoukhlijMatExtract/.env, made if missing
+        except OSError as error:
+            messagebox.showerror(NAME, f"The key could not be saved:\n{error}", parent=self.root)
+            return
+        self.mp_key_var.set(key)
+        self._mp_said(saved=True)
+
+    def _fit_split(self) -> None:
+        """The divider below the settings and the card, but never so low that the tables keep less than half of the
+        window (they are what a ranking is for), nor above the settings and their buttons (Rank)."""
+        try:
+            self._upper.update_idletasks()
+            total = self._split.winfo_height()
+            if total > 1:
+                settings = (self._settings.winfo_reqheight() + self._actions.winfo_reqheight()
+                            + self._files_row.winfo_reqheight() + self._mp_row.winfo_reqheight())
+                wanted = max(settings, min(self._upper.winfo_reqheight(), int(total * 0.5)))
+                if abs(self._split.sashpos(0) - wanted) > 1:  # moved only when its place changed
+                    self._split.sashpos(0, wanted)
+        except tk.TclError:  # the window is closing
+            pass
 
     def _ranking_tab(self, component: str) -> dict:
         """The tab of one component's ranking: its own table, before the "Rule and data" tab."""
@@ -214,6 +324,8 @@ class App:
         bar.pack(side="right", fill="y")
         table.bind("<Double-1>", self._opened)
         table.bind("<Return>", self._opened)
+        from LocalExtraction.gui.design import stripes
+        stripes(table)
         self.book.insert(self.about, frame, text=component_word(component).capitalize())
         self.tabs[component] = {"frame": frame, "table": table, "caption": caption, "shown": []}
         return self.tabs[component]
@@ -244,6 +356,8 @@ class App:
         ttk.Label(self._sources_frame, textvariable=status, foreground="#8c8c8c").grid(row=row, column=1, sticky="w", padx=8)
         if not (folder / loader.TABLE).is_file():
             status.set("no activation_energy.csv in it yet")
+        elif folder in getattr(self, "_other_jobs", ()):
+            status.set("another job's database: tick it to rank it")
         self.sources.append((folder, ticked_var, status))
 
     def _pick_source(self) -> None:
@@ -273,9 +387,17 @@ class App:
         if not 0 <= confidence <= 1:
             raise ValueError("Confidence: a number between 0 and 1")
         origin, attribution = self.origin_var.get(), self.attribution_var.get()
+        kind = self.kind_var.get()
         return Filters(min_confidence=confidence, origin="" if origin == _ANY else origin,
                        attribution="" if attribution == _ANY else attribution,
-                       component=self.component_var.get().strip(), elements=elements(self.elements_var.get()))
+                       component=self.component_var.get().strip(), elements=elements(self.elements_var.get()),
+                       kind="" if kind == _ANY else kind, include_flagged=self.flagged_var.get(),
+                       verified_only=self.verified_var.get())
+
+    def criteria(self) -> Criteria:
+        """The classes of the domain chosen (as mme-rank --domain), or of the criteria file the window was given.
+        Raises CriteriaError."""
+        return Criteria.load(self.criteria_path or DOMAIN_CRITERIA[self.domain_var.get()])
 
     def top(self) -> int | None:
         text = self.top_var.get().strip()
@@ -291,7 +413,7 @@ class App:
     def rank(self, write: bool | None = None) -> None:
         """Ranks what the ticked folders hold; writes the files when asked (by default: as the box says)."""
         try:
-            criteria = Criteria.load(self.criteria_path)
+            criteria = self.criteria()
         except CriteriaError as error:
             messagebox.showerror(NAME, str(error), parent=self.root)
             return
@@ -306,7 +428,7 @@ class App:
         ticked = [(folder, status) for folder, var, status in self.sources if var.get()]
         self.card.hide()
         if not self.summary_label.winfo_manager():
-            self.summary_label.pack(fill="x", before=self.book)
+            self.summary_label.pack(fill="x")
         if not ticked:
             self.summary.set("Tick at least one results folder above. (None yet? Run the extraction first: "
                              "python -m LocalExtraction or python -m WebScraping.)")
@@ -320,28 +442,44 @@ class App:
 
         if self._ranking:
             return  # a ranking is under way: its result comes in a moment
+        from LocalExtraction.gui.home_guard import ensure_home
+        if not ensure_home(self.root, "The ranking"):  # the main folder deleted meanwhile: made again, or nothing done
+            return
         self._ranking = True
         self.root.configure(cursor="watch")
         self.rank_button.configure(state="disabled")
         folders, policy, by_phase = [folder for folder, _ in ticked], self.policy_var.get(), self.by_phase_var.get()
+        # The Materials Project entries too, when ticked: with the key typed (saved or not).
+        mp_key = self.mp_key_var.get().strip() if self.mp_var.get() and write else ""
+        if self.mp_var.get() and write and not mp_key:
+            messagebox.showinfo(NAME, "Type your Materials Project key first (free at "
+                                      "next-gen.materialsproject.org/api): the ranking is made without the entries.",
+                                parent=self.root)
         done: list = []
 
         def work() -> None:
             """On another thread: reading the databases and writing the files take seconds for a large
             database, and the window must answer meanwhile. No Tk call here."""
             try:
+                # Recorded as the command records it (its fingerprint and its run): see cli.record_ranking.
+                settings = ranking_settings(folders, criteria, policy, by_phase, filters, top, FORMATS)
+                run = ranking_run(out_dir, settings, filters)
                 selections = select_from_each(folders, criteria, root=PROJECT_ROOT, policy=policy,
                                               by_phase=by_phase, filters=filters)
-                written_by, problem = {}, ""
+                written_by, problem, entries = {}, "", None
                 if write and any(s.materials for s in selections.values()):
                     try:
                         written_by = write_rankings(selections, out_dir, FORMATS, top)
+                        record_ranking(out_dir, ranking_stamp(folders, settings), run, selections, written_by)
                     except OSError as error:
                         problem = f"The files could not be written:\n{error}"
-                done.append((selections, written_by, problem))
+                    if mp_key and not problem:  # beside the ranking, not part of it
+                        from . import materials_project
+                        entries = materials_project.link(selections, out_dir, key=mp_key)
+                done.append((selections, written_by, problem, entries))
             except Exception as error:  # said in the window, never lost on the thread
                 logging.getLogger(__name__).exception("The ranking failed")
-                done.append((None, {}, f"The ranking failed: {type(error).__name__}: {error}"))
+                done.append((None, {}, f"The ranking failed: {type(error).__name__}: {error}", None))
 
         def finish() -> None:
             if not done:
@@ -350,9 +488,10 @@ class App:
             self._ranking = False
             self.root.configure(cursor="")
             self.rank_button.configure(state="normal")
-            selections, written_by, problem = done[0]
+            selections, written_by, problem, entries = done[0]
             if problem:
                 messagebox.showerror(NAME, problem, parent=self.root)
+            self._mp_entries = entries
             if selections is not None:
                 self._ranked(ticked, selections, written_by, top, out_dir)
 
@@ -408,11 +547,20 @@ class App:
                 highlights.append(f"{word.capitalize()} #{m.rank}: {m.material} — {format_energy(m.energy_eV)} eV "
                                   f"({m.energy_class.name}), from {len(m.papers)} paper{'s' if len(m.papers) != 1 else ''}: "
                                   f"{m.evidence.paper_title}")
+            first = selection.materials[:selection.top_n]
+            if selection.bootstrap and first:
+                stable = sum(1 for m in first if m.p_top >= 0.9)
+                single = sum(1 for m in first if m.evidence_tier == "C")
+                highlights.insert(0, f"{word.capitalize()}: {stable} of the first {len(first)} stay in the top "
+                                     f"{selection.top_n} in 90 % of the resamplings or more; {single} rest on a single "
+                                     "value")
         actions = [(f"Show {component_word(c)}", lambda c=c: self.book.select(self.tabs[c]["frame"]))
                    for c, s in self.selections.items() if s.materials]
         if self.written:
             actions += [("Open the report", lambda: self._open(".html")), ("Browse the files", self._browse),
                         ("Open the folder", self._open_folder)]
+        if getattr(self, "_mp_entries", None):
+            actions.append(("Open the Materials Project entries", lambda: open_path(self._mp_entries)))
         ranked = any(s.materials for s in self.selections.values())
         self.summary_label.pack_forget()  # its text is the card's detail
         self.card.show(Outcome("Ranking done — one ranking per transport component" if ranked else "Nothing to rank",
@@ -471,9 +619,10 @@ class App:
         for index, m in enumerate(shown):
             spread = (f"{format_energy(m.energy_min_eV)} – {format_energy(m.energy_max_eV)}"
                       if len(m.values) > 1 else format_energy(m.energy_min_eV))
-            table.insert("", "end", iid=str(index), tags=(m.energy_class.name,), values=(
+            table.insert("", "end", iid=str(index), tags=(m.energy_class.name, *(("stripe",) if index % 2 else ())), values=(
                 m.rank, m.material, m.energy_class.name, format_energy(m.energy_eV), spread, len(m.values),
-                len(m.papers), origin_summary(m), " | ".join(m.checks) or "ok"))
+                len(m.papers), rank_interval(m) or "–", m.evidence_tier + (f" ✓{m.verified}" if m.verified else ""),
+                origin_summary(m), " | ".join(m.checks) or "ok"))
         self.book.tab(tab["frame"], text=f"{word.capitalize()} ({len(selection.materials)})")
         tab["caption"].set(
             f"The materials ranked by their {word} activation energy only — {selection.values_used} values, "
@@ -511,7 +660,8 @@ class App:
     def details(self, m: RankedMaterial) -> tk.Toplevel:
         window = tk.Toplevel(self.root)
         window.title(f"{m.material}: {format_energy(m.energy_eV)} eV ({m.energy_class.name})")
-        window.geometry("820x560")
+        from LocalExtraction.gui import layout
+        layout.place(window, (820, 560), (520, 320), parent=self.root)
         window.transient(self.root)
         window.bind("<Escape>", lambda event: window.destroy())
         text = tk.Text(window, wrap="word", relief="flat", padx=10, pady=8)
@@ -522,19 +672,30 @@ class App:
         votes = ", ".join(f"{name} {count}" for name, count in m.votes)
         text.insert("end", f"#{m.rank}  {m.material} — {m.energy_class.name}\n", "head")
         text.insert("end", f"Ea {format_energy(m.energy_eV)} eV ({self.selection.policy if self.selection else ''}) · "
-                           f"its values: {votes} · checks: {' | '.join(m.checks) or 'ok'}\n\n")
+                           f"its values: {votes} · checks: {' | '.join(m.checks) or 'ok'}\n")
+        if m.rank_high:
+            text.insert("end", f"Rank {m.rank}, 95 % interval {rank_interval(m)} · in the top 10 in "
+                               f"{round(100 * m.p_top)} % of the resamplings · evidence {m.evidence_tier} · "
+                               f"{m.verified} of {len(m.values)} values checked by hand\n", "dim")
+        text.insert("end", "\n")
         for v in m.values:
             text.insert("end", f"{format_energy(v.energy_eV)} eV — {v.reported_as}\n", "head")
             text.insert("end", f"{v.data_origin} · {v.transport_component} · {v.attribution} · {v.temperature} · "
                                f"confidence {v.confidence:g}\n", "dim")
             text.insert("end", f"{v.paper_title or v.paper_id} ({v.year}) {v.doi} — page {v.page}, {v.extracted_from}, "
                                f"from {v.database}\n", "dim")
+            if v.verification or v.arrhenius_text:
+                text.insert("end", " · ".join(filter(None, (f"checked by hand: {v.verification}" if v.verification else "",
+                                                           f"Arrhenius: {v.arrhenius_text}" if v.arrhenius_text else "")))
+                            + "\n", "dim")
             if v.sentence:
                 text.insert("end", f"“{v.sentence}”\n")
             text.insert("end", "\n")
         text.configure(state="disabled")
         text.pack(side="left", fill="both", expand=True)
         bar.pack(side="right", fill="y")
+        from LocalExtraction.gui.design import website_line
+        website_line(window)
         return window
 
     def _open(self, suffix: str) -> None:
@@ -577,7 +738,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     enter_project_home("rank")  # after the options are read: --help makes no folder
     root = tk.Tk()
+    from LocalExtraction.crashlog import watch
+    watch(root)  # a window's own errors: written to a crash file, and said
     App(root, sources=[source_folder(name) for name in args.source] if args.source else None,
         out_dir=Path(args.out).expanduser(), criteria_path=args.criteria)
-    root.mainloop()
+    from LocalExtraction.crashlog import run
+    run(root)  # the loop, then the window closed cleanly
     return 0

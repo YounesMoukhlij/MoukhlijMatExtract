@@ -64,6 +64,10 @@ def material_row(material: RankedMaterial) -> dict[str, Any]:
         "n_values": len(values),
         "n_papers": len(material.papers),
         "class_of_values": SEPARATOR.join(f"{name} {count}" for name, count in material.votes),
+        "rank_95": rank_interval(material),
+        "p_top10": material.p_top,
+        "evidence": material.evidence_tier,
+        "verified": f"{material.verified} of {len(values)}",
         "checks": SEPARATOR.join(material.checks) or "ok",
         "confidence": material.confidence,
         "structure": structures(values),
@@ -107,7 +111,18 @@ def value_row(material: RankedMaterial, value: Measurement, selection: Selection
         "section": value.section,
         "database": value.database,
         "sentence": value.sentence,
+        "value_id": value.value_id,
+        "verification": value.verification or "not checked",
+        "arrhenius_check": value.arrhenius_text or "not checkable",
     }
+
+
+def rank_interval(material: RankedMaterial) -> str:
+    """The 95 % interval of a material's rank over the resamplings: "3–7"; "" when none was made."""
+    if not material.rank_high:
+        return ""
+    return str(material.rank_low) if material.rank_low == material.rank_high else \
+        f"{material.rank_low}–{material.rank_high}"
 
 
 def material_rows(materials: Iterable[RankedMaterial]) -> list[dict[str, Any]]:
@@ -129,6 +144,10 @@ def rule_rows(selection: Selection) -> list[tuple[str, Any]]:
         ("Values taking part", f"{selection.filters.describe()} ({selection.values_used} of {selection.values_read})"),
         ("Borderline", f"within {criteria.borderline_margin:g} eV of a limit"),
         ("Low confidence", f"mean confidence of the values below {criteria.low_confidence:g}"),
+        ("Rank intervals", f"95 % interval of each rank over {selection.bootstrap} resamplings of the values (seed "
+                           f"{selection.seed}); p_top10: the share of them that put a material in the top "
+                           f"{selection.top_n}; evidence A: 3 values or more from 2 papers or more, B: 2 values or "
+                           "more, C: a single value" if selection.bootstrap else "not computed"),
         ("Criteria file", criteria.source),
     ]
     rows += [(f"Read from {report.path}", loader.describe(report)) for report in selection.databases]
@@ -159,6 +178,7 @@ def payload(selection: Selection) -> dict[str, Any]:
                     "rejected": len(selection.rejected), "values_read": selection.values_read,
                     "values_used": selection.values_used, "papers": selection.papers_used},
         "materials": [{**material_row(material), "accepted": material.accepted, "checks": list(material.checks),
+                       "rank_low": material.rank_low, "rank_high": material.rank_high,
                        "class_of_values": dict(material.votes),
                        "papers": list(dict.fromkeys(value.paper_id for value in material.values)),
                        "values": [_without(value_row(material, value, selection), "rank", "material", "material_class")
@@ -314,9 +334,10 @@ def _count(number: int, noun: str) -> str:
 
 _MATERIAL_COLUMNS = (
     "rank", "material", "class", "activation_energy_eV", "Ea_min_eV", "Ea_max_eV", "n_values", "n_papers",
-    "class_of_values", "checks", "confidence", "structure", "data_origin", "transport_component", "attribution",
+    "class_of_values", "rank_95", "p_top10", "evidence", "verified", "checks", "confidence", "structure", "data_origin", "transport_component", "attribution",
     "temperature", "papers", "articles", "source_paper", "source_title", "source_page", "source_sentence")
 _VALUE_COLUMNS = (
     "rank", "material", "material_class", "activation_energy_eV", "value_class", "reported_as", "material_formula",
     "structure", "temperature", "pressure", "data_origin", "transport_component", "attribution", "confidence",
-    "paper_id", "title", "doi", "year", "extracted_from", "page", "source", "section", "database", "sentence")
+    "paper_id", "title", "doi", "year", "extracted_from", "page", "source", "section", "database", "sentence",
+    "value_id", "verification", "arrhenius_check")

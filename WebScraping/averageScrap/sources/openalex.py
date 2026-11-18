@@ -128,6 +128,62 @@ class OpenAlex:
                 if candidate:
                     yield candidate
 
+    # -- Citation snowballing: the papers a relevant paper cites, and the papers that cite it ----------
+    def _filters(self, years: Optional[Tuple[int, int]], include_preprints: bool) -> List[str]:
+        filters = ["type:article|review" + ("|preprint" if include_preprints else "")]
+        if years:
+            filters += [f"from_publication_date:{years[0]}-01-01", f"to_publication_date:{years[1]}-12-31"]
+        return filters
+
+    def references(self, seeds: List[str], years: Optional[Tuple[int, int]] = None,
+                   include_preprints: bool = True) -> Iterator[Tuple[str, Candidate]]:
+        """The works the `seeds` (OpenAlex ids, "W…") cite — backward snowballing — as (seed, candidate):
+        each seed's reference list read fifty seeds to a request, then the references themselves fifty to a
+        request, kept to the job's years and kinds of work."""
+        cited_by: Dict[str, List[str]] = {}
+        for start in range(0, len(seeds), _BATCH):
+            batch = seeds[start:start + _BATCH]
+            data = self.client.get_json(f"{BASE}/works", params={
+                "filter": "openalex:" + "|".join(batch), "per-page": len(batch), "select": "id,referenced_works",
+                **self.auth})
+            for work in data.get("results", []):
+                seed = (work.get("id") or "").rsplit("/", 1)[-1]
+                for ref in work.get("referenced_works") or []:
+                    cited_by.setdefault(ref.rsplit("/", 1)[-1], []).append(seed)
+        wanted = sorted(cited_by)
+        for start in range(0, len(wanted), _BATCH):
+            batch = wanted[start:start + _BATCH]
+            data = self.client.get_json(f"{BASE}/works", params={
+                "filter": ",".join(["openalex:" + "|".join(batch), *self._filters(years, include_preprints)]),
+                "per-page": len(batch), "select": _SELECT, **self.auth})
+            for work in data.get("results", []):
+                found = (work.get("id") or "").rsplit("/", 1)[-1]
+                for seed in cited_by.get(found, []):
+                    candidate = candidate_from_work(work, f"snowball: cited by {seed}")
+                    if candidate:
+                        yield seed, candidate
+
+    def citing(self, seed: str, years: Optional[Tuple[int, int]] = None, limit: int = 100,
+               include_preprints: bool = True) -> Iterator[Candidate]:
+        """The works that cite `seed` (an OpenAlex id) — forward snowballing — the most cited first, at most
+        `limit` (without OPENALEX_API_KEY, OpenAlex gives one page: up to 200)."""
+        cursor, seen = "*", 0
+        while cursor and seen < limit:
+            data = self.client.get_json(f"{BASE}/works", params={
+                "filter": ",".join([f"cites:{seed}", *self._filters(years, include_preprints)]),
+                "sort": "cited_by_count:desc", "per-page": min(200, limit - seen), "cursor": cursor,
+                "select": _SELECT, **self.auth})
+            for work in data.get("results", []):
+                candidate = candidate_from_work(work, f"snowball: cites {seed}")
+                if candidate:
+                    yield candidate
+                    seen += 1
+                    if seen >= limit:
+                        return
+            cursor = (data.get("meta") or {}).get("next_cursor")
+            if not data.get("results") or "api_key" not in self.auth:
+                return
+
     def lookup(self, doi: str) -> Optional[Candidate]:
         """The record of one paper, found by its DOI."""
         try:

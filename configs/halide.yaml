@@ -1,0 +1,443 @@
+# Halide and oxyhalide solid electrolytes
+#
+# Lithium and sodium chlorides, bromides and fluorides (Li3YCl6, Li3InCl6, Li2ZrCl6, Li3ScCl6, Na3YCl6,
+# Na2ZrCl6, NaAlCl4) and the oxyhalides (LiTaOCl4, LiNbOCl4, NaNbOCl4).
+#
+# Kind: chemical family (anion: Cl, Br, I, F; oxyhalides).
+#   Prototype: Li3MX6 (Li3YCl6 P-3m1, Li3InCl6 C2/m), Li2MCl6 (Li2ZrCl6 P-3m1).
+#
+# 151 queries, 59 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/halide.yaml          # extracts into WebScraping/web_output_halide
+#   mme-rank --domain electrolyte --source WebScraping/web_output_halide --kind arrhenius
+
+name: halide
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Halides: structure and transport
+    - "Li3YCl6 trigonal monoclinic structure conductivity"
+    - "Li3InCl6 monoclinic lithium conduction"
+    - "halide electrolyte anion sublattice ccp hcp conductivity"
+    - "halide electrolyte cation site disorder"
+    - "Li2ZrCl6 low cost halide conductivity"
+    - "Li3ScCl6 lithium conductivity"
+    - "zirconium substitution Li3YCl6 conductivity"
+    - "halide electrolyte vacancy engineering conductivity"
+    - "halide electrolyte mechanochemical synthesis amorphous"
+    - "Li3InCl6 water mediated synthesis"
+    - "halide electrolyte high voltage stability cathode"
+    - "halide electrolyte lithium metal reduction"
+
+    # Sodium halides
+    - "Na3YCl6 sodium conductivity"
+    - "Na2ZrCl6 sodium conductivity"
+    - "Na3-xY1-xZrxCl6 sodium conductivity"
+    - "NaAlCl4 sodium conductivity solid electrolyte"
+    - "sodium halide solid electrolyte cathode"
+
+    # Oxyhalides
+    - "LiTaOCl4 lithium conductivity"
+    - "LiNbOCl4 lithium conductivity"
+    - "NaNbOCl4 sodium conductivity"
+    - "oxyhalide superionic conductor"
+    - "oxychloride glass electrolyte conductivity"
+
+    # halide solid electrolyte: every transport measurement and method
+    - "halide solid electrolyte ionic conductivity"
+    - "halide solid electrolyte activation energy"
+    - "halide solid electrolyte lithium ion diffusion"
+    - "halide solid electrolyte sodium ion diffusion"
+    - "halide solid electrolyte lithium migration barrier"
+    - "halide solid electrolyte sodium migration barrier"
+    - "halide solid electrolyte ion transport mechanism"
+    - "halide solid electrolyte grain boundary conductivity"
+    - "halide solid electrolyte bulk ionic conductivity"
+    - "halide solid electrolyte impedance spectroscopy"
+    - "halide solid electrolyte temperature dependent conductivity"
+    - "halide solid electrolyte diffusion coefficient"
+    - "halide solid electrolyte doping ionic conductivity"
+    - "halide solid electrolyte electronic conductivity"
+    - "halide solid electrolyte electrochemical stability window"
+    - "halide solid electrolyte interfacial resistance"
+    - "halide solid electrolyte molecular dynamics lithium diffusion"
+    - "halide solid electrolyte molecular dynamics sodium diffusion"
+    - "halide solid electrolyte density functional theory migration"
+    - "halide solid electrolyte NMR lithium dynamics"
+    - "halide solid electrolyte NMR sodium dynamics"
+    - "halide solid electrolyte synthesis ionic conductivity"
+    - "halide solid electrolyte fast ion conductor"
+    - "halide solid electrolyte superionic conductor"
+
+    # Li3YCl6: every transport measurement and method
+    - "Li3YCl6 ionic conductivity"
+    - "Li3YCl6 activation energy"
+    - "Li3YCl6 lithium ion diffusion"
+    - "Li3YCl6 sodium ion diffusion"
+    - "Li3YCl6 lithium migration barrier"
+    - "Li3YCl6 sodium migration barrier"
+    - "Li3YCl6 ion transport mechanism"
+    - "Li3YCl6 grain boundary conductivity"
+    - "Li3YCl6 bulk ionic conductivity"
+    - "Li3YCl6 impedance spectroscopy"
+    - "Li3YCl6 temperature dependent conductivity"
+    - "Li3YCl6 diffusion coefficient"
+    - "Li3YCl6 doping ionic conductivity"
+    - "Li3YCl6 electronic conductivity"
+    - "Li3YCl6 electrochemical stability window"
+    - "Li3YCl6 interfacial resistance"
+    - "Li3YCl6 molecular dynamics lithium diffusion"
+    - "Li3YCl6 molecular dynamics sodium diffusion"
+    - "Li3YCl6 density functional theory migration"
+    - "Li3YCl6 NMR lithium dynamics"
+    - "Li3YCl6 NMR sodium dynamics"
+    - "Li3YCl6 synthesis ionic conductivity"
+    - "Li3YCl6 fast ion conductor"
+    - "Li3YCl6 superionic conductor"
+
+    # Li3InCl6: every transport measurement and method
+    - "Li3InCl6 ionic conductivity"
+    - "Li3InCl6 activation energy"
+    - "Li3InCl6 lithium ion diffusion"
+    - "Li3InCl6 sodium ion diffusion"
+    - "Li3InCl6 lithium migration barrier"
+    - "Li3InCl6 sodium migration barrier"
+    - "Li3InCl6 ion transport mechanism"
+    - "Li3InCl6 grain boundary conductivity"
+    - "Li3InCl6 bulk ionic conductivity"
+    - "Li3InCl6 impedance spectroscopy"
+    - "Li3InCl6 temperature dependent conductivity"
+    - "Li3InCl6 diffusion coefficient"
+    - "Li3InCl6 doping ionic conductivity"
+    - "Li3InCl6 electronic conductivity"
+    - "Li3InCl6 electrochemical stability window"
+    - "Li3InCl6 interfacial resistance"
+    - "Li3InCl6 molecular dynamics lithium diffusion"
+    - "Li3InCl6 molecular dynamics sodium diffusion"
+    - "Li3InCl6 density functional theory migration"
+    - "Li3InCl6 NMR lithium dynamics"
+    - "Li3InCl6 NMR sodium dynamics"
+    - "Li3InCl6 synthesis ionic conductivity"
+    - "Li3InCl6 fast ion conductor"
+    - "Li3InCl6 superionic conductor"
+
+    # Li2ZrCl6: every transport measurement and method
+    - "Li2ZrCl6 ionic conductivity"
+    - "Li2ZrCl6 activation energy"
+    - "Li2ZrCl6 lithium ion diffusion"
+    - "Li2ZrCl6 sodium ion diffusion"
+    - "Li2ZrCl6 lithium migration barrier"
+    - "Li2ZrCl6 sodium migration barrier"
+    - "Li2ZrCl6 ion transport mechanism"
+    - "Li2ZrCl6 grain boundary conductivity"
+    - "Li2ZrCl6 bulk ionic conductivity"
+    - "Li2ZrCl6 impedance spectroscopy"
+    - "Li2ZrCl6 temperature dependent conductivity"
+    - "Li2ZrCl6 diffusion coefficient"
+    - "Li2ZrCl6 doping ionic conductivity"
+    - "Li2ZrCl6 electronic conductivity"
+    - "Li2ZrCl6 electrochemical stability window"
+    - "Li2ZrCl6 interfacial resistance"
+    - "Li2ZrCl6 molecular dynamics lithium diffusion"
+    - "Li2ZrCl6 molecular dynamics sodium diffusion"
+    - "Li2ZrCl6 density functional theory migration"
+    - "Li2ZrCl6 NMR lithium dynamics"
+    - "Li2ZrCl6 NMR sodium dynamics"
+    - "Li2ZrCl6 synthesis ionic conductivity"
+    - "Li2ZrCl6 fast ion conductor"
+    - "Li2ZrCl6 superionic conductor"
+
+    # Na3YCl6: every transport measurement and method
+    - "Na3YCl6 ionic conductivity"
+    - "Na3YCl6 activation energy"
+    - "Na3YCl6 lithium ion diffusion"
+    - "Na3YCl6 sodium ion diffusion"
+    - "Na3YCl6 lithium migration barrier"
+    - "Na3YCl6 sodium migration barrier"
+    - "Na3YCl6 ion transport mechanism"
+    - "Na3YCl6 grain boundary conductivity"
+    - "Na3YCl6 bulk ionic conductivity"
+    - "Na3YCl6 impedance spectroscopy"
+    - "Na3YCl6 temperature dependent conductivity"
+    - "Na3YCl6 diffusion coefficient"
+    - "Na3YCl6 doping ionic conductivity"
+    - "Na3YCl6 electronic conductivity"
+    - "Na3YCl6 electrochemical stability window"
+    - "Na3YCl6 interfacial resistance"
+    - "Na3YCl6 molecular dynamics lithium diffusion"
+    - "Na3YCl6 molecular dynamics sodium diffusion"
+    - "Na3YCl6 density functional theory migration"
+    - "Na3YCl6 NMR lithium dynamics"
+    - "Na3YCl6 NMR sodium dynamics"
+    - "Na3YCl6 synthesis ionic conductivity"
+    - "Na3YCl6 fast ion conductor"
+    - "Na3YCl6 superionic conductor"
+
+    # halide solid electrolyte: transport mechanisms
+    - "halide solid electrolyte concerted migration"
+    - "halide solid electrolyte vacancy mechanism"
+    - "halide solid electrolyte interstitial mechanism"
+    - "halide solid electrolyte interstitialcy mechanism"
+    - "halide solid electrolyte paddle-wheel mechanism"
+    - "halide solid electrolyte correlated ion hopping"
+    - "halide solid electrolyte percolation conduction pathway"
+    - "halide solid electrolyte bottleneck size migration"
+    - "halide solid electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_halide.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Halide electrolyte aliases
+    - "halide solid electrolyte"
+    - "halide superionic conductor"
+    - "chloride solid electrolyte"
+    - "bromide solid electrolyte"
+    - "fluoride solid electrolyte"
+    - "oxyhalide solid electrolyte"
+    - "oxychloride solid electrolyte"
+    - "ternary chloride"
+    - "ternary halide"
+    - "Li3MCl6"
+    - "Li3MX6"
+    - "Li2MCl6"
+    - "Na3MCl6"
+
+    # Lithium halide formulas
+    - "Li3YCl6"
+    - "Li3YBr6"
+    - "Li3InCl6"
+    - "Li3InBr6"
+    - "Li3ScCl6"
+    - "Li3ErCl6"
+    - "Li3HoCl6"
+    - "Li3TbCl6"
+    - "Li3YbCl6"
+    - "Li3LuCl6"
+    - "Li2ZrCl6"
+    - "Li2HfCl6"
+    - "Li2.5Y0.5Zr0.5Cl6"
+    - "Li3-xY1-xZrxCl6"
+    - "Li3YCl6-xBrx"
+    - "Li3InCl6-xFx"
+    - "LiAlCl4"
+    - "LiGaCl4"
+    - "Li2Sc2/3Cl4"
+    - "Li3TiCl6"
+    - "Li3AlF6"
+    - "Li3InF6"
+    - "Li2ZrF6"
+
+    # Sodium halide formulas
+    - "Na3YCl6"
+    - "Na3ErCl6"
+    - "Na3YBr6"
+    - "Na2ZrCl6"
+    - "Na3-xY1-xZrxCl6"
+    - "NaAlCl4"
+    - "Na3InCl6"
+    - "Na2.25Y0.25Zr0.75Cl6"
+    - "NaTaCl6"
+
+    # Oxyhalide formulas
+    - "LiTaOCl4"
+    - "LiNbOCl4"
+    - "NaNbOCl4"
+    - "NaTaOCl4"
+    - "Li3InCl6-xOx"
+
+    # Parts of halide formulas (find the doped members)
+    - "YCl6"
+    - "YBr6"
+    - "InCl6"
+    - "ScCl6"
+    - "ErCl6"
+    - "ZrCl6"
+    - "HfCl6"
+    - "AlCl4"
+    - "OCl4"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "perovskite solar"
+    - "halide perovskite"
+    - "lead halide"
+    - "CsPbBr3"
+    - "photovoltaic"
+    - "luminescence"
+    - "phosphor"
+    - "scintillator"
+    - "neutron detection"
+    - "molten salt"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_halide
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

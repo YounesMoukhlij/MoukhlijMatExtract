@@ -5,6 +5,7 @@ Every stage is resumable because every step is recorded in the ledger (WebScrapi
 run it again after a crash, a Ctrl-C or a review and it carries on, never fetching a paper twice."""
 
 import csv
+from collections import Counter
 import logging
 import os
 import threading
@@ -18,9 +19,9 @@ import requests
 from LocalExtraction.exporter import read_table
 from LocalExtraction import runcontrol
 from WebScraping.averageScrap import screening
-from WebScraping.averageScrap import abstracts, sources
+from WebScraping.averageScrap import abstracts, by_hand, learn, sources
 from WebScraping.averageScrap.elsevier import Elsevier
-from WebScraping.averageScrap.fetch import NOT_ENTITLED_MARK, Downloader, Outcome
+from WebScraping.averageScrap.fetch import HAND_LIST, NOT_ENTITLED_MARK, Downloader, Outcome, SiteBlocks
 from WebScraping.averageScrap.http import HttpError, PoliteClient
 from WebScraping.averageScrap.ids import arxiv_id, candidate_key, normalize_doi
 from WebScraping.averageScrap.job import KEY_SIGNUP, Job
@@ -46,6 +47,7 @@ MAX_ATTEMPTS = 3  # a paper that fails this many times is given up on (status "c
 SEARCH_STEPS = (("dois", "Fetch DOIs: the keywords asked of OpenAlex, Crossref, Semantic Scholar and arXiv for DOIs"),
                 ("keywords", "Keyword search: the keywords asked of every search source"),
                 ("check", "Check the new papers — the DOI list's among them: OpenAlex record, abstract"),
+                ("snowball", "Citation snowballing: the references of the papers kept, and the papers citing them"),
                 ("screen", "Score each paper on the topic and propose the ones to download"))
 
 
@@ -88,6 +90,34 @@ NOT_ENTITLED_ADVICE = (
     "from your library). Run “3 · Download” again from there: these papers are tried again.")
 
 
+# The papers a busy service refused are tried again at the end of a download one after another, at least this many
+# seconds apart (more when a service asked for more: Semantic Scholar's 429s, one request every 30 s).
+LATER_SPACING = 5.0
+# The longest the papers tried again at the end may take, per round: at most this many seconds of spacing. The rest stay
+# on the watch list for the next download, which tries them first. (900 papers 30 s apart is 7.5 hours a round.)
+LATER_ROUND_SECONDS = 30 * 60
+# Lookups that only add to what the others find: their "not now" alone does not hold a paper for the rounds at the
+# end. Semantic Scholar gives an arXiv version or a repository copy, which the other services mostly know already
+# (2 of 30 papers it had refused in a run had a green copy, none an arXiv version), and it refuses often (HTTP 429).
+# Such a paper is filed with what the other services answered — the next download asks the lookup again.
+SUPPLEMENTARY_LOOKUPS = frozenset({"Semantic Scholar"})
+
+
+def refusers(rows: List[Dict[str, str]]) -> str:
+    """The services that refused these waiting papers, the most frequent first: "Semantic Scholar, OSTI"."""
+    counts = Counter(name.strip() for row in rows for name in (row.get("reason") or "").split(",") if name.strip())
+    return ", ".join(name for name, _ in counts.most_common()) or "a busy service"
+
+
+def worth_waiting(rows: List[Dict[str, str]], down: set) -> List[Dict[str, str]]:
+    """The waiting downloads a round of the watcher can bring: those a busy site refused ("too many requests",
+    a server error), which a few minutes may clear. A paper refused only by services that did not answer at all
+    this run waits for the next run instead: it stays on the watch list, which that run checks first."""
+    def services(row: Dict[str, str]) -> set:
+        return {name.strip() for name in (row.get("reason") or "").split(",") if name.strip()}
+    return [row for row in rows if not services(row) or not services(row) <= down]
+
+
 class Harvest:
     def __init__(self, job: Job, output_dir: str, client: Optional[PoliteClient] = None,
                  ledger: Optional[Ledger] = None):
@@ -96,8 +126,13 @@ class Harvest:
         os.makedirs(self.folder, exist_ok=True)
         self.client = client or PoliteClient(job.email())
         self.email_problem = ""  # set by fetch(): why Unpaywall could not be asked (resolve.email_advice)
+        self.blocks: Optional[SiteBlocks] = None  # set by fetch(): the sites refusing programs during this run
         self.ledger = ledger or Ledger(os.path.join(self.folder, "ledger.sqlite"))
         self.review_path = os.path.join(self.folder, "candidates.csv")
+        self.by_hand_folder = by_hand.inbox(self.folder)  # where the PDFs saved by hand in a browser are put
+        self.taken_in = 0  # the PDFs of the by_hand folder the last download took in
+        # What a download says of the papers a busy service refused (a line of the window; also logged).
+        self.on_notice: Optional[Callable[[str], None]] = None
         self.elsevier = Elsevier.from_env() if "elsevier" in job.fetch.sources else None
         self.wiley = Wiley.from_env() if "wiley" in job.fetch.sources else None
         # What a site refused, checked again later; and the count of what was checked (watcher.py).
@@ -239,6 +274,9 @@ class Harvest:
                     added += self.add_dois(s.doi_list, os.path.splitext(s.doi_list)[0] + ".txt")[1]
                 else:
                     logging.info(f"doi_list: there is no {s.doi_list} yet — Fetch DOIs (mme-dois) collects it.")
+            if s.snowball:  # the papers kept so far bring the papers they cite and those citing them
+                self.on_step("snowball")
+                added += self.snowball(refresh)
             found = abstracts.complete(self.ledger, self.client, s.abstract_sources, self.job.email())
             if found is not None:
                 logging.info(f"Abstracts: {found} found for papers whose record had none.")
@@ -247,6 +285,41 @@ class Harvest:
                          "next time.")
         self.log_report()
         return added
+
+    def snowball(self, refresh: bool = False) -> int:
+        """Citation snowballing on OpenAlex. Each paper kept so far (decision "yes") that has an OpenAlex record
+        gives the papers it cites and, the most cited first, up to search.snowball_citing papers citing it —
+        within the job's years and kinds of work. What is new goes into the ledger and is screened like the papers
+        the keywords found. A paper snowballed less than SEARCH_KEPT_DAYS ago is not asked again, unless
+        `refresh`. Returns how many papers were new."""
+        from .sources.openalex import OpenAlex
+        s = self.job.search
+
+        def search(seed: str) -> str:
+            return f"snowball|{seed}|{s.years}|{s.include_preprints}"
+
+        seeds = sorted({c.openalex_id for c in self.ledger.all() if c.decision == "yes" and c.openalex_id})
+        todo = [seed for seed in seeds if refresh or not self.ledger.searched(search(seed), s.snowball_citing)]
+        if not todo:
+            logging.info(f"Snowballing: nothing new to ask ({len(seeds)} paper(s) kept, all snowballed in the last "
+                         f"{SEARCH_KEPT_DAYS} days).")
+            return 0
+        source = OpenAlex(self.client, self.job.email())
+        cited = citing = 0
+        try:
+            for _, candidate in source.references(todo, s.years, s.include_preprints):
+                cited += self.ledger.add(candidate)
+            for seed in todo:
+                runcontrol.check()  # between two papers: Pause holds here, Stop ends it
+                for candidate in source.citing(seed, s.years, s.snowball_citing, s.include_preprints):
+                    citing += self.ledger.add(candidate)
+                self.ledger.mark_searched(search(seed), s.snowball_citing)
+        except (HttpError, requests.RequestException, ValueError) as error:
+            logging.warning(f"Snowballing stopped early: {error}. What it found is kept; the papers not done are "
+                            "asked next time.")
+        logging.info(f"Snowballing {len(todo)} kept paper(s): {cited} new paper(s) among their references, {citing} "
+                     "among the papers citing them — screened like the others.")
+        return cited + citing
 
     def _search_all(self, refresh: bool) -> int:
         """Every source asked every query (discover's first part), then — when a site refused some of
@@ -268,7 +341,7 @@ class Harvest:
         source = sources.make(name, self.client, self.job.email(), s.arxiv_categories)
         if not source.available():
             signup = KEY_SIGNUP.get(source.key_name, "")
-            logging.info(f"{name}: skipped — {source.key_name} is not set in WebScraping/averageScrap/.env"
+            logging.info(f"{name}: skipped — {source.key_name} is not set in ~/MoukhlijMatExtract/.env"
                          + (f" ({signup})" if signup else ""))
             return None
         return source
@@ -375,14 +448,36 @@ class Harvest:
                          approve=approve or not self.job.screen.review, wiley_ok=self.wiley is not None)
         after = self.ledger.counts()
         if after == before and os.path.exists(self.review_path):
-            return after.get(SCREENED, 0)  # nothing new was scored: the review list is as it was
+            return after.get(SCREENED, 0)  # nothing new was scored: the review list (and edits not read yet) kept
+        learn.refresh(self.ledger)  # the papers waiting ordered by the model of the decisions by hand
         return self.ledger.write_review(self.review_path)
+
+    def rescreen(self) -> Dict[str, int]:
+        """Decides again, with the job's screening settings of now, the papers not downloaded yet (screening.rescreen),
+        and writes the review list the download reads. Returns the counts of screening.rescreen."""
+        counts = screening.rescreen(self.ledger, self.job.screen, elsevier_ok=self.elsevier is not None,
+                                    wiley_ok=self.wiley is not None)
+        learn.refresh(self.ledger)
+        self.ledger.write_review(self.review_path)
+        logging.info(f"Re-screened {counts['rescored']:,} paper(s) not downloaded yet with the job's settings: "
+                     f"{counts['proposed']:,} newly proposed, {counts['dropped']:,} no longer proposed.")
+        return counts
 
     # ------------------------------------------------------------------
     # 3. Fetch
     # ------------------------------------------------------------------
     def _record(self, candidate: Candidate, outcome: Outcome, later: bool = False) -> str:
         """Files how a paper's download ended; returns its status ("waiting" when a site refused)."""
+        if outcome.refused and outcome.status != DOWNLOADED and set(outcome.refused) <= SUPPLEMENTARY_LOOKUPS:
+            # Only a supplementary lookup said "not now": the paper is filed with what the others answered (on the
+            # hand list with its real reason), not held for the rounds. The try does not count against it, and the
+            # next download asks the lookup again.
+            self.watcher.done(DOWNLOAD, candidate.key)
+            note = f"not checked: {', '.join(outcome.refused)} refused (too many requests) — asked again next download"
+            self.ledger.update(candidate.key, status=FAILED,
+                               error=(f"{outcome.error}; {note}" if outcome.error else note)[:500])
+            self.watcher.fetched(candidate.key, FAILED, refused=False, later=later)
+            return FAILED
         if outcome.refused and outcome.status != DOWNLOADED:
             services = ", ".join(outcome.refused)
             tries = self.watcher.defer(DOWNLOAD, candidate.key, "", services)
@@ -401,9 +496,10 @@ class Harvest:
                                license=outcome.license or candidate.license, error="", attempts=attempts,
                                retrieved_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
             status = DOWNLOADED
-        elif outcome.status == FAILED and NOT_ENTITLED_MARK in outcome.error:
-            # Refused for where the request came from, not for the paper: the try does not count, and the
-            # paper is tried again by the next download — from the university's network, it may come.
+        elif outcome.status == FAILED and (NOT_ENTITLED_MARK in outcome.error or outcome.not_asked):
+            # Refused for where the request came from, not for the paper — or not asked at all, its sites being
+            # blocked for the run: the try does not count, and the paper is tried again by the next download
+            # (from the university's network, or once the site lets programs through again, it may come).
             status = FAILED
             self.ledger.update(candidate.key, status=status, error=outcome.error)
         else:
@@ -424,6 +520,9 @@ class Harvest:
         decided = self.ledger.apply_decisions(self.review_path)
         logging.info(f"Review list: {decided['approved']} approved, {decided['rejected']} rejected, "
                      f"{decided['waiting']} still waiting for a decision.")
+        taken = self.taken_in = by_hand.take_in(self.folder, self.ledger, self.hand_list_path)
+        if taken:
+            logging.info(f"By hand: {taken} PDF(s) of {self.by_hand_folder} taken in, with their source recorded.")
         for candidate in self.ledger.all(DOWNLOADED, EXTRACTED):
             logging.info(f"Already fetched: {candidate.key} ({candidate.file or 'in the folder'}) — skipped.")
         watched = {row["item"] for row in self.watcher.pending(DOWNLOAD)}
@@ -434,22 +533,55 @@ class Harvest:
             todo = todo[:limit]
         self.email_problem = ""
         self.not_entitled = 0  # papers a publisher refused: the subscription is not reached from here
+        self.blocks = SiteBlocks()  # the sites that refuse programs (HTTP 403), left alone for the rest of this run
+        self.down: set = set()  # the services that did not answer at all this run
         if not todo:
             logging.info("Nothing to fetch.")
+            self.write_hand_list()
             return {DOWNLOADED: 0, CLOSED: 0, FAILED: 0, "waiting": 0}
         logging.info(f"Fetching {len(todo)} paper(s) into {self.folder} ...")
         tried = {c.key for c in todo}
+        rounds = 0
         try:
             self._fetch_batch(todo, stop_event, progress_callback)
+            # The papers a busy service refused ("too many requests"): tried again at the end, after a pause that
+            # grows round by round, one after another and spaced, at the pace the services asked for.
             for number, minutes in enumerate(ROUNDS_MINUTES, 1):
                 if stop_event is not None and stop_event.is_set():
                     break
-                waiting = [row["item"] for row in self.watcher.pending(DOWNLOAD) if row["item"] in tried]
+                pending = [row for row in self.watcher.pending(DOWNLOAD) if row["item"] in tried]
+                worth = worth_waiting(pending, self.down)
+                waiting = [row["item"] for row in worth]
                 if not waiting:
+                    if pending:
+                        self.notice(f"{len(pending)} paper(s) wait only on services that did not answer at all "
+                                    f"({', '.join(sorted(self.down))}): the next “3 · Download” tries them first.")
                     break
+                spacing = self.later_spacing()
+                room = max(1, int(LATER_ROUND_SECONDS // spacing))
+                if len(waiting) > room:  # a round never runs for hours: the least-tried first, the rest next download
+                    tries = {row["item"]: int(row.get("tries") or 0) for row in worth}
+                    waiting = sorted(waiting, key=lambda key: tries.get(key, 0))[:room]
+                    self.notice(f"{len(worth) - room} paper(s) left for the next “3 · Download”: at {spacing:g} s apart, "
+                                f"only {room} fit in this round's {LATER_ROUND_SECONDS // 60} minutes.")
+                slowed = self.client.slowed()
+                asked = ("Asked to slow down: " + ", ".join(f"{host} (one request every {seconds:g} s)"
+                                                             for host, seconds in sorted(slowed.items())) + ". "
+                         if slowed else "")
+                self.notice(f"{len(waiting)} paper(s) not downloaded yet: {refusers(worth)} refused them (too many "
+                            f"requests, or busy). {asked}They are tried again at the end of this download, one after "
+                            f"another, {spacing:g} s apart — round {number} of {len(ROUNDS_MINUTES)}, in {minutes:g} min.")
                 self.watcher.wait(minutes, f"{len(waiting)} DOI(s)", number)
                 again = [c for c in (self.ledger.get(key) for key in waiting) if c is not None]
-                self._fetch_batch(again, stop_event, progress_callback, later=True)
+                self._fetch_batch(again, stop_event, progress_callback, later=True, spacing=spacing)
+                rounds = number
+            still = [row for row in self.watcher.pending(DOWNLOAD) if row["item"] in tried]
+            if rounds and still:
+                self.notice(f"{len(still)} paper(s) still refused by {refusers(still)} after {rounds} round(s) at the end "
+                            "of this download: they stay on the watch list, and the next “3 · Download” tries them first.")
+            elif rounds:
+                self.notice("The papers a busy service refused were tried again at the end of this download: none is "
+                            "left waiting.")
         except runcontrol.StepStopped:
             logging.info("Stopped — what was downloaded is kept; the DOIs the watcher was waiting for stay on its "
                          "list for the next run.")
@@ -464,8 +596,42 @@ class Harvest:
             logging.info(f"{missed} paper(s) without a legal copy found. " + NOT_FOUND_ADVICE.replace("\n", " "))
         if self.not_entitled:
             logging.warning(NOT_ENTITLED_ADVICE.format(n=self.not_entitled))
+        self.write_hand_list()
         self.log_report()
         return results
+
+    def notice(self, text: str) -> None:
+        """What the download says of the papers a busy service refused: in the log, and in a line of the window."""
+        logging.info(text)
+        if self.on_notice is not None:
+            try:
+                self.on_notice(text)
+            except Exception as error:  # what shows it must not stop the download
+                logging.debug(f"on_notice raised: {error}")
+
+    def later_spacing(self) -> float:
+        """The seconds between two papers tried again at the end: the slowest pace a service asked for this run."""
+        return max([LATER_SPACING, *self.client.slowed().values()])
+
+    @property
+    def hand_list_path(self) -> str:
+        return os.path.join(self.folder, HAND_LIST)
+
+    def write_hand_list(self) -> int:
+        """Writes every paper the downloads could not get (HAND_LIST, in the papers folder): its link, why it was
+        missed and what can be done (by_hand.missed_rows). A PDF saved from the link into the by_hand folder,
+        under any name, is taken in by the next download with its source recorded. A paper whose PDF is in the
+        folder already is left out, so the list shrinks as the PDFs come in. Returns how many papers it lists
+        (0: the file is removed)."""
+        rows = by_hand.missed_rows(self.folder, self.ledger)
+        by_hand.write_hand_list(self.hand_list_path, rows)
+        if rows:
+            counts = Counter(row["reason"] for row in rows)
+            logging.info(f"{len(rows)} paper(s) not downloaded automatically — "
+                         + ", ".join(f"{n} {reason.lower()}" for reason, n in counts.most_common())
+                         + f". The list, with each paper's link and what to do: {self.hand_list_path}. A PDF saved "
+                         f"into {self.by_hand_folder} (any name) is taken in by the next “3 · Download”, its source recorded.")
+        return len(rows)
 
     def log_report(self) -> None:
         """The watcher's report, in the log: what was checked this run and in total, what still waits."""
@@ -474,44 +640,66 @@ class Harvest:
 
     def _fetch_batch(self, todo: List[Candidate], stop_event: Optional[threading.Event],
                      progress_callback: Optional[Callable[[Candidate, Outcome, int, int], None]],
-                     later: bool = False) -> int:
-        """Downloads these papers in parallel, with a new resolver (a service left alone in an earlier
-        round is asked again). Returns how many ended without a copy."""
+                     later: bool = False, spacing: float = 0.0) -> int:
+        """Downloads these papers with a new resolver (a service left alone in an earlier round is asked again):
+        in parallel, or — `spacing` given, for the papers tried again at the end — one after another, `spacing`
+        seconds apart (a Pause holds the wait, a Stop ends it). Returns how many ended without a copy."""
         resolver = Resolver(self.client, self.job.fetch.sources, self.job.email(), self.elsevier, self.wiley)
-        downloader = Downloader(self.folder, self.client, resolver, self.job.fetch.max_pdf_mb)
+        if self.blocks is None:
+            self.blocks = SiteBlocks()
+        downloader = Downloader(self.folder, self.client, resolver, self.job.fetch.max_pdf_mb, blocks=self.blocks)
         missed = 0
-        with ThreadPoolExecutor(max_workers=self.job.fetch.workers) as pool:
-            futures = {pool.submit(runcontrol.task(stop_event, downloader.fetch, c)): c for c in todo}
-            for done, future in enumerate(as_completed(futures), 1):
-                candidate = futures[future]
-                outcome: Optional[Outcome] = None
+
+        def finish(candidate: Candidate, outcome: Optional[Outcome], done: int) -> None:
+            nonlocal missed
+            if outcome is None:
+                return
+            if outcome.status != DOWNLOADED and NOT_ENTITLED_MARK in outcome.error:
+                self.not_entitled = getattr(self, "not_entitled", 0) + 1
+            status = self._record(candidate, outcome, later)
+            missed += status in (CLOSED, FAILED)
+            detail = (f"via {outcome.service}" if outcome.status == DOWNLOADED else
+                      f"refused by {', '.join(outcome.refused)} — tried again at the end of this download"
+                      if status == "waiting" else outcome.error[:120])
+            logging.info(f"[{done}/{len(todo)}] {status}: {candidate.key} {detail}")
+            if progress_callback is not None:
                 try:
-                    outcome = future.result()
-                except runcontrol.StepStopped:  # stopped while it was under way: tried again next run
-                    pass
-                except Exception as error:  # one bad paper must not stop a long run
-                    outcome = Outcome(candidate.key, FAILED, error=f"{type(error).__name__}: {error}")
-                if outcome is not None:
-                    if outcome.status != DOWNLOADED and NOT_ENTITLED_MARK in outcome.error:
-                        self.not_entitled = getattr(self, "not_entitled", 0) + 1
-                    status = self._record(candidate, outcome, later)
-                    missed += status in (CLOSED, FAILED)
-                    detail = (f"via {outcome.service}" if outcome.status == DOWNLOADED else
-                              f"refused by {', '.join(outcome.refused)} — the watcher checks it again later"
-                              if status == "waiting" else outcome.error[:120])
-                    logging.info(f"[{done}/{len(todo)}] {status}: {candidate.key} {detail}")
-                    if progress_callback is not None:
-                        try:
-                            progress_callback(candidate, outcome, done, len(todo))
-                        except Exception as error:  # what shows the progress must not stop the run
-                            logging.warning(f"progress_callback raised for {candidate.key}: {error}")
+                    progress_callback(candidate, outcome, done, len(todo))
+                except Exception as error:  # what shows the progress must not stop the run
+                    logging.warning(f"progress_callback raised for {candidate.key}: {error}")
+
+        def run(candidate: Candidate) -> Optional[Outcome]:
+            try:
+                return runcontrol.task(stop_event, downloader.fetch, candidate)()
+            except runcontrol.StepStopped:  # stopped while it was under way: tried again next run
+                raise
+            except Exception as error:  # one bad paper must not stop a long run
+                return Outcome(candidate.key, FAILED, error=f"{type(error).__name__}: {error}")
+
+        if spacing:
+            for done, candidate in enumerate(todo, 1):
+                if done > 1:
+                    self.client.pause(spacing)
                 if stop_event is not None and stop_event.is_set():
-                    for pending in futures:
-                        pending.cancel()
-                    logging.info("Stop requested — the papers not yet started were cancelled; the next download "
-                                 "goes on with them.")
                     break
+                finish(candidate, run(candidate), done)
+        else:
+            with ThreadPoolExecutor(max_workers=self.job.fetch.workers) as pool:
+                futures = {pool.submit(run, c): c for c in todo}
+                for done, future in enumerate(as_completed(futures), 1):
+                    try:
+                        outcome = future.result()
+                    except runcontrol.StepStopped:  # stopped while it was under way: tried again next run
+                        outcome = None
+                    finish(futures[future], outcome, done)
+                    if stop_event is not None and stop_event.is_set():
+                        for pending in futures:
+                            pending.cancel()
+                        logging.info("Stop requested — the papers not yet started were cancelled; the next download "
+                                     "goes on with them.")
+                        break
         self.email_problem = self.email_problem or resolver.email_problem
+        self.down = getattr(self, "down", set()) | resolver.down
         return missed
 
     # ------------------------------------------------------------------

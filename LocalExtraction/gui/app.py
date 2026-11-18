@@ -33,5 +33,8 @@ class App(Window):
 def main(input_dir: str = DEFAULT_INPUT, output_dir: str = DEFAULT_OUTPUT, workers: int = 4,
          lookup: bool = True, domain: str = "electrolyte") -> None:
     root = tk.Tk()
+    from LocalExtraction.crashlog import watch
+    watch(root)  # a window's own errors: written to a crash file, and said
     App(root, input_dir, output_dir, workers, lookup, domain)
-    root.mainloop()
+    from LocalExtraction.crashlog import run
+    run(root)  # the loop, then the window closed cleanly

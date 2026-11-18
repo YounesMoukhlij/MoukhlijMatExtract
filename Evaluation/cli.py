@@ -98,6 +98,10 @@ def build_parser() -> argparse.ArgumentParser:
     reference.add_argument("--db", nargs="+", choices=sorted(DATABASES), default=sorted(DATABASES),
                            help="Which databases (default: all)")
     reference.add_argument("--no-fetch", action="store_true", help="Do not look for more papers; compare what is there")
+    reference.add_argument("--against", type=Path, metavar="FOLDER",
+                           help="Instead: compare a results folder of yours (e.g. WebScraping/web_output_garnet) with the "
+                                "curated databases, material by material, whatever the papers — how much of them it "
+                                "covers, and how far its room-temperature conductivities are from theirs")
     reference.add_argument("--limit", type=_positive, metavar="N", help="Look for at most N more papers in this run")
     reference.add_argument("--refresh", action="store_true", help="Download the curated databases again")
     reference.add_argument("--workers", "-w", type=_positive, default=4, help="PDFs extracted in parallel (default: 4)")
@@ -232,6 +236,8 @@ def run_reference(args) -> int:
               f"({ref.DATABASES[name]['license']})")
     if not tables:
         return 1
+    if args.against is not None:
+        return _against(ref, tables, args.against.expanduser(), base, run)
     dois = sorted({d for t in tables.values() for x in t["doi"] for d in ref.dois_of(x)})
     with runcontrol.ctrl_c_stops() as control:  # Ctrl-C: what was fetched and extracted is kept
         if args.no_fetch:
@@ -267,6 +273,28 @@ def run_reference(args) -> int:
             print(f"  {tool} on {r.reference}: material found {share(r.material)}, material and value "
                   f"{share(r.record_loose)} (within 2 %: {share(r.record_strict)})")
     print(f"Report: {base / 'reference_report.md'}\nEvery entry: {base / 'reference_comparison.csv'}")
+    return 0
+
+
+def _against(ref, tables, folder: Path, base: Path, run) -> int:
+    """mme-eval reference --against FOLDER: the folder's materials against each curated database."""
+    import pandas as pd
+    if not (folder / "ionic_conductivity.csv").is_file():
+        print(f"{folder} has no ionic_conductivity.csv: give a results folder of MoukhlijMatExtract.", file=sys.stderr)
+        return 2
+    tables = {name: ref.against(table, folder) for name, table in tables.items()}
+    base.mkdir(parents=True, exist_ok=True)
+    out = base / f"against_{folder.name}.csv"
+    pd.concat(tables.values(), ignore_index=True).to_csv(out, index=False, encoding="utf-8-sig")
+    summaries = {}
+    for name, table in tables.items():
+        s = summaries[name] = ref.against_summary(table)
+        share = lambda n: f"{100 * n / s['found']:.0f} %" if s["found"] else "–"  # noqa: E731
+        print(f"  {ref.DATABASES[name]['name']}: {folder.name} holds {s['found']} of its {s['curated']} room-temperature "
+              f"materials; their conductivities within 0.1 decade {share(s['within_0.1'])}, 0.5 decade "
+              f"{share(s['within_0.5'])}, 1 decade {share(s['within_1'])} (median {s['median_decades']} decades apart)")
+    run.finish({"against": str(folder), **summaries}, files=[out.name])
+    print(f"Every material: {out}")
     return 0
 
 

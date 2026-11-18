@@ -1,0 +1,380 @@
+# LISICON and thio-LISICON solid electrolytes
+#
+# The LISICON family (gamma-Li3PO4 type: Li14Zn(GeO4)4, Li4SiO4-Li3PO4, Li3VO4-Li4GeO4 solid solutions) and its
+# sulfide analogues, the thio-LISICONs (Li4-xGe1-xPxS4, Li4GeS4, Li4SnS4).
+#
+# Kind: crystal-structure type.
+#   Prototype: gamma-Li3PO4 (Pnma): Li14Zn(GeO4)4; thio-LISICON Li4-xGe1-xPxS4.
+#
+# 127 queries, 36 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/lisicon.yaml          # extracts into WebScraping/web_output_lisicon
+#   mme-rank --domain electrolyte --source WebScraping/web_output_lisicon --kind arrhenius
+
+name: lisicon
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # LISICON: oxide compositions and their conduction
+    - "Li14Zn(GeO4)4 lithium ion conductivity aging"
+    - "LISICON conductivity decrease aging trapping"
+    - "Li4SiO4 Li3PO4 solid solution conductivity"
+    - "Li3VO4 Li4GeO4 solid solution conductivity"
+    - "Li4SiO4 lithium ion conduction mechanism"
+    - "gamma Li3PO4 structure lithium interstitial"
+    - "LISICON interstitial lithium conduction"
+    - "LISICON aliovalent substitution conductivity"
+    - "Li3+xP1-xSixO4 thin film conductivity"
+    - "LISICON lithium stuffed tetrahedral framework"
+
+    # thio-LISICON: sulfide compositions
+    - "thio-LISICON Li4-xGe1-xPxS4 conductivity"
+    - "Li3.25Ge0.25P0.75S4 lithium conductivity"
+    - "Li4GeS4 Li3PS4 solid solution"
+    - "Li4SnS4 air stable sulfide electrolyte conductivity"
+    - "Li4SnS4 arsenic substitution conductivity"
+    - "Li4SiS4 lithium conductivity"
+    - "thio-LISICON polyanion rotation lithium transport"
+    - "orthothiophosphate lithium conductor"
+
+    # LISICON solid electrolyte: every transport measurement and method
+    - "LISICON solid electrolyte ionic conductivity"
+    - "LISICON solid electrolyte activation energy"
+    - "LISICON solid electrolyte lithium ion diffusion"
+    - "LISICON solid electrolyte lithium migration barrier"
+    - "LISICON solid electrolyte ion transport mechanism"
+    - "LISICON solid electrolyte grain boundary conductivity"
+    - "LISICON solid electrolyte bulk ionic conductivity"
+    - "LISICON solid electrolyte impedance spectroscopy"
+    - "LISICON solid electrolyte temperature dependent conductivity"
+    - "LISICON solid electrolyte diffusion coefficient"
+    - "LISICON solid electrolyte doping ionic conductivity"
+    - "LISICON solid electrolyte electronic conductivity"
+    - "LISICON solid electrolyte electrochemical stability window"
+    - "LISICON solid electrolyte interfacial resistance"
+    - "LISICON solid electrolyte molecular dynamics lithium diffusion"
+    - "LISICON solid electrolyte density functional theory migration"
+    - "LISICON solid electrolyte NMR lithium dynamics"
+    - "LISICON solid electrolyte synthesis ionic conductivity"
+    - "LISICON solid electrolyte fast ion conductor"
+    - "LISICON solid electrolyte superionic conductor"
+
+    # thio-LISICON: every transport measurement and method
+    - "thio-LISICON ionic conductivity"
+    - "thio-LISICON activation energy"
+    - "thio-LISICON lithium ion diffusion"
+    - "thio-LISICON lithium migration barrier"
+    - "thio-LISICON ion transport mechanism"
+    - "thio-LISICON grain boundary conductivity"
+    - "thio-LISICON bulk ionic conductivity"
+    - "thio-LISICON impedance spectroscopy"
+    - "thio-LISICON temperature dependent conductivity"
+    - "thio-LISICON diffusion coefficient"
+    - "thio-LISICON doping ionic conductivity"
+    - "thio-LISICON electronic conductivity"
+    - "thio-LISICON electrochemical stability window"
+    - "thio-LISICON interfacial resistance"
+    - "thio-LISICON molecular dynamics lithium diffusion"
+    - "thio-LISICON density functional theory migration"
+    - "thio-LISICON NMR lithium dynamics"
+    - "thio-LISICON synthesis ionic conductivity"
+    - "thio-LISICON fast ion conductor"
+    - "thio-LISICON superionic conductor"
+
+    # Li14Zn(GeO4)4: every transport measurement and method
+    - "Li14Zn(GeO4)4 ionic conductivity"
+    - "Li14Zn(GeO4)4 activation energy"
+    - "Li14Zn(GeO4)4 lithium ion diffusion"
+    - "Li14Zn(GeO4)4 lithium migration barrier"
+    - "Li14Zn(GeO4)4 ion transport mechanism"
+    - "Li14Zn(GeO4)4 grain boundary conductivity"
+    - "Li14Zn(GeO4)4 bulk ionic conductivity"
+    - "Li14Zn(GeO4)4 impedance spectroscopy"
+    - "Li14Zn(GeO4)4 temperature dependent conductivity"
+    - "Li14Zn(GeO4)4 diffusion coefficient"
+    - "Li14Zn(GeO4)4 doping ionic conductivity"
+    - "Li14Zn(GeO4)4 electronic conductivity"
+    - "Li14Zn(GeO4)4 electrochemical stability window"
+    - "Li14Zn(GeO4)4 interfacial resistance"
+    - "Li14Zn(GeO4)4 molecular dynamics lithium diffusion"
+    - "Li14Zn(GeO4)4 density functional theory migration"
+    - "Li14Zn(GeO4)4 NMR lithium dynamics"
+    - "Li14Zn(GeO4)4 synthesis ionic conductivity"
+    - "Li14Zn(GeO4)4 fast ion conductor"
+    - "Li14Zn(GeO4)4 superionic conductor"
+
+    # Li4SiO4-Li3PO4: every transport measurement and method
+    - "Li4SiO4-Li3PO4 ionic conductivity"
+    - "Li4SiO4-Li3PO4 activation energy"
+    - "Li4SiO4-Li3PO4 lithium ion diffusion"
+    - "Li4SiO4-Li3PO4 lithium migration barrier"
+    - "Li4SiO4-Li3PO4 ion transport mechanism"
+    - "Li4SiO4-Li3PO4 grain boundary conductivity"
+    - "Li4SiO4-Li3PO4 bulk ionic conductivity"
+    - "Li4SiO4-Li3PO4 impedance spectroscopy"
+    - "Li4SiO4-Li3PO4 temperature dependent conductivity"
+    - "Li4SiO4-Li3PO4 diffusion coefficient"
+    - "Li4SiO4-Li3PO4 doping ionic conductivity"
+    - "Li4SiO4-Li3PO4 electronic conductivity"
+    - "Li4SiO4-Li3PO4 electrochemical stability window"
+    - "Li4SiO4-Li3PO4 interfacial resistance"
+    - "Li4SiO4-Li3PO4 molecular dynamics lithium diffusion"
+    - "Li4SiO4-Li3PO4 density functional theory migration"
+    - "Li4SiO4-Li3PO4 NMR lithium dynamics"
+    - "Li4SiO4-Li3PO4 synthesis ionic conductivity"
+    - "Li4SiO4-Li3PO4 fast ion conductor"
+    - "Li4SiO4-Li3PO4 superionic conductor"
+
+    # Li3.25Ge0.25P0.75S4: every transport measurement and method
+    - "Li3.25Ge0.25P0.75S4 ionic conductivity"
+    - "Li3.25Ge0.25P0.75S4 activation energy"
+    - "Li3.25Ge0.25P0.75S4 lithium ion diffusion"
+    - "Li3.25Ge0.25P0.75S4 lithium migration barrier"
+    - "Li3.25Ge0.25P0.75S4 ion transport mechanism"
+    - "Li3.25Ge0.25P0.75S4 grain boundary conductivity"
+    - "Li3.25Ge0.25P0.75S4 bulk ionic conductivity"
+    - "Li3.25Ge0.25P0.75S4 impedance spectroscopy"
+    - "Li3.25Ge0.25P0.75S4 temperature dependent conductivity"
+    - "Li3.25Ge0.25P0.75S4 diffusion coefficient"
+    - "Li3.25Ge0.25P0.75S4 doping ionic conductivity"
+    - "Li3.25Ge0.25P0.75S4 electronic conductivity"
+    - "Li3.25Ge0.25P0.75S4 electrochemical stability window"
+    - "Li3.25Ge0.25P0.75S4 interfacial resistance"
+    - "Li3.25Ge0.25P0.75S4 molecular dynamics lithium diffusion"
+    - "Li3.25Ge0.25P0.75S4 density functional theory migration"
+    - "Li3.25Ge0.25P0.75S4 NMR lithium dynamics"
+    - "Li3.25Ge0.25P0.75S4 synthesis ionic conductivity"
+    - "Li3.25Ge0.25P0.75S4 fast ion conductor"
+    - "Li3.25Ge0.25P0.75S4 superionic conductor"
+
+    # LISICON solid electrolyte: transport mechanisms
+    - "LISICON solid electrolyte concerted migration"
+    - "LISICON solid electrolyte vacancy mechanism"
+    - "LISICON solid electrolyte interstitial mechanism"
+    - "LISICON solid electrolyte interstitialcy mechanism"
+    - "LISICON solid electrolyte paddle-wheel mechanism"
+    - "LISICON solid electrolyte correlated ion hopping"
+    - "LISICON solid electrolyte percolation conduction pathway"
+    - "LISICON solid electrolyte bottleneck size migration"
+    - "LISICON solid electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_lisicon.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # LISICON family and aliases
+    - "LISICON"
+    - "LISICON-type"
+    - "lithium superionic conductor"
+    - "thio-LISICON"
+    - "thio–LISICON"
+    - "thio-LISICON-type"
+    - "thio–LISICON-type"
+    - "gamma-Li3PO4"
+    - "gamma–Li3PO4"
+    - "γ-Li3PO4"
+    - "Li3PO4-type"
+
+    # Oxide LISICON formulas and solid solutions
+    - "Li14Zn(GeO4)4"
+    - "Li4SiO4"
+    - "Li3PO4"
+    - "Li3.5Si0.5P0.5O4"
+    - "Li4SiO4-Li3PO4"
+    - "Li4SiO4–Li3PO4"
+    - "Li3VO4"
+    - "Li4GeO4"
+    - "Li3.6Ge0.6V0.4O4"
+    - "Li3+xGexV1-xO4"
+    - "Li4+xSi1-xAlxO4"
+    - "Li4-xSi1-xPxO4"
+    - "Li2+2xZn1-xGeO4"
+    - "lithium zinc germanate"
+    - "lithium orthosilicate"
+    - "lithium orthophosphate"
+
+    # thio-LISICON formulas
+    - "Li4-xGe1-xPxS4"
+    - "Li3.25Ge0.25P0.75S4"
+    - "Li4GeS4"
+    - "Li4SnS4"
+    - "Li3.4Si0.4P0.6S4"
+    - "Li4SiS4"
+    - "Li3.833Sn0.833As0.166S4"
+    - "Li4-xSn1-xSbxS4"
+    - "Ge1-xPxS4"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_lisicon
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

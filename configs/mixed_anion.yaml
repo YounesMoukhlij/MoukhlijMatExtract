@@ -1,0 +1,360 @@
+# Mixed-anion solid electrolytes (oxysulfides, sulfide-halides, nitride-halides)
+#
+# Solid electrolytes with two or more anions: oxysulfide glasses and crystals, sulfide-halides such as Li7P2S8I
+# and Li4PS4I, and nitride-halides such as Li6NBr3 and Li5NCl2. The argyrodites, oxyhalides and
+# anti-perovskites, mixed-anion too, have files of their own.
+#
+# Kind: chemical family (two or more anions).
+#   Prototype: oxysulfides, sulfide-halides (Li7P2S8I), nitride-halides (Li6NBr3).
+#
+# 116 queries, 28 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/mixed_anion.yaml          # extracts into WebScraping/web_output_mixed_anion
+#   mme-rank --domain electrolyte --source WebScraping/web_output_mixed_anion --kind arrhenius
+
+name: mixed_anion
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Mixed anions: structure and transport
+    - "oxysulfide glass lithium conductivity"
+    - "oxygen substitution sulfide electrolyte stability conductivity"
+    - "Li7P2S8I lithium conductivity"
+    - "Li4PS4I lithium conductivity"
+    - "sulfide halide solid electrolyte"
+    - "mixed anion effect ionic conductivity"
+    - "anion substitution lithium diffusion"
+    - "nitride halide lithium conductor"
+    - "Li6NBr3 lithium conductivity"
+    - "heteroanionic lithium conductor"
+    - "polyanion mixing conductivity solid electrolyte"
+
+    # mixed-anion solid electrolyte: every transport measurement and method
+    - "mixed-anion solid electrolyte ionic conductivity"
+    - "mixed-anion solid electrolyte activation energy"
+    - "mixed-anion solid electrolyte lithium ion diffusion"
+    - "mixed-anion solid electrolyte sodium ion diffusion"
+    - "mixed-anion solid electrolyte lithium migration barrier"
+    - "mixed-anion solid electrolyte sodium migration barrier"
+    - "mixed-anion solid electrolyte ion transport mechanism"
+    - "mixed-anion solid electrolyte grain boundary conductivity"
+    - "mixed-anion solid electrolyte bulk ionic conductivity"
+    - "mixed-anion solid electrolyte impedance spectroscopy"
+    - "mixed-anion solid electrolyte temperature dependent conductivity"
+    - "mixed-anion solid electrolyte diffusion coefficient"
+    - "mixed-anion solid electrolyte doping ionic conductivity"
+    - "mixed-anion solid electrolyte electronic conductivity"
+    - "mixed-anion solid electrolyte electrochemical stability window"
+    - "mixed-anion solid electrolyte interfacial resistance"
+    - "mixed-anion solid electrolyte molecular dynamics lithium diffusion"
+    - "mixed-anion solid electrolyte molecular dynamics sodium diffusion"
+    - "mixed-anion solid electrolyte density functional theory migration"
+    - "mixed-anion solid electrolyte NMR lithium dynamics"
+    - "mixed-anion solid electrolyte NMR sodium dynamics"
+    - "mixed-anion solid electrolyte synthesis ionic conductivity"
+    - "mixed-anion solid electrolyte fast ion conductor"
+    - "mixed-anion solid electrolyte superionic conductor"
+
+    # oxysulfide electrolyte: every transport measurement and method
+    - "oxysulfide electrolyte ionic conductivity"
+    - "oxysulfide electrolyte activation energy"
+    - "oxysulfide electrolyte lithium ion diffusion"
+    - "oxysulfide electrolyte sodium ion diffusion"
+    - "oxysulfide electrolyte lithium migration barrier"
+    - "oxysulfide electrolyte sodium migration barrier"
+    - "oxysulfide electrolyte ion transport mechanism"
+    - "oxysulfide electrolyte grain boundary conductivity"
+    - "oxysulfide electrolyte bulk ionic conductivity"
+    - "oxysulfide electrolyte impedance spectroscopy"
+    - "oxysulfide electrolyte temperature dependent conductivity"
+    - "oxysulfide electrolyte diffusion coefficient"
+    - "oxysulfide electrolyte doping ionic conductivity"
+    - "oxysulfide electrolyte electronic conductivity"
+    - "oxysulfide electrolyte electrochemical stability window"
+    - "oxysulfide electrolyte interfacial resistance"
+    - "oxysulfide electrolyte molecular dynamics lithium diffusion"
+    - "oxysulfide electrolyte molecular dynamics sodium diffusion"
+    - "oxysulfide electrolyte density functional theory migration"
+    - "oxysulfide electrolyte NMR lithium dynamics"
+    - "oxysulfide electrolyte NMR sodium dynamics"
+    - "oxysulfide electrolyte synthesis ionic conductivity"
+    - "oxysulfide electrolyte fast ion conductor"
+    - "oxysulfide electrolyte superionic conductor"
+
+    # Li7P2S8I: every transport measurement and method
+    - "Li7P2S8I ionic conductivity"
+    - "Li7P2S8I activation energy"
+    - "Li7P2S8I lithium ion diffusion"
+    - "Li7P2S8I sodium ion diffusion"
+    - "Li7P2S8I lithium migration barrier"
+    - "Li7P2S8I sodium migration barrier"
+    - "Li7P2S8I ion transport mechanism"
+    - "Li7P2S8I grain boundary conductivity"
+    - "Li7P2S8I bulk ionic conductivity"
+    - "Li7P2S8I impedance spectroscopy"
+    - "Li7P2S8I temperature dependent conductivity"
+    - "Li7P2S8I diffusion coefficient"
+    - "Li7P2S8I doping ionic conductivity"
+    - "Li7P2S8I electronic conductivity"
+    - "Li7P2S8I electrochemical stability window"
+    - "Li7P2S8I interfacial resistance"
+    - "Li7P2S8I molecular dynamics lithium diffusion"
+    - "Li7P2S8I molecular dynamics sodium diffusion"
+    - "Li7P2S8I density functional theory migration"
+    - "Li7P2S8I NMR lithium dynamics"
+    - "Li7P2S8I NMR sodium dynamics"
+    - "Li7P2S8I synthesis ionic conductivity"
+    - "Li7P2S8I fast ion conductor"
+    - "Li7P2S8I superionic conductor"
+
+    # nitride halide lithium conductor: every transport measurement and method
+    - "nitride halide lithium conductor ionic conductivity"
+    - "nitride halide lithium conductor activation energy"
+    - "nitride halide lithium conductor lithium ion diffusion"
+    - "nitride halide lithium conductor sodium ion diffusion"
+    - "nitride halide lithium conductor lithium migration barrier"
+    - "nitride halide lithium conductor sodium migration barrier"
+    - "nitride halide lithium conductor ion transport mechanism"
+    - "nitride halide lithium conductor grain boundary conductivity"
+    - "nitride halide lithium conductor bulk ionic conductivity"
+    - "nitride halide lithium conductor impedance spectroscopy"
+    - "nitride halide lithium conductor temperature dependent conductivity"
+    - "nitride halide lithium conductor diffusion coefficient"
+    - "nitride halide lithium conductor doping ionic conductivity"
+    - "nitride halide lithium conductor electronic conductivity"
+    - "nitride halide lithium conductor electrochemical stability window"
+    - "nitride halide lithium conductor interfacial resistance"
+    - "nitride halide lithium conductor molecular dynamics lithium diffusion"
+    - "nitride halide lithium conductor molecular dynamics sodium diffusion"
+    - "nitride halide lithium conductor density functional theory migration"
+    - "nitride halide lithium conductor NMR lithium dynamics"
+    - "nitride halide lithium conductor NMR sodium dynamics"
+    - "nitride halide lithium conductor synthesis ionic conductivity"
+    - "nitride halide lithium conductor fast ion conductor"
+    - "nitride halide lithium conductor superionic conductor"
+
+    # mixed-anion solid electrolyte: transport mechanisms
+    - "mixed-anion solid electrolyte concerted migration"
+    - "mixed-anion solid electrolyte vacancy mechanism"
+    - "mixed-anion solid electrolyte interstitial mechanism"
+    - "mixed-anion solid electrolyte interstitialcy mechanism"
+    - "mixed-anion solid electrolyte paddle-wheel mechanism"
+    - "mixed-anion solid electrolyte correlated ion hopping"
+    - "mixed-anion solid electrolyte percolation conduction pathway"
+    - "mixed-anion solid electrolyte bottleneck size migration"
+    - "mixed-anion solid electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_mixed_anion.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Mixed-anion aliases
+    - "mixed-anion"
+    - "mixed anion"
+    - "heteroanionic"
+    - "dual-anion"
+    - "oxysulfide"
+    - "oxy-sulfide"
+    - "oxysulfide glass"
+    - "sulfide-halide"
+    - "thiohalide"
+    - "chalcohalide"
+    - "nitride-halide"
+    - "nitride halide"
+    - "anion mixing"
+
+    # Mixed-anion formulas
+    - "Li7P2S8I"
+    - "Li4PS4I"
+    - "Li3PS4-xOx"
+    - "Li2S-P2S5-P2O5"
+    - "Li2S–P2S5–P2O5"
+    - "Li2S-P2S5-Li3PO4"
+    - "Li2S–P2S5–Li3PO4"
+    - "Li2S-SiS2-Li4SiO4"
+    - "Li2S–SiS2–Li4SiO4"
+    - "Li2S-SiS2-Li3PO4"
+    - "Li2S–SiS2–Li3PO4"
+    - "Li6NBr3"
+    - "Li5NCl2"
+    - "Na3PS4-xOx"
+    - "Li10GeP2S11.7O0.3"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "phosphor"
+    - "luminescence"
+    - "photocatalytic"
+    - "thermoelectric"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_mixed_anion
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

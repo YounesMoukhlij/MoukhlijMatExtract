@@ -63,6 +63,10 @@ class Measurement:
     # What kind of energy it is (LocalExtraction/energy.py: "arrhenius", "migration_barrier", ...); empty for a
     # database of an earlier version, which did not record it.
     energy_kind: str = ""
+    value_id: str = ""            # LocalExtraction.verification.value_id: the paper, page, sentence and number
+    verification: str = ""        # a person's check of it: correct / corrected; "" when not checked
+    arrhenius: str = ""           # the Arrhenius cross-check (LocalExtraction.arrhenius): consistent / inconsistent / ""
+    arrhenius_text: str = ""      # what the cross-check found, in words
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +83,8 @@ class Filters:
     # Values the extraction flagged ("check: outside 0.05–1.5 eV", "check: the transport of Co"): left out
     # unless asked for — a 0.01 eV misreading would otherwise rank first.
     include_flagged: bool = False
+    # Only the values a person checked (correct or corrected: LocalExtraction.verification).
+    verified_only: bool = False
 
     def keeps(self, value: Measurement) -> bool:
         return ((self.include_flagged or not value.plausibility.startswith("check"))
@@ -87,6 +93,7 @@ class Filters:
                 and (not self.attribution or value.attribution.casefold() == self.attribution.casefold())
                 and (not self.component or component_key(value.transport_component) == component_key(self.component))
                 and (not self.kind or value.energy_kind.casefold() == self.kind.casefold())
+                and (not self.verified_only or bool(value.verification))
                 and all(element in value.elements for element in self.elements))
 
     def describe(self) -> str:
@@ -106,6 +113,8 @@ class Filters:
             parts.append(f"confidence ≥ {self.min_confidence:g}")
         if self.include_flagged:
             parts.append("flagged values included")
+        if self.verified_only:
+            parts.append("verified values only")
         return " · ".join(parts) or "all values in range"
 
 
@@ -122,6 +131,18 @@ class RankedMaterial:
     checks: tuple[str, ...]                  # what to look at before trusting the class; empty when nothing
     confidence: float                        # mean extraction confidence of the values
     evidence: Measurement                    # the reported value closest to energy_eV
+    # How sure the rank is (selection.rank_intervals): its 95 % interval over resamplings of the values, the share of
+    # resamplings that put it in the top `Selection.top_n`, and the evidence it rests on (A: 3 values or more from 2
+    # papers or more; B: 2 values or more; C: a single value).
+    rank_low: int = 0
+    rank_high: int = 0
+    p_top: float = 0.0
+    evidence_tier: str = ""
+
+    @property
+    def verified(self) -> int:
+        """How many of its values a person checked."""
+        return sum(1 for v in self.values if v.verification)
 
     @property
     def accepted(self) -> bool:
@@ -155,6 +176,9 @@ class DatabaseReport:
     unassigned: int = 0                      # activation energies the extraction tied to no material
     problem: str = ""                        # why nothing could be read, when nothing could
     partial: bool = False                    # a rebuild of it was stopped part-way: it lacks papers
+    verified: int = 0                        # values a person checked (correct or corrected)
+    marked_wrong: int = 0                    # values a person marked wrong: they take no part
+    inconsistent: int = 0                    # values the Arrhenius cross-check finds inconsistent
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,6 +194,9 @@ class Selection:
     values_read: int                         # before the filters
     generated_at: str
     notes: tuple[str, ...] = field(default=())
+    bootstrap: int = 0                       # resamplings behind the rank intervals (0: none)
+    top_n: int = 10                          # p_top is the share of resamplings in this top
+    seed: int = 0
 
     @property
     def top(self) -> tuple[RankedMaterial, ...]:

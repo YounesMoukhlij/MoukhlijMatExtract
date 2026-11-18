@@ -68,6 +68,8 @@ class Candidate:
     flags: List[str] = field(default_factory=list)
     access: str = ""         # open | elsevier | closed: how a copy is expected to be had
     decision: str = ""       # yes | no | "" (not screened yet)
+    decided_by: str = ""     # "hand": a person decided (in the window, or against the proposal in the review list)
+    model_yes: float = -1.0  # learn.py: the chance of a yes a model of the decisions by hand gives (-1: none)
     status: str = NEW
     # What fetching did.
     file: str = ""
@@ -81,7 +83,8 @@ class Candidate:
 
 _LIST_FIELDS = {"authors", "oa_urls", "copy_pages", "found_by", "flags", "abstract_asked"}
 # Set by screening and fetching, never by a source: a source finding the same paper again must not undo them.
-_STATE_FIELDS = {"abstract_asked", "score", "why", "flags", "access", "decision", "status", "file", "sha256",
+_STATE_FIELDS = {"abstract_asked", "score", "why", "flags", "access", "decision", "decided_by", "model_yes", "status",
+                 "file", "sha256",
                  "source_used", "source_url", "retrieved_at", "error", "attempts"}
 _COLUMNS = [f.name for f in fields(Candidate)]
 
@@ -140,6 +143,26 @@ def abstract_basis(candidate: Candidate) -> str:
     if candidate.abstract_asked:
         return f"none found (asked: {', '.join(candidate.abstract_asked)})"
     return "none in the search record (not asked yet)"
+
+
+# The review list shows the beginning of an abstract: some repository records give a whole text as their abstract
+# (a Zenodo record: 465,682 characters), which made the list too large to open in a spreadsheet and, past the CSV
+# reader's limit of 131,072 characters a cell, impossible to read back (the download stopped before its first paper).
+# The ledger keeps every character, and screening reads them all.
+SHOWN_ABSTRACT = 10_000
+
+
+def _shown(abstract: str) -> str:
+    if len(abstract) <= SHOWN_ABSTRACT:
+        return abstract
+    return f"{abstract[:SHOWN_ABSTRACT]} … [cut: {len(abstract):,} characters in all]"
+
+
+def _no_cell_limit() -> None:
+    """Lets the CSV reader take a cell of any length (LocalExtraction lifts the limit when it is loaded; said again
+    here for a ledger used on its own)."""
+    from LocalExtraction import _no_csv_cell_limit
+    _no_csv_cell_limit()
 
 
 def _union(old: List[str], new: Iterable[str]) -> List[str]:
@@ -294,6 +317,13 @@ class Ledger:
             keys = [row["search"] for row in self._db.execute("SELECT search FROM searches")]
         return len({key.split("|")[1] for key in keys if key.count("|") >= 1})
 
+    def last_search(self) -> Optional[str]:
+        """The day of the latest keyword search answered in full ("2026-10-29"), snowballing aside; None when the
+        job was never searched."""
+        with self._lock:
+            row = self._db.execute("SELECT MAX(at) AS at FROM searches WHERE search NOT LIKE 'snowball|%'").fetchone()
+        return row["at"][:10] if row and row["at"] else None
+
     def mark_searched(self, search: str, depth: int) -> None:
         with self._lock, self._db:
             self._db.execute("INSERT OR REPLACE INTO searches (search, depth, at) VALUES (?, ?, ?)",
@@ -332,25 +362,31 @@ class Ledger:
     # ------------------------------------------------------------------
     # The review list
     # ------------------------------------------------------------------
+    # model_yes last: a spreadsheet or script that reads the columns by position is not thrown off by it.
     _REVIEW_COLUMNS = ["decision", "score", "access", "oa_status", "year", "title", "journal", "flags", "why",
-                       "doi", "key", "state", "abstract", "abstract_from"]
+                       "doi", "key", "state", "abstract", "abstract_from", "model_yes"]
 
     def write_review(self, path: str) -> int:
         """Writes the list a person checks before anything is fetched: every candidate, those still
         waiting for a decision first. Edit the `decision` column (yes/no), save, and run the fetch
         stage — `apply_decisions` reads it back. Returns the number of rows waiting."""
         rows = self.all()
-        rows.sort(key=lambda c: (c.status != SCREENED, -c.score, -c.year))
+        # Waiting first; among them, when a model of the decisions by hand guessed (learn.py), the most uncertain first.
+        rows.sort(key=lambda c: (c.status != SCREENED, abs(c.model_yes - 0.5) if c.model_yes >= 0 else 1.0,
+                                 -c.score, -c.year))
         with open(path, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             writer.writerow(self._REVIEW_COLUMNS)
             for c in rows:
-                writer.writerow([c.decision, f"{c.score:g}", c.access, c.oa_status, c.year or "", c.title, c.journal,
-                                 " ".join(c.flags), c.why, c.doi, c.key, c.status, c.abstract, abstract_basis(c)])
+                guess = f"{c.model_yes:.2f}" if c.model_yes >= 0 and c.status == SCREENED else ""
+                writer.writerow([c.decision, f"{c.score:g}", c.access, c.oa_status, c.year or "", c.title,
+                                 c.journal, " ".join(c.flags), c.why, c.doi, c.key, c.status, _shown(c.abstract),
+                                 abstract_basis(c), guess])
         return sum(1 for c in rows if c.status == SCREENED)
 
     @staticmethod
     def _read_review(path: str) -> List[Dict[str, str]]:
+        _no_cell_limit()  # a list written by an earlier version may hold a whole text in one cell
         # A spreadsheet in a French or Moroccan locale saves "CSV" with ';' between the columns, and
         # older Excel versions in Windows-1252 rather than UTF-8: accept what they produce.
         with open(path, "rb") as f:
@@ -396,7 +432,10 @@ class Ledger:
                 wanted = APPROVED if answer == YES else REJECTED
                 outcome["approved" if answer == YES else "rejected"] += 1
                 if (status, decision) != (wanted, answer):
-                    changes.append((key, {"decision": answer, "status": wanted}))
+                    change = {"decision": answer, "status": wanted}
+                    if decision != answer:  # against the proposal: a person's decision (learn.py learns from it)
+                        change["decided_by"] = "hand"
+                    changes.append((key, change))
             elif answer == "":
                 outcome["waiting"] += 1
             else:
@@ -417,6 +456,6 @@ class Ledger:
             status, decision = states.get(key, ("", ""))
             answer = read_answer(row.get("decision") or "")
             if status in (SCREENED, APPROVED, REJECTED) and answer in (YES, NO) and answer != decision:
-                changes.append((key, {"decision": answer}))
+                changes.append((key, {"decision": answer, "decided_by": "hand"}))  # changed in a spreadsheet
         self._set_many(changes)
         return len(changes)

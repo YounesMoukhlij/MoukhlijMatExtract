@@ -72,14 +72,7 @@ class OutcomeTests(Database):
         self.assertEqual((took(42), took(194), took(7300)), ("42 s", "3 min 14 s", "2 h 01 min"))
 
 
-def has_screen() -> bool:
-    if tk is None or os.environ.get("MME_NO_WINDOW_TESTS"):
-        return False
-    try:
-        tk.Tk().destroy()
-        return True
-    except tk.TclError:
-        return False
+from LocalExtraction.tests.test_gui import has_screen  # noqa: E402  (one check, made safely)
 
 
 @unittest.skipUnless(has_screen(), "the card needs a screen")

@@ -246,6 +246,25 @@ class KeywordTests(unittest.TestCase):
 
 
 class OpenAlexTests(unittest.TestCase):
+    def test_the_anchor_is_the_main_topic_only_when_most_queries_are_about_it(self):
+        sse = ["solid electrolyte ionic conductivity", "solid electrolyte activation energy", "LLZO diffusion"]
+        self.assertEqual(gd.main_topic(sse, ["solid electrolyte", "garnet"]), "solid electrolyte")
+        # A job about two families: its first topic word is one family, not what every keyword is about.
+        two = ["garnet electrolyte conductivity", "NASICON conductivity", "LATP activation energy", "NZSP diffusion"]
+        self.assertIsNone(gd.main_topic(two, ["garnet", "NASICON", "LATP"]))
+        extra = gd.extra_keywords(two, ["garnet", "NASICON"], ["ionic conductivity"], anchor=gd.main_topic(two, ["garnet", "NASICON"]))
+        self.assertIn("NASICON ionic conductivity", extra)
+        self.assertFalse(any("NASICON" in k and "garnet" in k for k in extra))
+
+    def test_a_job_file_given_saves_into_its_own_doi_list(self):
+        with tempfile.TemporaryDirectory() as folder:
+            job = Path(folder, "job.yaml")
+            job.write_text("search:\n  queries: [garnet]\n  doi_list: lists/dois_garnet.csv\n", encoding="utf-8")
+            loaded = gd.load_job(job)
+        self.assertEqual(gd.list_of(loaded, None), gd.PROJECT_HOME / "lists" / "dois_garnet.csv")
+        self.assertEqual(gd.list_of(loaded, Path("/tmp/mine.csv")), Path("/tmp/mine.csv"))  # --out wins
+        self.assertEqual(gd.list_of({}, None), gd.OUTPUT)  # no job list: the shared one
+
     def test_pages_past_the_first_only_with_a_key(self):
         pages = [{"results": [{"doi": "https://doi.org/10.1234/a"}], "meta": {"next_cursor": "page-2"}},
                  {"results": [{"doi": "https://doi.org/10.1234/b"}], "meta": {"next_cursor": None}}]

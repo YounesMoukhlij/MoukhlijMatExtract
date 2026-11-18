@@ -8,6 +8,89 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **“Get the rest with my browser…”** in the Web scraping window (and “Get them with my browser…” in the window of
+  the papers not downloaded): the papers left on the hand list, fetched with your own browser.
+  - **Opening:** the pages open in your usual browser, a batch at a time (10 by default), a moment apart.
+  - **Taking in:** the PDFs you save arrive in your Downloads folder (or another you choose). Each is moved into
+    `by_hand/` once complete and taken in: DOI read from the PDF, title checked, source recorded as “by hand”.
+    The hand list is rewritten without it, and the paper's line reads “taken in”.
+  - **Nothing else is touched:** only PDFs that arrive after the window opened and name a DOI of the list are moved.
+  - **The next batch by itself:** when every paper of a batch is taken in, left in `by_hand/` or skipped (**Skip**),
+    the next batch opens on its own (“open the next batch by itself”, ticked by default). 5 papers a batch by default:
+    a person's pace, well below what makes a publisher block a network.
+  - **Why a person stays in the loop:** the sites left (MDPI, ACS, RSC, SSRN …) refuse programs. Getting past that
+    by disguising a program would break their terms and the program's rule of legal sources only.
+
+- **The project's website** ([moukhlijmatextract.vercel.app](https://moukhlijmatextract.vercel.app)): how to use
+  the program, step by step, and an overview of the project.
+  - **Main window:** when it opens, a card at its top announces the website, with its link. It closes by itself
+    after 7 seconds, or at once with its ✕.
+  - **Every window:** the website's address is at the bottom, and a click opens it in the browser. It is in the
+    footer of the four parts and of the main window, and on a line under each dialog, table of results, guide and
+    details window.
+  - **Elsewhere:** in About & methods, in the Requirements guide and in the package's links (`pyproject.toml`).
+  - **One place to change it:** `LocalExtraction/about.py` (`WEBSITE`).
+
+- **The program's icon.**
+  - **Where it shows:** the Dock on macOS, the taskbar on Windows and the title bar on Linux, for every window, in
+    place of Tk's blank icon.
+  - **What it is:** the crystal of the windows' header on the band's navy. It ships inside the package
+    (`LocalExtraction/gui/assets/mme_icon.png`); `scripts/make_icon.py` draws it again.
+
+- **Citation snowballing** (`search.snowball`, `mme-web run --snowball`, "Follow the citations of the papers kept" in
+  Search settings…).
+  - **Backward:** the papers kept so far give, through OpenAlex, the papers they cite.
+  - **Forward:** they also give the papers citing them, the most cited first, up to `search.snowball_citing`.
+  - **Screening:** what is new is screened like any other paper and says how it was found (`snowball: cites W…`).
+  - **Repeats:** a paper snowballed is not asked again for 30 days.
+  - **Window:** the search shows the step as ③ Citations.
+- **Coverage of the corpus** (`mme-web coverage`, **Coverage…** in the Web scraping window, `make coverage`).
+  - **By job:** papers found, screened, proposed, downloaded (with the share), left without a legal copy, and
+    extracted.
+  - **By publisher:** the same counts.
+  - **Files:** `WebScraping/coverage/coverage.md` and two CSV tables, ready for an article's limitations.
+  - **Safety:** the ledgers are only read.
+- **Keeping a database current.**
+  - **`mme-web run --update`:** searches only from the year of the job's last search.
+  - **`mme-web update`:** does the same for every job run before (`make update`).
+  - **Scheduling:** the manual shows how to schedule it monthly.
+- **A database against the curated ones** (`mme-eval reference --against <results folder>`).
+  - **What is compared:** each room-temperature material of OBELiX and of the Liverpool dataset, met in the
+    database from any paper. Your median conductivity is set against theirs.
+  - **What it gives:** how many of their materials the database holds, and the share agreeing within 0.1, 0.5 and
+    1 decade.
+  - **First result:** on a copy of the web database, 84 of OBELiX's 464 materials; 63 % within 0.5 decade, 82 %
+    within 1 decade.
+- **Materials Project entries beside the ranking** (`mme-rank --materials-project`, or in the Ranking window).
+  - **Your own key:** typed hidden in the Ranking window's **Materials Project key** field, saved with **Save the
+    key**. It also appears in the Web scraping window's API keys.
+  - **What it writes:** `materials_project.csv`, with each ranked material's stability, band gap, space group and
+    link.
+  - **Matching:** by reduced formula.
+  - **The ranking itself:** unchanged.
+- **Screening that learns from your decisions.**
+  - **Training:** after 10 decisions by hand (3 yes and 3 no at least), a model of them gives each paper still
+    waiting its chance of a yes (the `model` column, `model_yes` in `candidates.csv`).
+  - **Order:** the review list puts the most uncertain first.
+  - **Accuracy:** on your own decisions (5-fold), it is written in the log.
+  - **Limits:** it decides nothing.
+  - **Who decided:** the ledger records which decisions were a person's (`decided_by`).
+- **Crash reports.**
+  - **Where:** an error the program did not expect is written to `~/MoukhlijMatExtract/logs/crash_<date>.log`, and
+    the message says where.
+  - **What it holds:** the version, the command, Python, Tk, the system and the traceback.
+  - **Coverage:** every command and every window.
+- **A publishing workflow** (`.github/workflows/publish.yml`).
+  - **Trigger:** a tag `vX.Y.Z` builds and checks the package (it stops if the tag is not the version), uploads it
+    to TestPyPI, then to PyPI once approved.
+  - **Before it can upload:** it needs the trusted publisher set on PyPI (docs/PUBLISHING.md § 6).
+- **Every shipped job file checked by the tests.**
+  - **Loading:** it loads, with queries and words to screen with.
+  - **Folders:** its own folders and DOI list.
+  - **Queries:** no query twice.
+  - **E-mail:** no personal e-mail.
+  - **Version:** the version is checked to be the same in `pyproject.toml` and `CITATION.cff`.
+
 - **Every command in one, and its manual.**
   - **`mme`:** `mme help` lists every command, `mme commands` prints every option of every command, and
     `mme <part> …` runs a part (`mme local`, `mme web run`, `mme rank`, `mme eval score` …). It is installed with
@@ -62,8 +145,272 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 - **Cs+ and Rb+** are recognised as mobile ions.
 - `docs/LIMITATIONS.md` § 2 gives a first measurement of the precision of the activation energies on papers that
   were not used to write the rules (37–41 % fully correct, 57–62 % counting doubtful cases), and what limits it.
+- **Papers to download by hand.**
+  - **The list:** every download lists the papers it could not get in `to_download_by_hand.csv` (papers folder),
+    with the link, the reason and what to do.
+  - **The window:** a window shows the same list (*Papers not downloaded automatically*), and the result card
+    reopens it.
+  - **The intake:** a PDF saved from the link into `by_hand/` is taken in by the next download — matched by DOI and
+    title — with its source recorded.
+- **Sites that refuse programs:** a site that answers HTTP 403 three times in a row is not asked again in the run,
+  and its papers lose no try. Redirectors (`doi.org`) are never blocked.
+- **`configs/garnet_nasicon.yaml`:** a job for garnet and NASICON solid electrolytes only.
+- **`docs/EVALUATION_PROTOCOL.md`:** the held-out evaluation for the garnet/NASICON study, written before the draw.
+  `scripts/audit/heldout_source.py` makes the copy of a database without the papers already used.
+- **`docs/MANUAL.md` § 12:** the environment variables the commands read.
+
+- **Checking the values by hand — the Verify tab** (windows 1 and 2):
+  - **What it shows:** each activation energy beside the page of the PDF it was read from, its sentence marked.
+  - **The order:** the values the Arrhenius cross-check disputes first, then those the extraction flagged, then
+    the lowest energies.
+  - **Verdicts:** correct (c), wrong (w), or corrected (e: material, number, kind, component, origin,
+    attribution), with an undo.
+  - **Where they are kept:** `~/MoukhlijMatExtract/Verification/<database>.csv` (`LocalExtraction/verification.py`),
+    outside the database, so a rebuild never loses them.
+  - **In the ranking:** a value marked wrong takes no part, a corrected one takes part as corrected, and
+    `--verified-only` (the window's "Verified values only") ranks the checked values alone. The checks are part of
+    the ranking's fingerprint.
+- **The windows show what a reader needs to judge a value:**
+  - **The Activation energies tab:** each value's kind of energy, component, origin, attribution, mobile ion,
+    confidence, the extraction's flag ("look at it?", in orange), the hand check and the Arrhenius result. The
+    line above counts the values to look at, those checked by hand and those the Arrhenius check disputes.
+    Double-clicking a row shows everything about it.
+  - **The card of an extraction:** says how many new values need a look, which kinds of energy were found, and
+    goes on to the Verify tab.
+  - **The main window:** each database's line says how many of its values were checked by hand.
+- **The Arrhenius cross-check** (`LocalExtraction/arrhenius.py`):
+  - **What it does:** a paper's conductivities at several temperatures give an activation energy (ln σT and ln σ
+    fits). It is compared with the value the paper reports.
+  - **When it is uncertain:** cited values, room temperature alone, and conductivities that fall with temperature
+    are left unchecked.
+  - **Where it shows:** "Arrhenius fit disagrees" among a material's checks, `arrhenius_check` beside each value,
+    and `python -m LocalExtraction.arrhenius <database>`.
+  - **On the current web database:** 11 values checkable, 6 inconsistent — among them a NASICON value read as
+    2.4 eV where its paper's conductivities give 0.30 eV.
+- **How sure each rank is:**
+  - **Rank intervals:** 1,000 resamplings of every material's values (fixed seed; `--bootstrap N`) give
+    `rank_95`, the 95 % interval of each rank, and `p_top10`, the share of resamplings that put it in the top 10.
+  - **Evidence tier:** A (3 values or more from 2 papers or more), B (2 values or more) or C (a single value).
+  - **Where they show:** in every table, the report and the window, and on the card ("5 of the first 10 stay in
+    the top 10 in 90 % of the resamplings").
 
 ### Fixed
+
+- **A download spent a day retrying papers Semantic Scholar had refused.**
+  - **The cause:** after three “too many requests” (HTTP 429), the download stops asking Semantic Scholar for the
+    run. Every later paper without a copy was then marked “waiting: refused by Semantic Scholar” and retried at the
+    end, one after another, up to 30 s apart, in four rounds: 900 papers took about 7.5 hours a round.
+  - **What Semantic Scholar adds:** an arXiv version or a repository copy, which the other services mostly know
+    already. Of 30 such papers, 2 had a green copy and none an arXiv version.
+  - **Now:** a paper only Semantic Scholar refused is filed with what the other services answered. It goes on
+    `to_download_by_hand.csv` with its real reason, the try does not count, and the next download asks again.
+    A paper another service refused too still waits for the rounds.
+  - **A budget per round:** a round at the end takes at most 30 minutes of spacing, the least-tried papers first.
+    The others stay on the watch list for the next “3 · Download”, which says so.
+
+- **The download stopped before its first paper** with `field larger than field limit (131072)`.
+  - **The cause:** some repository records (Zenodo, DataCite) give a whole text as their abstract: up to 465,682
+    characters. The review list (`candidates.csv`) then held cells Python's CSV reader refuses, and reading it is
+    the download's first step.
+  - **Reading:** the program now reads cells of any length, everywhere it reads a CSV file.
+  - **Writing:** the review list shows the first 10,000 characters of an abstract, marked as cut. The ledger keeps
+    every character, and screening reads them all.
+- **Python no longer quits unexpectedly when a window is stopped.**
+  - **The trigger:** Ctrl-C in the terminal, closing the terminal, or a request to stop (SIGTERM) while a window was
+    open.
+  - **The crash:** Tk's signal handler shut the window down from whatever thread the signal reached, and Python
+    stopped with a fatal error (macOS: "Python quit unexpectedly").
+  - **Measured:** 9 times out of 10 with a step running.
+  - **Now:** the window's loop ends and the window is closed cleanly; 10 times out of 10 measured.
+- **A scrolling area no longer loops.**
+  - **Window size:** in a window sized by its content, the scroll bar appeared, the window grew, the bar went, the
+    window shrank, without end. The window never settled, and Tk ran out of stack and crashed.
+  - **Wrapped text:** the bar narrowed the content, text wrapped onto more lines and the bar stayed; without the bar
+    the text took fewer lines and the bar went, without end. The window froze. The content now keeps its width
+    whether the bar shows or not.
+  - **Closing:** a resize Tk delivered while a window closed no longer raises an error ("Something went wrong").
+- **The test suite no longer crashes Python under Tk 9** (Homebrew's Python).
+  - **The cause:** checking for a screen made a window and destroyed it at once. Tk 9 was left a "show it" step for
+    a window that was gone, and the next window of the run crashed Python.
+  - **Now:** the check is made once, safely, and every test's window finishes Tk's pending work before it is
+    destroyed.
+- **The API keys are kept in `~/MoukhlijMatExtract/.env`.**
+  - **The problem:** they were inside the installed package, where `pip install --upgrade` deleted them, and where
+    a Python installed for every user could not save them.
+  - **Carried over:** keys saved by an earlier version are copied there once, readable by their owner only; the old
+    file is left as it was.
+  - **The tests:** they never read a person's keys.
+- **Ranking and Classification check the main folder first.** A step started after `~/MoukhlijMatExtract` was
+  deleted asks to make it again, as the extraction windows do. Before, the ranking failed to write its files, and the
+  classification read from a folder that was gone.
+- **Windows that fit any screen, with areas to resize.**
+  - **Size:** every window and dialog opens sized for the screen it is on: larger on a large screen, never beyond
+    what the menu bar and the dock or taskbar leave, with a minimum the screen can hold. A main window opens centred;
+    a dialog opens over the window it belongs to.
+  - **Lines to drag:** the controls and the tabs (Local extraction, Web scraping, Classification); the ranking's two
+    columns of settings; the Verify tab's details and page. A line dragged by hand stays where it was put.
+  - **Scrolling:** controls that do not fit scroll, with the mouse wheel or a bar that shows only when needed; the
+    main window does the same.
+  - **Ranking:** its file buttons have a line of their own, so a narrow window no longer cuts "Open the report"
+    and "Open the workbook".
+  - **Tests:** the window tests now check that a control is really drawn in view, not merely laid out.
+- **No personal e-mail in a shipped job file:** `configs/garnet_nasicon.yaml` carried a contact e-mail. Every user
+  would have sent their OpenAlex, Crossref and Unpaywall requests under it. A test now checks each shipped job
+  file.
+- **Two materials of one table are two values to check.** A value is now known by its paper, page, sentence, number
+  and material. Before, the rows of a table share its caption as their sentence, so two materials with the same
+  energy shared one check: marking one wrong also left the other out of the ranking, and the Verify tab listed
+  only one of them (17 of 915 values were hidden on a real database). No check made before is affected: the
+  identity changes only for values that were checked by hand.
+- **The Verify tab in a small window:** the counts line has a line of its own (beside the filters it wrapped into
+  a column one letter wide that pushed the list out of view); the list and the page share the width; the buttons
+  keep their room when the window is short. The Web scraping window's minimum size is now 960 × 760, so the tabs
+  under the step buttons are never left without room.
+- **The Ranking window in a short window:** a divider separates the settings and the card of the last ranking from
+  the ranked materials. The tables keep half the height, and the Rank button stays in view. At 1000 × 640 the
+  table had no room left.
+- **Classification:** the buttons have a line of their own and the database boxes wrap four to a line, so a
+  database per job file no longer pushes "Open the results folder" out of the window.
+- **The main window:** each part's description wraps to the room it has, rather than being cut at the card's
+  edge. The smallest size holds all four cards and the footer, as far as the screen allows.
+- **A file that is not a PDF** (an HTML page saved as `.pdf`, a download cut short at its start) is reported as
+  "it does not open as a PDF — the file is damaged or is not a PDF; download it again" instead of PyMuPDF's
+  internal message.
+- **About & methods** states the exact rule for a PDF that is not the paper (two pages or 1,500 characters at
+  least; the title in the first three pages when the text has 800 characters or more; scans are not checked).
+- **README:** the first start is described as it happens. The main window offers to make the folder; a terminal
+  command makes it on its own.
+- **Fetch DOIs:** a job's extra keywords are anchored on its main topic only when most of its queries are about it.
+  The garnet/NASICON job no longer appends "garnet" to every NASICON keyword.
+- **One DOI list per job:** `mme-dois --job X` saves into X's `doi_list`, and `mme-web run --dois` reads it.
+  Before, both used the shared `dois.csv`, so two jobs' DOIs mixed.
+- **A job file named on the command line** (`--job configs/my_job.yaml`) is found in the folder the command was
+  started from when it is not in `~/MoukhlijMatExtract`.
+- **No waiting on services that are down:** a paper refused only by services that did not answer at all is left
+  for the next run. Before, the watcher's rounds waited up to 32 minutes for it.
+- **The same papers give the same files:** tables and `database.json` are written in paper order, not in the order
+  the workers finished the papers, so a release's checksums can be reproduced.
+- **The tracked job files** no longer carry a personal e-mail (the window's `MME_EMAIL` is used).
+- **One database per job:** without `--output`, `mme-web` and the Web scraping window extract a job's papers into
+  the job's own results folder, beside its PDF folder: `WebScraping/web_output` for `WebScraping/papers`,
+  `WebScraping/web_output_<name>` for `WebScraping/papers_<name>`. Before, every job went into
+  `WebScraping/web_output`, so a second job's papers were added to the first job's database. A folder chosen by hand,
+  or with `--output`, is kept.
+- **The windows (full review of the GUI):**
+  - **Papers saved by hand:** “3 · Download” now runs when the only work left is a PDF in the `by_hand` folder.
+    Before, it said "nothing to download" and never took the PDF in. The card counts the PDFs taken in.
+  - **Rankings and classes written from a window are recorded** like those of `mme-rank` and `mme-classify`:
+    `.mme_done.json` and `run_manifest.json`. Before, a command run with the settings of an earlier ranking said
+    "Already ranked — skipped" over the files a window had rewritten with other filters.
+  - **The ranking window has the filters of `mme-rank`:** the kind of energy (`--kind`), the flagged values
+    (`--include-flagged`) and the classes of a domain (`--domain`). It can now make the ranking of the screening
+    (experimental, own work, Arrhenius values).
+  - **Evaluate…:** each results folder has its own workbook and scores. A job's database
+    (`web_output_<name>`) uses `annotation_web_<name>.xlsx` and `scores_web_<name>/`. Before, the scores of one
+    database were shown, and could be scored again, as those of another.
+  - **Search settings:** “Reset to defaults” keeps the job's name, PDF folder, DOI list and domain. Before, it
+    put back the default job's, so a saved reset made the job share the default DOI list. The form shows the job's
+    own PDF folder, not the default one.
+  - **Delete outputs…** in the Web scraping window offers the job's own DOI list, PDF folder and results folder.
+  - The ranking and classification windows offer the other jobs' databases (`WebScraping/web_output_<name>`)
+    without ticking them.
+  - The list of papers to get by hand is among the window's CSV files. No message box opens when every paper a
+    download missed was got on a later round.
+  - **Papers refused for too many requests (HTTP 429)** are now tried again at the end of the download one
+    after another, spaced by the slowest pace a service asked for (Semantic Scholar: 30 s), instead of in
+    parallel. A line of the Web scraping window says how many wait, which services refused them, the pace they
+    asked for and the round. The line stays on the download's card, and what is still refused is left for the
+    next download.
+  - **Re-screen with the settings…** (the Candidates tab) and `mme-web run --rescreen` decide again the papers
+    screened before and not downloaded yet, with the job's settings of now. Before, a setting changed after a
+    search ("Also keep papers no free copy is known for", a word) applied only to papers found later.
+    `configs/garnet_nasicon.yaml` now keeps the papers no free copy is known for (`propose_closed: true`).
+  - **Screening finds a formula however a title writes it:** with spaces (`Li 7 La 3 Zr 2 O 12`, as Crossref gives
+    sub-scripted titles), with subscript digits (`Li₇La₃Zr₂O₁₂`) or with `<sub>` tags. A part of a formula
+    (`La3Zr2O12`, `Si2PO12`) also finds the doped members of its family (`Li6.4Ga0.2La3Zr2O12`). Formula words keep
+    their case. Other words match exactly as before (checked on 53,618 papers: no difference). Screening is about 7
+    times faster, which a re-screen of tens of thousands of papers needs.
+  - **`configs/garnet_nasicon.yaml`:** 60 more garnet and NASICON topic words (LLZ, LLZNO, LALZO, LGLZO, LZP, LCZP,
+    LAGTP, the names with British spellings, doped formulas and the parts of each family's formula). Measured on the
+    47,845 papers of the garnet/NASICON ledger (a copy): a re-screen alone proposes 720 more papers (screened before
+    with an older word list), the formula matching 35 more, the new words 25 more, and `propose_closed` 2,127 more.
+  - **`configs/garnet_nasicon.yaml`, more searches:** 86 more queries (304 in all): the other garnets (Ta, Nb, Te,
+    Hf, Sn and alkaline-earth members), each dopant of LLZO and the cubic phase, processing that changes transport,
+    stability in air (Li+/H+ exchange, Li2CO3), the NASICON sodium dopants and Na-rich phases, the lithium members
+    other than LATP and LAGP, the crystal chemistry of NASICON transport, and the methods used on both families
+    (NMR, muon spin relaxation, tracer diffusion, BVSE, neutron diffraction). Four more formula parts for the
+    screening (La3Zr1, Te2O12, Zr2Si, Ge2(PO4)3): 9 more papers proposed on the same ledger.
+  - **One job per family of solid electrolytes:**
+    - The 12 families: garnet, NASICON, LISICON / thio-LISICON, LGPS-type, argyrodite, thiophosphate glasses and
+      glass-ceramics, perovskite (LLTO), anti-perovskite, halide / oxyhalide, complex hydride / closo-borate,
+      β-alumina, and LiPON / oxide glasses.
+    - Each family has its own queries (86–273: hand-written ones about its chemistry, and each of its main names with
+      every transport measurement and method), its own topic words (names, abbreviations, formulas and the parts of
+      formulas that find the doped members), and exclusion words for its usual noise (halide-perovskite solar cells,
+      hydrogen storage, mineral garnets, …).
+    - Each family has its own DOI list, PDF folder and database.
+    - They ship in `WebScraping/averageScrap/families/` and are copied into `~/MoukhlijMatExtract/configs/` when
+      missing. `scripts/families/make_family_jobs.py` writes them from one description per family.
+    - `configs/garnet_nasicon.yaml` now holds every garnet and NASICON query: 532.
+    - **Eight more families** (20 in all):
+      - `nitride` (Li3N, nitridophosphates, nitridosilicates, amides and imides);
+      - `fluoride` (Li/Na fluorides, oxyfluorides, the fluoride-ion conductors);
+      - `mixed_anion` (oxysulfides, sulfide-halides such as Li7P2S8I, nitride-halides);
+      - `oxide_chemistry` (niobates, tantalates, zirconates, aluminates, borates, silicates, germanates, tungstates,
+        molybdates);
+      - `oxide_structure` (spinel, pyrochlore, scheelite, brownmillerite, olivine-related);
+      - `polymer` (PEO and other polyethers, polycarbonates, gels, single-ion and block-copolymer electrolytes);
+      - `hybrid` (polymer-ceramic composites, MOF, COF, plastic crystals, ionogels);
+      - `multivalent` (Mg²⁺, Ca²⁺, Zn²⁺, Al³⁺, Sc³⁺ conductors).
+    - **Each family job also asks for:**
+      - the older names of fast ion conduction ("fast ion conductor", "superionic conductor");
+      - the transport mechanisms (concerted migration, vacancy and interstitial mechanisms, paddle-wheel, percolation,
+        bottleneck size), with matching property words.
+    - **Each job states its kind**, so crystal-structure types, chemical families, composition systems, material
+      classes and mobile-ion groupings stay apart. It also states its prototype and space groups.
+      `docs/FAMILIES.md` lists them all.
+    - **Screening:** a formula word is no longer found inside another element. `Li3N` does not match `Li3NbO4`.
+      Spaces before a word are kept when formulas are joined back together. On the garnet/NASICON ledger, one paper
+      fewer is proposed.
+    - **`configs/` and `docs/` in the user's folder.**
+      - The repository's `configs/` (all 16 job files) and `docs/` (the user's documents) are the only copies.
+        The build copies them into the package (`setup.py`, `MANIFEST.in`), and the duplicate `default_*_job.yaml`
+        files and the `families/` folder are gone.
+      - On start, every command and window copies them into `~/MoukhlijMatExtract/configs` and
+        `~/MoukhlijMatExtract/docs`. A job file is made only when missing, never written over; a document is brought
+        up to date. `docs/PUBLISHING.md`, for the maintainer, is not copied.
+    - **The main window looks after that folder:**
+      - A line under “Create / Open the main results folder” says what is missing, if anything: the folder, job
+        files, documents.
+      - **Restore the job files** makes them again; a job file you edited is kept.
+      - **Open the documents** opens `docs/`.
+      - At start, and before a part opens, a small window warns when the folder or its job files are missing, and
+        offers to make them. Answering “No” leaves the part closed.
+    - **`~/MoukhlijMatExtract` deleted while a window is open:** the next step of the Web scraping or Local extraction
+      window says so and offers to make it again (the folders, job files and documents), then goes on in it. The web
+      window opens a new ledger there. Before, the step worked on in the deleted folder, and its ledger was lost.
+    - **`make` keeps the developer's `.venv` up to date:** when `pyproject.toml` or `setup.py` changes (a new part),
+      the next `make gui`, `make web`, … registers the package again (`pip install --no-deps -e .`, nothing
+      downloaded), so `mme-gui` keeps working from any folder.
+    - **A fresh install gets every job file:** “Create the main results folder” (hub), the Web scraping window,
+      `mme-web` and `mme-dois` all make `~/MoukhlijMatExtract/configs/` with every shipped job. A shipped job named
+      before it exists (`mme-web run --job configs/halide.yaml`) is made first, and is extracted into its own
+      `web_output_halide`.
+  - **A new look for every window:**
+    - a header band with the program's emblem (a crystal unit cell), the window's title, what it does and the version;
+    - bordered cards with a status line for each part in the hub ("database: 647 papers, …");
+    - striped tables with bold headings;
+    - a footer that states what the program commits to (legal sources only, each value traced to its sentence and
+      page, each run recorded).
+  - **About & methods** (hub, every window and their footer) shows, from the program itself:
+    - the version, the commit and the licence;
+    - how to cite it (from `CITATION.cff`, with BibTeX);
+    - the method step by step, and the rules on sources and records;
+    - the accuracy measured on this computer, from the evaluations scored here (with their 95 % intervals), and
+      "not measured yet" when there are none;
+    - the environment, as a run records it, with a button to copy it for a Methods section.
+  - **The Activity tab holds every line of a step:** what the engine logs while a step of the window runs (Fetch
+    DOIs, the search, the download, the extraction) is shown there as well as in the strip at the bottom.
 
 - `make help` no longer lists options `mme-eval reference` does not have (`ESTIMATE=`, `GOLD=`, `PDFS=`, `OUT=`).
 - `mme-local gui --domain` is passed to the window's extraction.

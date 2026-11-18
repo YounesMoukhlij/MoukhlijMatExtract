@@ -2,6 +2,7 @@
 """The activation energies of a folder of results, as it holds them."""
 
 import os
+from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING, Callable, Optional
@@ -16,12 +17,15 @@ from .widgets import Table, WrapLabel, open_path
 if TYPE_CHECKING:
     from .window import Window
 
-# (column of activation_energy.csv, heading, width) — the ones worth a glance; a double click shows all.
+# (column of activation_energy.csv, heading, width) — the ones worth a glance; a double click shows all. "checked"
+# (a person's verdict, the Verify tab) and "arrhenius" (the cross-check) are worked out when the table is shown.
 _COLUMNS = (
-    ("material_formula", "material", 140), ("activation_energy_eV", "Ea (eV)", 58), ("extracted_from", "from", 54),
+    ("material_formula", "material", 140), ("activation_energy_eV", "Ea (eV)", 58), ("energy_kind", "kind", 100),
+    ("transport_component", "component", 84), ("data_origin", "origin", 84), ("attribution", "result of", 66),
+    ("mobile_ion", "ion", 40), ("checked", "checked", 70), ("arrhenius", "Arrhenius", 88),
+    ("needs_check", "look at it?", 150), ("confidence", "conf.", 48), ("extracted_from", "from", 54),
     ("page", "page", 42), ("reported_as", "called", 104), ("structure", "structure", 104),
-    ("temperature", "temperature", 104), ("data_origin", "origin", 84), ("transport_component", "component", 84),
-    ("attribution", "result of", 66), ("n_assumed", "assumed", 60), ("title", "article", 260),
+    ("temperature", "temperature", 104), ("n_assumed", "assumed", 60), ("title", "article", 260),
 )
 
 
@@ -58,15 +62,33 @@ class EnergiesView(ttk.Frame):
         ttk.Button(bar, text="Refresh", command=self.show).pack(side="right", padx=4)
         WrapLabel(bar, textvariable=self.count, wraplength=300).pack(side="left", fill="x", expand=True)
         self.table = Table(self, _COLUMNS, on_open=self._details, stretch="title")
+        self.table.tag("flag", foreground="#d97706")  # the extraction asks for a look
         self.table.pack(fill="both", expand=True)
 
     def show(self) -> None:
         """Reads the folder again and shows its activation energies."""
         folder = self._output_dir()
         rows = database.activation_energies(folder)
+        verified = disputed = flagged = 0
+        if len(rows) and folder:
+            from ..arrhenius import INCONSISTENT, NOT_CHECKABLE, cross_check
+            from ..verification import Verifications, row_id
+            store, checks = Verifications.of(Path(folder)), cross_check(Path(folder))
+            ids = [row_id(row) for row in rows.astype(str).to_dict("records")]
+            verdicts = [store.get(key) for key in ids]
+            tests = [checks.get(key) for key in ids]
+            rows = rows.assign(checked=[v.verdict if v else "–" for v in verdicts],
+                               arrhenius=[t.status if t and t.status != NOT_CHECKABLE else "" for t in tests],
+                               arrhenius_check=[t.text if t else "" for t in tests])
+            verified = sum(1 for v in verdicts if v)
+            disputed = sum(1 for t in tests if t and t.status == INCONSISTENT)
+            flagged = int(rows["needs_check"].astype(str).str.lower().str.startswith("yes").sum()) \
+                if "needs_check" in rows else 0
         self._rows = rows
         shown = [name for name, _, _ in _COLUMNS]
-        self.table.fill([(str(index), [row.get(name, "") for name in shown], ()) for index, row in rows.iterrows()])
+        self.table.fill([(str(index), [row.get(name, "") for name in shown],
+                          ("flag",) if str(row.get("needs_check", "")).lower().startswith("yes") else ())
+                         for index, row in rows.iterrows()])
         articles = len(database.table(folder, "papers"))
         if folder and StrictExporter.is_outdated(folder):
             self.count.set(f"{folder} holds a database of an earlier version: it is rebuilt (its files kept aside) "
@@ -76,14 +98,15 @@ class EnergiesView(ttk.Frame):
         else:
             giving = rows["paper_id"].nunique() if len(rows) else 0
             self.count.set(f"{folder}: {articles} article{'s' if articles != 1 else ''} read, {len(rows)} activation "
-                           f"energies from {giving} of them (double-click a row: its sentence)")
+                           f"energies from {giving} of them · {flagged} to look at · {verified} checked by hand · "
+                           f"{disputed} disputed by the Arrhenius check (double-click a row: everything about it)")
 
     def _details(self, identifier: str) -> None:
         if self._rows is None:
             return
         row = self._rows.iloc[int(identifier)]
-        first = ("material_formula", "activation_energy_eV", "reported_as", "extracted_from", "page", "sentence",
-                 "basis", "source", "title")
+        first = ("material_formula", "activation_energy_eV", "energy_kind", "checked", "arrhenius_check", "needs_check",
+                 "reported_as", "extracted_from", "page", "sentence", "basis", "source", "title")
         pairs = [(name, row[name]) for name in first if name in row] + [
             (name, value) for name, value in row.items() if name not in first]
         DetailsDialog(self, f"{row.get('material_formula', '')}: {row.get('activation_energy_eV', '')} eV", pairs)

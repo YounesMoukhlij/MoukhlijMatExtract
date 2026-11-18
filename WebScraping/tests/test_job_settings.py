@@ -16,7 +16,8 @@ try:
 except ImportError:  # pragma: no cover
     tk = None
 
-SHIPPED = os.path.join(os.path.dirname(os.path.dirname(__file__)), "averageScrap", "default_job.yaml")
+SHIPPED = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "configs",
+                       "sse.yaml")
 
 
 def comment_lines(text: str):
@@ -72,14 +73,7 @@ class FileTests(Folder):
         self.assertEqual(LIMITS["workers"], (1, 8))
 
 
-def has_screen() -> bool:
-    if tk is None or os.environ.get("MME_NO_WINDOW_TESTS"):
-        return False
-    try:
-        tk.Tk().destroy()
-        return True
-    except tk.TclError:
-        return False
+from LocalExtraction.tests.test_gui import has_screen  # noqa: E402  (one check, made safely)
 
 
 @unittest.skipUnless(has_screen(), "the window needs a screen")
@@ -112,7 +106,9 @@ class FormTests(Folder):
         form._save(self.path)
         self.assertEqual(self.saved, [self.path])
         self.assertEqual(load_job(self.path), before)
-        self.assertEqual(len(comment_lines(self.read())), 46)  # the 45 of the shipped file + the first line
+        with open(SHIPPED, encoding="utf-8") as f:
+            shipped = len(comment_lines(f.read()))
+        self.assertEqual(len(comment_lines(self.read())), shipped + 1)  # every comment of the shipped file + the first line
         self.assertEqual([a for a in self.asked if a[0] != "askyesno"], [])
 
     def test_a_change_is_saved_with_the_heading_typed_for_it(self):
@@ -205,8 +201,7 @@ class DomainJobTests(unittest.TestCase):
     def test_each_shipped_job_names_its_domain_and_its_own_folders(self):
         here = os.path.dirname(SHIPPED)
         seen = {}
-        for name, domain in (("default_job.yaml", "electrolyte"), ("default_cathode_job.yaml", "cathode"),
-                             ("default_anode_job.yaml", "anode")):
+        for name, domain in (("sse.yaml", "electrolyte"), ("cathode.yaml", "cathode"), ("anode.yaml", "anode")):
             with self.subTest(name=name):
                 job = load_job(os.path.join(here, name))
                 self.assertEqual(job.extract.domain, domain)
@@ -229,14 +224,77 @@ class DomainJobTests(unittest.TestCase):
         folder = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, folder, True)
         ensure_default_job(os.path.join(folder, "configs", "sse.yaml"))
-        self.assertEqual(sorted(os.listdir(os.path.join(folder, "configs"))), ["anode.yaml", "cathode.yaml", "sse.yaml"])
+        from WebScraping.averageScrap.about import FAMILY_JOBS
+        self.assertEqual(sorted(os.listdir(os.path.join(folder, "configs"))),
+                         sorted(["anode.yaml", "cathode.yaml", "sse.yaml", *(f"{f}.yaml" for f in FAMILY_JOBS)]))
         self.assertEqual(load_job(os.path.join(folder, "configs", "cathode.yaml")).extract.domain, "cathode")
+
+    def test_a_shipped_job_named_before_it_exists_is_made_from_the_package(self):
+        """A fresh install: `mme-web run --job configs/halide.yaml` (or Fetch DOIs, or the window) finds the job the
+        package ships, copied into configs/ with all the others; a job that is not shipped is not invented."""
+        from WebScraping.averageScrap.about import starter_job
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        path = os.path.join(folder, "configs", "halide.yaml")
+        self.assertEqual(starter_job(path), path)
+        self.assertEqual(load_job(path).name, "halide")
+        self.assertTrue(os.path.exists(os.path.join(folder, "configs", "sse.yaml")))  # the others with it
+        from WebScraping.averageScrap import cli
+        fresh = os.path.join(folder, "fresh")
+        seen = []
+        with mock.patch.object(cli, "enter_project_home", side_effect=lambda *parts: os.makedirs(fresh, exist_ok=True)
+                               or os.chdir(fresh)), mock.patch.object(cli, "run_web", side_effect=lambda a: seen.append(
+                                   (a.job, a.output)) or 0), mock.patch.object(cli, "rebuild_if_asked"), \
+                mock.patch.object(cli, "print_banner"):
+            here = os.getcwd()
+            self.addCleanup(os.chdir, here)
+            elsewhere = tempfile.mkdtemp()
+            self.addCleanup(shutil.rmtree, elsewhere, True)
+            os.chdir(elsewhere)  # started from a folder with no configs/ of its own, as a fresh user is
+            cli.main(["run", "--job", os.path.join("configs", "lgps.yaml")])
+        self.assertEqual(seen, [(os.path.join("configs", "lgps.yaml"), os.path.join("WebScraping", "web_output_lgps"))])
+        mine = os.path.join(folder, "configs", "my_own.yaml")
+        self.assertEqual(starter_job(mine), mine)
+        self.assertFalse(os.path.exists(mine))
+
+    def test_making_the_main_results_folder_makes_the_job_files_too(self):
+        from mme_gui import hub
+        from LocalExtraction import about
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        home = os.path.join(folder, "MoukhlijMatExtract")
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        with mock.patch.object(about, "PROJECT_HOME", __import__("pathlib").Path(home)):
+            hub.home_ready()
+        self.assertIn("garnet_nasicon.yaml", os.listdir(os.path.join(home, "configs")))
+
+    def test_each_family_of_electrolytes_has_its_own_job(self):
+        """One job per family (garnet, NASICON, LISICON, …), each with its own DOI list, PDF folder and database, its
+        own topic words, and no excluded word among them."""
+        from WebScraping.averageScrap.about import FAMILY_JOBS, output_for
+        shipped = os.path.dirname(SHIPPED)
+        folders, lists = set(), set()
+        for family in FAMILY_JOBS:
+            job = load_job(os.path.join(shipped, f"{family}.yaml"))
+            self.assertEqual(job.name, family)
+            self.assertEqual(job.fetch.folder, os.path.join("WebScraping", f"papers_{family}"))
+            self.assertEqual(output_for(job), os.path.join("WebScraping", f"web_output_{family}"))
+            self.assertTrue(job.search.doi_list.endswith(f"dois_{family}.csv"))
+            self.assertTrue(job.screen.propose_closed)
+            self.assertGreaterEqual(len(job.search.queries), 80, family)
+            self.assertGreaterEqual(len(job.screen.topic_words), 15, family)  # oxide_structure: few names exist
+            self.assertFalse({w.lower() for w in job.screen.topic_words} & {w.lower() for w in job.screen.exclude_words})
+            self.assertEqual(len({q.lower() for q in job.search.queries}), len(job.search.queries), family)
+            folders.add(job.fetch.folder)
+            lists.add(job.search.doi_list)
+        self.assertEqual((len(folders), len(lists)), (len(FAMILY_JOBS), len(FAMILY_JOBS)))  # never shared
 
     def test_saving_a_job_keeps_its_domain(self):
         folder = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, folder, True)
         path = os.path.join(folder, "cathode.yaml")
-        shutil.copyfile(os.path.join(os.path.dirname(SHIPPED), "default_cathode_job.yaml"), path)
+        shutil.copyfile(os.path.join(os.path.dirname(SHIPPED), "cathode.yaml"), path)
         headings, notes = read_comments(path)
         text = dump_job(load_job(path), headings, notes)
         with open(path, "w", encoding="utf-8") as f:

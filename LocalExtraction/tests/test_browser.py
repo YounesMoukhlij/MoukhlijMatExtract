@@ -4,7 +4,6 @@ search over all of them, and every cell of the selected row. Offline, in a folde
 window tests need a screen."""
 
 import csv
-import os
 import shutil
 import tempfile
 import unittest
@@ -58,14 +57,7 @@ class PartTests(Home):
             part_tables("nothing", self.home)
 
 
-def has_screen() -> bool:
-    if tk is None or os.environ.get("MME_NO_WINDOW_TESTS"):
-        return False
-    try:
-        tk.Tk().destroy()
-        return True
-    except tk.TclError:
-        return False
+from LocalExtraction.tests.test_gui import has_screen  # noqa: E402  (one check, made safely)
 
 
 @unittest.skipUnless(has_screen(), "the window needs a screen")

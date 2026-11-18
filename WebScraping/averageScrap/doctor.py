@@ -75,7 +75,7 @@ def report(job: Job, client: PoliteClient, probe_doi: str = "", papers_csv: str 
     if elsevier is None:
         lines.append((False, "Elsevier: ELSEVIER_API_KEY is not set, so Elsevier papers can only come from open copies. "
                              "Get a free key at https://dev.elsevier.com/ (while on your university's network), then put "
-                             "ELSEVIER_API_KEY=... in WebScraping/averageScrap/.env"))
+                             "ELSEVIER_API_KEY=... in ~/MoukhlijMatExtract/.env"))
     else:
         doi = probe_doi or _probe_doi(papers_csv)
         if not doi:
@@ -92,7 +92,7 @@ def report(job: Job, client: PoliteClient, probe_doi: str = "", papers_csv: str 
         if wiley is None:
             lines.append((False, "Wiley: WILEY_TDM_TOKEN is not set, so Wiley papers can only come from other copies. "
                                  "A token is free: sign in at https://onlinelibrary.wiley.com/library-info/resources/"
-                                 "text-and-datamining, then put WILEY_TDM_TOKEN=... in WebScraping/averageScrap/.env"))
+                                 "text-and-datamining, then put WILEY_TDM_TOKEN=... in ~/MoukhlijMatExtract/.env"))
         else:
             ok, text = wiley.check(client, _WILEY_TEST_DOI)
             lines.append((ok, f"Wiley: {text}"))
@@ -146,7 +146,7 @@ def _search_services(job: Job, client: PoliteClient, probed: List[str]) -> List[
                 if signup else "Then "
             value = "yes" if source.key_name == "BASE_ACCESS" else "..."
             lines.append((False, f"{source.label}: {source.key_name} is not set, so it is skipped. "
-                                 + how + f"put {source.key_name}={value} in WebScraping/averageScrap/.env"))
+                                 + how + f"put {source.key_name}={value} in ~/MoukhlijMatExtract/.env"))
             continue
         works = "the key works" if source.key else "reachable"
         lines.append(_try(source.label, works, lambda: next(iter(source.search("solid electrolyte", None, 1)), None)))

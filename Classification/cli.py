@@ -29,6 +29,30 @@ from .classify import COMPONENT_WORDS, NO_FAMILY
 from .database import AXES, BY_COMPONENT, classify, partly_rebuilt, read, write
 
 
+def classify_stamp(sources) -> str:
+    """The fingerprint of a classification: the databases read and this code."""
+    return fingerprint([source.path for source in sources], {"sources": [str(s.path.resolve()) for s in sources]},
+                       code=[PACKAGE_DIR])
+
+
+def classify_run(sources, out_dir: Path) -> Run:
+    return Run("classification", out_dir, settings={"sources": [str(s.path.resolve()) for s in sources],
+                                                   "out": str(Path(out_dir).resolve())})
+
+
+def record_classes(out_dir: Path, sources, run: Run, classified) -> None:
+    """Says what a classification wrote into `out_dir`: the next one of the same databases is skipped, and the run is in
+    run_manifest.json. Whoever writes the class folders — the command or the window — records them, or the classes of
+    other databases would be taken for those of the stamp."""
+    out_dir = Path(out_dir)
+    mark_done(out_dir, "classify", classify_stamp(sources),
+              [out_dir / "all_materials.csv", *(out_dir / axis for axis, _, _ in AXES)])
+    try:
+        run.finish({"materials": len(classified.materials)})
+    except OSError as error:
+        print(f"  (the run could not be recorded: {error})", file=sys.stderr)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=command_name("mme-classify", "Classification"),
@@ -99,23 +123,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     # The same databases, classified by the same code into the same folder: already done.
-    stamp = fingerprint([source.path for source in sources], {"sources": [str(s.path.resolve()) for s in sources]},
-                        code=[PACKAGE_DIR])
+    stamp = classify_stamp(sources)
     when = None if args.force else already_done(out_dir, "classify", stamp)
     if when:
         print(f"\n  Already classified: the databases have not changed since the last run ({when}) — skipped.\n"
               f"  The classes are in {_shown(out_dir)}/ (add --force to classify again).")
         return 0
 
-    run = Run("classification", out_dir, settings={"sources": [str(s.path.resolve()) for s in sources],
-                                                   "out": str(out_dir.resolve())})
+    run = classify_run(sources, out_dir)
     classified = classify(sources)
     summaries = write(classified, out_dir)
-    mark_done(out_dir, "classify", stamp, [out_dir / "all_materials.csv", *(out_dir / axis for axis, _, _ in AXES)])
-    try:
-        run.finish({"materials": len(classified.materials)})
-    except OSError as error:
-        print(f"  (the run could not be recorded: {error})", file=sys.stderr)
+    record_classes(out_dir, sources, run, classified)
     print(f"\n  {len(classified.materials)} materials classified into {_shown(out_dir)}/\n")
     for axis, _, column in AXES:
         title = {CRYSTAL_STRUCTURE: "Crystal structure", STRUCTURE_FAMILIES: "Structure families"}[axis]

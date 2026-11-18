@@ -37,6 +37,10 @@ if TYPE_CHECKING:
 class LocalPanel(Pausable, ttk.LabelFrame):
     def __init__(self, parent: tk.Misc, app: "Window", input_dir: str, output_dir: str):
         super().__init__(parent, text=" Local articles — the PDFs on this computer ", padding=10)
+        # The controls above (they scroll when short), the tabs below, a line to drag between them.
+        from LocalExtraction.gui.layout import Stack
+        self.stack = Stack(self)
+        host = self.stack.host
         self.app = app
         self.stop_event = RunControl()  # Stop, and Pause / Resume
         self._thread: Optional[threading.Thread] = None
@@ -45,7 +49,7 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         self._done = self._total = 0
 
         self.input_dir, self.output_dir = os.path.abspath(input_dir), os.path.abspath(output_dir)
-        folders = ttk.Frame(self)
+        folders = ttk.Frame(host)
         folders.pack(fill="x")
         ttk.Label(folders, text="Folder of PDFs:", width=15).grid(row=0, column=0, sticky="w")
         ttk.Label(folders, text=self.input_dir).grid(row=0, column=1, sticky="w", padx=4)
@@ -53,10 +57,10 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         ttk.Label(folders, text="Results folder:", width=15).grid(row=1, column=0, sticky="w", pady=(4, 0))
         ttk.Label(folders, text=self.output_dir).grid(row=1, column=1, sticky="w", padx=4, pady=(4, 0))
         folders.columnconfigure(1, weight=1)
-        WrapLabel(self, text="Put your PDFs in the first folder. Reads the ones the results do not hold yet "
+        WrapLabel(host, text="Put your PDFs in the first folder. Reads the ones the results do not hold yet "
                              "(not its sub-folders).", foreground="#8c8c8c").pack(fill="x", pady=(2, 8))
 
-        buttons = ttk.Frame(self)
+        buttons = ttk.Frame(host)
         buttons.pack(fill="x")
         self.start_button = ttk.Button(buttons, text="Start extraction", command=self.start)
         self.start_button.pack(side="left")
@@ -73,13 +77,15 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         self.progress.pack(side="right", padx=(8, 0))
         self.status = tk.StringVar(value="Idle.")
         WrapLabel(buttons, textvariable=self.status, wraplength=220).pack(side="left", fill="x", expand=True, padx=8)
-        ttk.Frame(self, height=6).pack(fill="x")
+        ttk.Frame(host, height=6).pack(fill="x")
 
         self.book = ttk.Notebook(self)
-        self.card = ResultCard(self, before=self.book)  # what the last run did, above the tables
-        self.book.pack(fill="both", expand=True)
+        self.card = ResultCard(host)  # what the last run did, above the tables
+        self.stack.below(self.book, cards=[self.card])
         self.energies = EnergiesView(self.book, app, lambda: self.output_dir)
         self.book.add(self.energies, text="Activation energies")
+        from .verify import verify_tab  # a person checks each value against its page
+        self.verify = verify_tab(self.book, lambda: self.output_dir, lambda: [self.input_dir])
         self.activity = LogPane(self.book, height=14, clearable=True, also_clear=lambda: self.app.log.clear())
         self.book.add(self.activity, text="Activity")
 
@@ -95,7 +101,8 @@ class LocalPanel(Pausable, ttk.LabelFrame):
     # Start / Stop
     # ------------------------------------------------------------------
     def start(self) -> None:
-        if self.running():
+        from .home_guard import ensure_home
+        if self.running() or not ensure_home(self, "The extraction"):
             return
         folder, output = self.input_dir, self.output_dir
         if not os.path.isdir(folder):
@@ -180,6 +187,7 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         output = self.output_dir
         workbook = os.path.join(output, "database.xlsx")
         actions = [("Show the activation energies", lambda: self.book.select(self.energies)),
+                   ("Check the values (Verify)", lambda: self.book.select(self.verify)),
                    ("Browse every table", self.energies.browse),
                    ("Open the workbook", lambda: open_path(workbook) if os.path.exists(workbook) else None),
                    ("Open the results folder", lambda: open_path(output)),

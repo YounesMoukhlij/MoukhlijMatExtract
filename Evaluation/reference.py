@@ -400,3 +400,79 @@ def doi_of_files(papers: Path) -> Dict[str, str]:
             known[sidecar.with_suffix(".pdf").name] = _doi(data["doi"])
     return known
 
+
+
+# ---- a database of MoukhlijMatExtract against a curated one, material by material --------------------
+
+AGAINST_COLUMNS = ["reference", "composition", "curated_S_cm", "curated_entries", "our_material", "our_S_cm",
+                   "our_values", "our_papers", "decades"]
+
+
+def _room(kelvin: Optional[float]) -> bool:
+    return kelvin is None or (isinstance(kelvin, float) and math.isnan(kelvin)) or ROOM[0] <= kelvin <= ROOM[1]
+
+
+def against(reference: pd.DataFrame, output: Path) -> pd.DataFrame:
+    """Each room-temperature material of a curated database, met in a results folder of MoukhlijMatExtract (any
+    paper, not only the curated one's): the median of the curated values, the median of ours at room temperature,
+    and how far apart they are in decades (log10 ours − log10 curated; empty when the material is not in ours).
+
+    Unlike `compare`, the papers need not be the same: this is how the two databases agree where they overlap, and
+    how much of the curated one ours covers."""
+    from statistics import median
+    from .compare import _composition
+    table = pd.read_csv(Path(output) / "ionic_conductivity.csv", dtype=str, keep_default_na=False)
+    ours: Dict[str, list] = defaultdict(list)
+    for r in table.to_dict("records"):
+        value, kelvin = _float(r.get("ionic_conductivity_S_cm")), _temperature_of(r.get("temperature"))
+        if value and value > 0 and kelvin is not None and ROOM[0] <= kelvin <= ROOM[1]:  # a stated room temperature
+            ours[r.get("material_formula", "")].append((value, r.get("paper_id", "")))
+    by_elements: Dict[frozenset, list] = defaultdict(list)  # compared only with the materials of the same elements
+    for material in ours:
+        composition = _composition(material)
+        if composition:
+            by_elements[frozenset(composition)].append(material)
+
+    curated: Dict[str, list] = defaultdict(list)
+    names: Dict[str, str] = {}
+    for r in reference.to_dict("records"):
+        value = r.get("conductivity_S_cm")
+        if value and value > 0 and _room(r.get("temperature_K")):
+            key = _plain_key(r["composition"])
+            curated[key].append(value)
+            names.setdefault(key, r["composition"])
+    rows = []
+    for key, values in curated.items():
+        composition = names[key]
+        parsed = _composition(composition)
+        found = [m for m in by_elements.get(frozenset(parsed or {}), []) if same_material(m, composition)]
+        row = {"reference": reference["reference"].iloc[0] if len(reference) else "", "composition": composition,
+               "curated_S_cm": median(values), "curated_entries": len(values), "our_material": "", "our_S_cm": None,
+               "our_values": 0, "our_papers": 0, "decades": None}
+        if found:
+            points = [p for m in found for p in ours[m]]
+            mine = median(v for v, _ in points)
+            row.update(our_material=" · ".join(sorted(found)), our_S_cm=mine, our_values=len(points),
+                       our_papers=len({paper for _, paper in points}),
+                       decades=round(math.log10(mine / row["curated_S_cm"]), 3))
+        rows.append(row)
+    return pd.DataFrame(rows, columns=AGAINST_COLUMNS)
+
+
+def _plain_key(composition: str) -> str:
+    """One key per composition (Li6PS5Cl and Li12P2S10Cl2 alike), the text when it is not a formula."""
+    from .compare import _composition
+    parsed = _composition(composition)
+    if not parsed:
+        return str(composition).strip().lower()
+    return "".join(f"{el}{parsed[el]:.4f}" for el in sorted(parsed))
+
+
+def against_summary(table: pd.DataFrame) -> Dict[str, object]:
+    """How much of the curated database ours covers, and how well the values agree where both have them."""
+    found = table[table["our_material"] != ""]
+    apart = found["decades"].abs()
+    return {"curated": len(table), "found": len(found),
+            "within_0.1": int((apart <= LOOSE).sum()), "within_0.5": int((apart <= 0.5).sum()),
+            "within_1": int((apart <= 1.0).sum()),
+            "median_decades": round(float(apart.median()), 3) if len(found) else None}

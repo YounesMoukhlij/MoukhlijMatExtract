@@ -1,0 +1,433 @@
+# Complex hydride and closo-borate solid electrolytes
+#
+# Borohydrides (LiBH4 and its halide-stabilised forms, Mg(BH4)2-based conductors), closo-borates and
+# carba-closo-borates (Li2B12H12, Na2B12H12, LiCB11H12, NaCB11H12, LiCB9H10) and their mixtures.
+#
+# Kind: chemical family (complex anions BH4-, closo-borates).
+#   Prototype: LiBH4 (high-T P63mc), Li2B12H12, LiCB11H12.
+#
+# 167 queries, 39 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/complex_hydride.yaml          # extracts into WebScraping/web_output_complex_hydride
+#   mme-rank --domain electrolyte --source WebScraping/web_output_complex_hydride --kind arrhenius
+
+name: complex_hydride
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Hydrides: order-disorder transitions and transport
+    - "LiBH4 hexagonal phase lithium conductivity"
+    - "LiBH4 orthorhombic hexagonal transition conductivity"
+    - "LiBH4 halide stabilization hexagonal phase"
+    - "closo-borate order disorder transition conductivity"
+    - "Na2B12H12 superionic phase transition"
+    - "anion reorientation cation diffusion paddle wheel borate"
+    - "LiCB11H12 lithium superionic conductor"
+    - "NaCB11H12 sodium superionic conductor"
+    - "mixed anion closo-borate conductivity"
+    - "Na2B10H10 Na2B12H12 mixed conductivity"
+    - "carba-closo-borate solid electrolyte battery"
+    - "LiBH4 nanoconfinement oxide conductivity"
+    - "LiBH4 SiO2 interface conductivity"
+    - "Mg(BH4)2 magnesium ion conductivity"
+    - "magnesium borohydride ethylenediamine conductivity"
+    - "Li2B12H12 lithium conductivity"
+
+    # Hydrides: stability and cells
+    - "closo-borate electrochemical stability window"
+    - "borohydride electrolyte lithium metal stability"
+    - "complex hydride solid electrolyte all solid state battery"
+
+    # complex hydride solid electrolyte: every transport measurement and method
+    - "complex hydride solid electrolyte ionic conductivity"
+    - "complex hydride solid electrolyte activation energy"
+    - "complex hydride solid electrolyte lithium ion diffusion"
+    - "complex hydride solid electrolyte sodium ion diffusion"
+    - "complex hydride solid electrolyte magnesium ion diffusion"
+    - "complex hydride solid electrolyte lithium migration barrier"
+    - "complex hydride solid electrolyte sodium migration barrier"
+    - "complex hydride solid electrolyte magnesium migration barrier"
+    - "complex hydride solid electrolyte ion transport mechanism"
+    - "complex hydride solid electrolyte grain boundary conductivity"
+    - "complex hydride solid electrolyte bulk ionic conductivity"
+    - "complex hydride solid electrolyte impedance spectroscopy"
+    - "complex hydride solid electrolyte temperature dependent conductivity"
+    - "complex hydride solid electrolyte diffusion coefficient"
+    - "complex hydride solid electrolyte doping ionic conductivity"
+    - "complex hydride solid electrolyte electronic conductivity"
+    - "complex hydride solid electrolyte electrochemical stability window"
+    - "complex hydride solid electrolyte interfacial resistance"
+    - "complex hydride solid electrolyte molecular dynamics lithium diffusion"
+    - "complex hydride solid electrolyte molecular dynamics sodium diffusion"
+    - "complex hydride solid electrolyte molecular dynamics magnesium diffusion"
+    - "complex hydride solid electrolyte density functional theory migration"
+    - "complex hydride solid electrolyte NMR lithium dynamics"
+    - "complex hydride solid electrolyte NMR sodium dynamics"
+    - "complex hydride solid electrolyte NMR magnesium dynamics"
+    - "complex hydride solid electrolyte synthesis ionic conductivity"
+    - "complex hydride solid electrolyte fast ion conductor"
+    - "complex hydride solid electrolyte superionic conductor"
+
+    # LiBH4: every transport measurement and method
+    - "LiBH4 ionic conductivity"
+    - "LiBH4 activation energy"
+    - "LiBH4 lithium ion diffusion"
+    - "LiBH4 sodium ion diffusion"
+    - "LiBH4 magnesium ion diffusion"
+    - "LiBH4 lithium migration barrier"
+    - "LiBH4 sodium migration barrier"
+    - "LiBH4 magnesium migration barrier"
+    - "LiBH4 ion transport mechanism"
+    - "LiBH4 grain boundary conductivity"
+    - "LiBH4 bulk ionic conductivity"
+    - "LiBH4 impedance spectroscopy"
+    - "LiBH4 temperature dependent conductivity"
+    - "LiBH4 diffusion coefficient"
+    - "LiBH4 doping ionic conductivity"
+    - "LiBH4 electronic conductivity"
+    - "LiBH4 electrochemical stability window"
+    - "LiBH4 interfacial resistance"
+    - "LiBH4 molecular dynamics lithium diffusion"
+    - "LiBH4 molecular dynamics sodium diffusion"
+    - "LiBH4 molecular dynamics magnesium diffusion"
+    - "LiBH4 density functional theory migration"
+    - "LiBH4 NMR lithium dynamics"
+    - "LiBH4 NMR sodium dynamics"
+    - "LiBH4 NMR magnesium dynamics"
+    - "LiBH4 synthesis ionic conductivity"
+    - "LiBH4 fast ion conductor"
+    - "LiBH4 superionic conductor"
+
+    # closo-borate: every transport measurement and method
+    - "closo-borate ionic conductivity"
+    - "closo-borate activation energy"
+    - "closo-borate lithium ion diffusion"
+    - "closo-borate sodium ion diffusion"
+    - "closo-borate magnesium ion diffusion"
+    - "closo-borate lithium migration barrier"
+    - "closo-borate sodium migration barrier"
+    - "closo-borate magnesium migration barrier"
+    - "closo-borate ion transport mechanism"
+    - "closo-borate grain boundary conductivity"
+    - "closo-borate bulk ionic conductivity"
+    - "closo-borate impedance spectroscopy"
+    - "closo-borate temperature dependent conductivity"
+    - "closo-borate diffusion coefficient"
+    - "closo-borate doping ionic conductivity"
+    - "closo-borate electronic conductivity"
+    - "closo-borate interfacial resistance"
+    - "closo-borate molecular dynamics lithium diffusion"
+    - "closo-borate molecular dynamics sodium diffusion"
+    - "closo-borate molecular dynamics magnesium diffusion"
+    - "closo-borate density functional theory migration"
+    - "closo-borate NMR lithium dynamics"
+    - "closo-borate NMR sodium dynamics"
+    - "closo-borate NMR magnesium dynamics"
+    - "closo-borate synthesis ionic conductivity"
+    - "closo-borate fast ion conductor"
+    - "closo-borate superionic conductor"
+
+    # Na2B12H12: every transport measurement and method
+    - "Na2B12H12 ionic conductivity"
+    - "Na2B12H12 activation energy"
+    - "Na2B12H12 lithium ion diffusion"
+    - "Na2B12H12 sodium ion diffusion"
+    - "Na2B12H12 magnesium ion diffusion"
+    - "Na2B12H12 lithium migration barrier"
+    - "Na2B12H12 sodium migration barrier"
+    - "Na2B12H12 magnesium migration barrier"
+    - "Na2B12H12 ion transport mechanism"
+    - "Na2B12H12 grain boundary conductivity"
+    - "Na2B12H12 bulk ionic conductivity"
+    - "Na2B12H12 impedance spectroscopy"
+    - "Na2B12H12 temperature dependent conductivity"
+    - "Na2B12H12 diffusion coefficient"
+    - "Na2B12H12 doping ionic conductivity"
+    - "Na2B12H12 electronic conductivity"
+    - "Na2B12H12 electrochemical stability window"
+    - "Na2B12H12 interfacial resistance"
+    - "Na2B12H12 molecular dynamics lithium diffusion"
+    - "Na2B12H12 molecular dynamics sodium diffusion"
+    - "Na2B12H12 molecular dynamics magnesium diffusion"
+    - "Na2B12H12 density functional theory migration"
+    - "Na2B12H12 NMR lithium dynamics"
+    - "Na2B12H12 NMR sodium dynamics"
+    - "Na2B12H12 NMR magnesium dynamics"
+    - "Na2B12H12 synthesis ionic conductivity"
+    - "Na2B12H12 fast ion conductor"
+    - "Na2B12H12 superionic conductor"
+
+    # LiCB11H12: every transport measurement and method
+    - "LiCB11H12 ionic conductivity"
+    - "LiCB11H12 activation energy"
+    - "LiCB11H12 lithium ion diffusion"
+    - "LiCB11H12 sodium ion diffusion"
+    - "LiCB11H12 magnesium ion diffusion"
+    - "LiCB11H12 lithium migration barrier"
+    - "LiCB11H12 sodium migration barrier"
+    - "LiCB11H12 magnesium migration barrier"
+    - "LiCB11H12 ion transport mechanism"
+    - "LiCB11H12 grain boundary conductivity"
+    - "LiCB11H12 bulk ionic conductivity"
+    - "LiCB11H12 impedance spectroscopy"
+    - "LiCB11H12 temperature dependent conductivity"
+    - "LiCB11H12 diffusion coefficient"
+    - "LiCB11H12 doping ionic conductivity"
+    - "LiCB11H12 electronic conductivity"
+    - "LiCB11H12 electrochemical stability window"
+    - "LiCB11H12 interfacial resistance"
+    - "LiCB11H12 molecular dynamics lithium diffusion"
+    - "LiCB11H12 molecular dynamics sodium diffusion"
+    - "LiCB11H12 molecular dynamics magnesium diffusion"
+    - "LiCB11H12 density functional theory migration"
+    - "LiCB11H12 NMR lithium dynamics"
+    - "LiCB11H12 NMR sodium dynamics"
+    - "LiCB11H12 NMR magnesium dynamics"
+    - "LiCB11H12 synthesis ionic conductivity"
+    - "LiCB11H12 fast ion conductor"
+    - "LiCB11H12 superionic conductor"
+
+    # complex hydride solid electrolyte: transport mechanisms
+    - "complex hydride solid electrolyte concerted migration"
+    - "complex hydride solid electrolyte vacancy mechanism"
+    - "complex hydride solid electrolyte interstitial mechanism"
+    - "complex hydride solid electrolyte interstitialcy mechanism"
+    - "complex hydride solid electrolyte paddle-wheel mechanism"
+    - "complex hydride solid electrolyte correlated ion hopping"
+    - "complex hydride solid electrolyte percolation conduction pathway"
+    - "complex hydride solid electrolyte bottleneck size migration"
+    - "complex hydride solid electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_complex_hydride.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Complex hydride aliases
+    - "complex hydride"
+    - "borohydride"
+    - "closo-borate"
+    - "closo-hydroborate"
+    - "carba-closo-borate"
+    - "carba-closo-dodecaborate"
+    - "closo-dodecaborate"
+    - "closo-decaborate"
+    - "nido-borate"
+    - "metal hydroborate"
+
+    # Borohydride formulas
+    - "LiBH4"
+    - "LiBH4-LiI"
+    - "LiBH4–LiI"
+    - "Li4(BH4)3I"
+    - "LiBH4-LiNH2"
+    - "LiBH4–LiNH2"
+    - "Li2(BH4)(NH2)"
+    - "Mg(BH4)2"
+    - "Mg(BH4)(NH2)"
+    - "Ca(BH4)2"
+    - "Na3BH4B12H12"
+    - "LiBH4·NH3"
+
+    # closo-Borate formulas
+    - "Li2B12H12"
+    - "Na2B12H12"
+    - "Li2B10H10"
+    - "Na2B10H10"
+    - "LiCB11H12"
+    - "NaCB11H12"
+    - "LiCB9H10"
+    - "NaCB9H10"
+    - "Li(CB9H10)0.7(CB11H12)0.3"
+    - "Na2(CB9H10)(CB11H12)"
+    - "Na2(B12H12)0.5(B10H10)0.5"
+    - "K2B12H12"
+
+    # Parts of formulas (find the mixed members)
+    - "B12H12"
+    - "B10H10"
+    - "CB11H12"
+    - "CB9H10"
+    - "BH4"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+  exclude_words:
+    - "hydrogen storage"
+    - "dehydrogenation"
+    - "hydrogen release"
+    - "hydrolysis"
+    - "reducing agent"
+    - "neutron capture"
+    - "BNCT"
+    - "catalytic reduction"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_complex_hydride
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

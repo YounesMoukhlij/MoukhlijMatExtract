@@ -9,3 +9,21 @@ materials and their properties, ranks the candidates and exports linked CSV, Exc
 
 The web project (WebScraping/) runs the same pipeline on the PDFs it fetches.
 """
+
+
+def _no_csv_cell_limit() -> None:
+    """Python's CSV reader refuses a cell over 131,072 characters by default, and a record's abstract or a table's
+    text can be longer (a Zenodo record: 465,682 characters): the reading stopped there, and the download with it.
+    The limit is lifted for the whole program as soon as it is loaded (the largest number this system allows)."""
+    import csv
+    import sys
+    limit = sys.maxsize
+    while True:
+        try:
+            csv.field_size_limit(limit)
+            return
+        except OverflowError:  # Windows: a C long is 32 bits
+            limit //= 10
+
+
+_no_csv_cell_limit()

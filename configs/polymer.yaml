@@ -1,0 +1,409 @@
+# Polymer electrolytes (solvent-free, gel, single-ion, block copolymer)
+#
+# Solid and gel polymer electrolytes: polyethers (PEO), polycarbonates, polysiloxanes, PVDF-HFP, PAN and PMMA
+# gels, polymer-in-salt and salt-in-polymer systems, single-ion conducting polymers, cross-linked and block
+# copolymer electrolytes.
+#
+# Kind: material class (polymer electrolytes).
+#   Prototype: polyethers (PEO), polycarbonates, polysiloxanes, PVDF-HFP and PAN gels, single-ion
+#   polymers, block copolymers.
+#
+# 143 queries, 32 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/polymer.yaml          # extracts into WebScraping/web_output_polymer
+#   mme-rank --domain electrolyte --source WebScraping/web_output_polymer --kind arrhenius
+
+name: polymer
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Polymer electrolytes: transport
+    - "PEO LiTFSI ionic conductivity"
+    - "PEO segmental motion lithium transport"
+    - "polymer electrolyte Vogel-Tammann-Fulcher conductivity"
+    - "polymer electrolyte lithium transference number"
+    - "polymer-in-salt electrolyte conductivity"
+    - "single-ion conducting polymer electrolyte conductivity"
+    - "block copolymer electrolyte morphology conductivity"
+    - "cross-linked polymer electrolyte conductivity"
+    - "polycarbonate electrolyte lithium transport"
+    - "polysiloxane electrolyte conductivity"
+    - "gel polymer electrolyte PVDF-HFP conductivity"
+    - "polymer electrolyte crystallinity conductivity"
+    - "polymer electrolyte electrochemical stability high voltage"
+    - "sodium polymer electrolyte conductivity"
+
+    # solid polymer electrolyte: every transport measurement and method
+    - "solid polymer electrolyte ionic conductivity"
+    - "solid polymer electrolyte activation energy"
+    - "solid polymer electrolyte lithium ion diffusion"
+    - "solid polymer electrolyte sodium ion diffusion"
+    - "solid polymer electrolyte lithium migration barrier"
+    - "solid polymer electrolyte sodium migration barrier"
+    - "solid polymer electrolyte ion transport mechanism"
+    - "solid polymer electrolyte grain boundary conductivity"
+    - "solid polymer electrolyte bulk ionic conductivity"
+    - "solid polymer electrolyte impedance spectroscopy"
+    - "solid polymer electrolyte temperature dependent conductivity"
+    - "solid polymer electrolyte diffusion coefficient"
+    - "solid polymer electrolyte doping ionic conductivity"
+    - "solid polymer electrolyte electronic conductivity"
+    - "solid polymer electrolyte electrochemical stability window"
+    - "solid polymer electrolyte interfacial resistance"
+    - "solid polymer electrolyte molecular dynamics lithium diffusion"
+    - "solid polymer electrolyte molecular dynamics sodium diffusion"
+    - "solid polymer electrolyte density functional theory migration"
+    - "solid polymer electrolyte NMR lithium dynamics"
+    - "solid polymer electrolyte NMR sodium dynamics"
+    - "solid polymer electrolyte synthesis ionic conductivity"
+    - "solid polymer electrolyte fast ion conductor"
+    - "solid polymer electrolyte superionic conductor"
+
+    # PEO electrolyte: every transport measurement and method
+    - "PEO electrolyte ionic conductivity"
+    - "PEO electrolyte activation energy"
+    - "PEO electrolyte lithium ion diffusion"
+    - "PEO electrolyte sodium ion diffusion"
+    - "PEO electrolyte lithium migration barrier"
+    - "PEO electrolyte sodium migration barrier"
+    - "PEO electrolyte ion transport mechanism"
+    - "PEO electrolyte grain boundary conductivity"
+    - "PEO electrolyte bulk ionic conductivity"
+    - "PEO electrolyte impedance spectroscopy"
+    - "PEO electrolyte temperature dependent conductivity"
+    - "PEO electrolyte diffusion coefficient"
+    - "PEO electrolyte doping ionic conductivity"
+    - "PEO electrolyte electronic conductivity"
+    - "PEO electrolyte electrochemical stability window"
+    - "PEO electrolyte interfacial resistance"
+    - "PEO electrolyte molecular dynamics lithium diffusion"
+    - "PEO electrolyte molecular dynamics sodium diffusion"
+    - "PEO electrolyte density functional theory migration"
+    - "PEO electrolyte NMR lithium dynamics"
+    - "PEO electrolyte NMR sodium dynamics"
+    - "PEO electrolyte synthesis ionic conductivity"
+    - "PEO electrolyte fast ion conductor"
+    - "PEO electrolyte superionic conductor"
+
+    # poly(ethylene oxide) electrolyte: every transport measurement and method
+    - "poly(ethylene oxide) electrolyte ionic conductivity"
+    - "poly(ethylene oxide) electrolyte activation energy"
+    - "poly(ethylene oxide) electrolyte lithium ion diffusion"
+    - "poly(ethylene oxide) electrolyte sodium ion diffusion"
+    - "poly(ethylene oxide) electrolyte lithium migration barrier"
+    - "poly(ethylene oxide) electrolyte sodium migration barrier"
+    - "poly(ethylene oxide) electrolyte ion transport mechanism"
+    - "poly(ethylene oxide) electrolyte grain boundary conductivity"
+    - "poly(ethylene oxide) electrolyte bulk ionic conductivity"
+    - "poly(ethylene oxide) electrolyte impedance spectroscopy"
+    - "poly(ethylene oxide) electrolyte temperature dependent conductivity"
+    - "poly(ethylene oxide) electrolyte diffusion coefficient"
+    - "poly(ethylene oxide) electrolyte doping ionic conductivity"
+    - "poly(ethylene oxide) electrolyte electronic conductivity"
+    - "poly(ethylene oxide) electrolyte electrochemical stability window"
+    - "poly(ethylene oxide) electrolyte interfacial resistance"
+    - "poly(ethylene oxide) electrolyte molecular dynamics lithium diffusion"
+    - "poly(ethylene oxide) electrolyte molecular dynamics sodium diffusion"
+    - "poly(ethylene oxide) electrolyte density functional theory migration"
+    - "poly(ethylene oxide) electrolyte NMR lithium dynamics"
+    - "poly(ethylene oxide) electrolyte NMR sodium dynamics"
+    - "poly(ethylene oxide) electrolyte synthesis ionic conductivity"
+    - "poly(ethylene oxide) electrolyte fast ion conductor"
+    - "poly(ethylene oxide) electrolyte superionic conductor"
+
+    # gel polymer electrolyte: every transport measurement and method
+    - "gel polymer electrolyte ionic conductivity"
+    - "gel polymer electrolyte activation energy"
+    - "gel polymer electrolyte lithium ion diffusion"
+    - "gel polymer electrolyte sodium ion diffusion"
+    - "gel polymer electrolyte lithium migration barrier"
+    - "gel polymer electrolyte sodium migration barrier"
+    - "gel polymer electrolyte ion transport mechanism"
+    - "gel polymer electrolyte grain boundary conductivity"
+    - "gel polymer electrolyte bulk ionic conductivity"
+    - "gel polymer electrolyte impedance spectroscopy"
+    - "gel polymer electrolyte temperature dependent conductivity"
+    - "gel polymer electrolyte diffusion coefficient"
+    - "gel polymer electrolyte doping ionic conductivity"
+    - "gel polymer electrolyte electronic conductivity"
+    - "gel polymer electrolyte electrochemical stability window"
+    - "gel polymer electrolyte interfacial resistance"
+    - "gel polymer electrolyte molecular dynamics lithium diffusion"
+    - "gel polymer electrolyte molecular dynamics sodium diffusion"
+    - "gel polymer electrolyte density functional theory migration"
+    - "gel polymer electrolyte NMR lithium dynamics"
+    - "gel polymer electrolyte NMR sodium dynamics"
+    - "gel polymer electrolyte synthesis ionic conductivity"
+    - "gel polymer electrolyte fast ion conductor"
+    - "gel polymer electrolyte superionic conductor"
+
+    # single-ion conducting polymer: every transport measurement and method
+    - "single-ion conducting polymer ionic conductivity"
+    - "single-ion conducting polymer activation energy"
+    - "single-ion conducting polymer lithium ion diffusion"
+    - "single-ion conducting polymer sodium ion diffusion"
+    - "single-ion conducting polymer lithium migration barrier"
+    - "single-ion conducting polymer sodium migration barrier"
+    - "single-ion conducting polymer ion transport mechanism"
+    - "single-ion conducting polymer grain boundary conductivity"
+    - "single-ion conducting polymer bulk ionic conductivity"
+    - "single-ion conducting polymer impedance spectroscopy"
+    - "single-ion conducting polymer temperature dependent conductivity"
+    - "single-ion conducting polymer diffusion coefficient"
+    - "single-ion conducting polymer doping ionic conductivity"
+    - "single-ion conducting polymer electronic conductivity"
+    - "single-ion conducting polymer electrochemical stability window"
+    - "single-ion conducting polymer interfacial resistance"
+    - "single-ion conducting polymer molecular dynamics lithium diffusion"
+    - "single-ion conducting polymer molecular dynamics sodium diffusion"
+    - "single-ion conducting polymer density functional theory migration"
+    - "single-ion conducting polymer NMR lithium dynamics"
+    - "single-ion conducting polymer NMR sodium dynamics"
+    - "single-ion conducting polymer synthesis ionic conductivity"
+    - "single-ion conducting polymer fast ion conductor"
+    - "single-ion conducting polymer superionic conductor"
+
+    # solid polymer electrolyte: transport mechanisms
+    - "solid polymer electrolyte concerted migration"
+    - "solid polymer electrolyte vacancy mechanism"
+    - "solid polymer electrolyte interstitial mechanism"
+    - "solid polymer electrolyte interstitialcy mechanism"
+    - "solid polymer electrolyte paddle-wheel mechanism"
+    - "solid polymer electrolyte correlated ion hopping"
+    - "solid polymer electrolyte percolation conduction pathway"
+    - "solid polymer electrolyte bottleneck size migration"
+    - "solid polymer electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_polymer.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Polymer electrolyte aliases
+    - "solid polymer electrolyte"
+    - "polymer electrolyte"
+    - "gel polymer electrolyte"
+    - "dry polymer electrolyte"
+    - "solvent-free polymer electrolyte"
+    - "polymer-in-salt"
+    - "salt-in-polymer"
+    - "single-ion conducting polymer"
+    - "single-ion polymer electrolyte"
+    - "single-ion conductor"
+    - "block copolymer electrolyte"
+    - "cross-linked polymer electrolyte"
+    - "polymer network electrolyte"
+    - "polycarbonate electrolyte"
+    - "polysiloxane electrolyte"
+    - "polyether electrolyte"
+
+    # Polymers
+    - "PEO-based"
+    - "PEO electrolyte"
+    - "poly(ethylene oxide)"
+    - "polyethylene oxide"
+    - "poly(propylene carbonate)"
+    - "poly(ethylene carbonate)"
+    - "poly(trimethylene carbonate)"
+    - "PVDF-HFP"
+    - "PVDF–HFP"
+    - "poly(vinylidene fluoride-co-hexafluoropropylene)"
+    - "polyacrylonitrile"
+    - "poly(methyl methacrylate)"
+    - "PS-b-PEO"
+    - "PS-b–PEO"
+    - "SEO block copolymer"
+    - "polycaprolactone electrolyte"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+    # Polymer transport
+    - "Vogel-Tammann-Fulcher"
+    - "VTF"
+    - "segmental motion"
+    - "segmental relaxation"
+    - "glass transition temperature"
+    - "free volume"
+    - "pseudo-activation energy"
+
+  exclude_words:
+    - "drug delivery"
+    - "drug release"
+    - "tissue engineering"
+    - "wound dressing"
+    - "biomedical"
+    - "cell viability"
+    - "plasma electrolytic oxidation"
+    - "corrosion"
+    - "membrane distillation"
+    - "food packaging"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_polymer
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

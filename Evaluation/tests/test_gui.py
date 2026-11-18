@@ -106,3 +106,19 @@ class WindowTests(unittest.TestCase):
         again = self.gui.EvaluationDialog(self.root, str(self.db), "local", "local articles")
         self.assertIn("4 papers checked", again.result.get("1.0", "end"))  # opens on the last scores
         again.destroy()
+
+    def test_each_database_has_its_own_workbook_and_scores(self):
+        """Two web databases (the general one and a job's own) are two evaluations: the scores of one must never be
+        shown, or scored again, as those of the other."""
+        base = self.base / "Evaluation"
+        self.assertEqual(self.gui.workbook_of("web", "WebScraping/web_output"), base / "annotation_web.xlsx")
+        self.assertEqual(self.gui.workbook_of("web", "/x/WebScraping/web_output_garnet_nasicon"),
+                         base / "annotation_web_garnet_nasicon.xlsx")
+        self.assertEqual(self.gui.scores_of("web", "/x/WebScraping/web_output_garnet_nasicon"),
+                         base / "scores_web_garnet_nasicon")
+        self.assertEqual(self.gui.workbook_of("local", "/x/elsewhere"), base / "annotation_local_elsewhere.xlsx")
+        other = self.base / "web_output_garnet"
+        _write_database(other)
+        dialog = self.gui.EvaluationDialog(self.root, str(other), "web", "web articles")
+        self.assertEqual(dialog.workbook, base / "annotation_web_garnet.xlsx")
+        dialog.destroy()

@@ -272,6 +272,11 @@ class PoliteClient:
             return response
         raise RuntimeError("unreachable")  # the loop always returns or raises
 
+    def slowed(self) -> Dict[str, float]:
+        """The hosts that asked to slow down this run (HTTP 429), with the seconds now kept between two requests."""
+        with self._lock:
+            return dict(self._slowed)
+
     def pause(self, seconds: float) -> None:
         """A wait of the run (the watcher's): Pause holds it and Stop ends it, like the client's own."""
         self._sleep(seconds)

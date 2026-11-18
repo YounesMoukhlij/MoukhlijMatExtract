@@ -1,0 +1,420 @@
+# Multivalent-ion solid electrolytes (Mg2+, Ca2+, Zn2+, Al3+, Sc3+)
+#
+# Solid conductors of divalent and trivalent ions: magnesium (spinel chalcogenides such as MgSc2Se4,
+# NASICON-type phosphates, borohydrides), calcium and zinc conductors, and the trivalent-cation conductors of
+# the Sc2(WO4)3 type.
+#
+# Kind: grouping by mobile ion (Mg2+, Ca2+, Zn2+, Al3+, Sc3+).
+#   Prototype: spinel MgSc2Se4, NASICON-type MgZr4(PO4)6, Sc2(WO4)3 type, Mg(BH4)2.
+#
+# 160 queries, 27 topic words. Written by scripts/families/make_family_jobs.py; edit this copy freely
+# (“Search settings…” in the Web scraping window), or the script to change every family at once.
+#
+# Run (each job keeps its own DOI list, PDF folder and database):
+#   mme-web run --job configs/multivalent.yaml          # extracts into WebScraping/web_output_multivalent
+#   mme-rank --domain electrolyte --source WebScraping/web_output_multivalent --kind arrhenius
+
+name: multivalent
+
+# Empty: the e-mail entered in the window ("API keys…", saved as MME_EMAIL in ~/MoukhlijMatExtract/.env) is used.
+contact_email: ""
+
+search:
+  queries:
+    # Multivalent ions: transport
+    - "MgSc2Se4 magnesium ion conductivity"
+    - "spinel chalcogenide magnesium conductor"
+    - "magnesium ion migration barrier solid"
+    - "NASICON type magnesium conductor"
+    - "MgZr4(PO4)6 conductivity"
+    - "magnesium borohydride solid electrolyte conductivity"
+    - "calcium ion migration solid electrolyte"
+    - "zinc ion conduction solid electrolyte"
+    - "Sc2(WO4)3 trivalent ion conduction"
+    - "Al2(WO4)3 aluminum ion conduction"
+    - "multivalent ion mobility solids design principles"
+
+    # magnesium solid electrolyte: every transport measurement and method
+    - "magnesium solid electrolyte ionic conductivity"
+    - "magnesium solid electrolyte activation energy"
+    - "magnesium solid electrolyte magnesium ion diffusion"
+    - "magnesium solid electrolyte calcium ion diffusion"
+    - "magnesium solid electrolyte zinc ion diffusion"
+    - "magnesium solid electrolyte magnesium migration barrier"
+    - "magnesium solid electrolyte calcium migration barrier"
+    - "magnesium solid electrolyte zinc migration barrier"
+    - "magnesium solid electrolyte ion transport mechanism"
+    - "magnesium solid electrolyte grain boundary conductivity"
+    - "magnesium solid electrolyte bulk ionic conductivity"
+    - "magnesium solid electrolyte impedance spectroscopy"
+    - "magnesium solid electrolyte temperature dependent conductivity"
+    - "magnesium solid electrolyte diffusion coefficient"
+    - "magnesium solid electrolyte doping ionic conductivity"
+    - "magnesium solid electrolyte electronic conductivity"
+    - "magnesium solid electrolyte electrochemical stability window"
+    - "magnesium solid electrolyte interfacial resistance"
+    - "magnesium solid electrolyte molecular dynamics magnesium diffusion"
+    - "magnesium solid electrolyte molecular dynamics calcium diffusion"
+    - "magnesium solid electrolyte molecular dynamics zinc diffusion"
+    - "magnesium solid electrolyte density functional theory migration"
+    - "magnesium solid electrolyte NMR magnesium dynamics"
+    - "magnesium solid electrolyte NMR calcium dynamics"
+    - "magnesium solid electrolyte NMR zinc dynamics"
+    - "magnesium solid electrolyte synthesis ionic conductivity"
+    - "magnesium solid electrolyte fast ion conductor"
+    - "magnesium solid electrolyte superionic conductor"
+
+    # magnesium ion conductor: every transport measurement and method
+    - "magnesium ion conductor ionic conductivity"
+    - "magnesium ion conductor activation energy"
+    - "magnesium ion conductor magnesium ion diffusion"
+    - "magnesium ion conductor calcium ion diffusion"
+    - "magnesium ion conductor zinc ion diffusion"
+    - "magnesium ion conductor magnesium migration barrier"
+    - "magnesium ion conductor calcium migration barrier"
+    - "magnesium ion conductor zinc migration barrier"
+    - "magnesium ion conductor ion transport mechanism"
+    - "magnesium ion conductor grain boundary conductivity"
+    - "magnesium ion conductor bulk ionic conductivity"
+    - "magnesium ion conductor impedance spectroscopy"
+    - "magnesium ion conductor temperature dependent conductivity"
+    - "magnesium ion conductor diffusion coefficient"
+    - "magnesium ion conductor doping ionic conductivity"
+    - "magnesium ion conductor electronic conductivity"
+    - "magnesium ion conductor electrochemical stability window"
+    - "magnesium ion conductor interfacial resistance"
+    - "magnesium ion conductor molecular dynamics magnesium diffusion"
+    - "magnesium ion conductor molecular dynamics calcium diffusion"
+    - "magnesium ion conductor molecular dynamics zinc diffusion"
+    - "magnesium ion conductor density functional theory migration"
+    - "magnesium ion conductor NMR magnesium dynamics"
+    - "magnesium ion conductor NMR calcium dynamics"
+    - "magnesium ion conductor NMR zinc dynamics"
+    - "magnesium ion conductor synthesis ionic conductivity"
+    - "magnesium ion conductor fast ion conductor"
+    - "magnesium ion conductor superionic conductor"
+
+    # calcium ion conductor: every transport measurement and method
+    - "calcium ion conductor ionic conductivity"
+    - "calcium ion conductor activation energy"
+    - "calcium ion conductor magnesium ion diffusion"
+    - "calcium ion conductor calcium ion diffusion"
+    - "calcium ion conductor zinc ion diffusion"
+    - "calcium ion conductor magnesium migration barrier"
+    - "calcium ion conductor calcium migration barrier"
+    - "calcium ion conductor zinc migration barrier"
+    - "calcium ion conductor ion transport mechanism"
+    - "calcium ion conductor grain boundary conductivity"
+    - "calcium ion conductor bulk ionic conductivity"
+    - "calcium ion conductor impedance spectroscopy"
+    - "calcium ion conductor temperature dependent conductivity"
+    - "calcium ion conductor diffusion coefficient"
+    - "calcium ion conductor doping ionic conductivity"
+    - "calcium ion conductor electronic conductivity"
+    - "calcium ion conductor electrochemical stability window"
+    - "calcium ion conductor interfacial resistance"
+    - "calcium ion conductor molecular dynamics magnesium diffusion"
+    - "calcium ion conductor molecular dynamics calcium diffusion"
+    - "calcium ion conductor molecular dynamics zinc diffusion"
+    - "calcium ion conductor density functional theory migration"
+    - "calcium ion conductor NMR magnesium dynamics"
+    - "calcium ion conductor NMR calcium dynamics"
+    - "calcium ion conductor NMR zinc dynamics"
+    - "calcium ion conductor synthesis ionic conductivity"
+    - "calcium ion conductor fast ion conductor"
+    - "calcium ion conductor superionic conductor"
+
+    # zinc ion solid electrolyte: every transport measurement and method
+    - "zinc ion solid electrolyte ionic conductivity"
+    - "zinc ion solid electrolyte activation energy"
+    - "zinc ion solid electrolyte magnesium ion diffusion"
+    - "zinc ion solid electrolyte calcium ion diffusion"
+    - "zinc ion solid electrolyte zinc ion diffusion"
+    - "zinc ion solid electrolyte magnesium migration barrier"
+    - "zinc ion solid electrolyte calcium migration barrier"
+    - "zinc ion solid electrolyte zinc migration barrier"
+    - "zinc ion solid electrolyte ion transport mechanism"
+    - "zinc ion solid electrolyte grain boundary conductivity"
+    - "zinc ion solid electrolyte bulk ionic conductivity"
+    - "zinc ion solid electrolyte impedance spectroscopy"
+    - "zinc ion solid electrolyte temperature dependent conductivity"
+    - "zinc ion solid electrolyte diffusion coefficient"
+    - "zinc ion solid electrolyte doping ionic conductivity"
+    - "zinc ion solid electrolyte electronic conductivity"
+    - "zinc ion solid electrolyte electrochemical stability window"
+    - "zinc ion solid electrolyte interfacial resistance"
+    - "zinc ion solid electrolyte molecular dynamics magnesium diffusion"
+    - "zinc ion solid electrolyte molecular dynamics calcium diffusion"
+    - "zinc ion solid electrolyte molecular dynamics zinc diffusion"
+    - "zinc ion solid electrolyte density functional theory migration"
+    - "zinc ion solid electrolyte NMR magnesium dynamics"
+    - "zinc ion solid electrolyte NMR calcium dynamics"
+    - "zinc ion solid electrolyte NMR zinc dynamics"
+    - "zinc ion solid electrolyte synthesis ionic conductivity"
+    - "zinc ion solid electrolyte fast ion conductor"
+    - "zinc ion solid electrolyte superionic conductor"
+
+    # trivalent cation conductor: every transport measurement and method
+    - "trivalent cation conductor ionic conductivity"
+    - "trivalent cation conductor activation energy"
+    - "trivalent cation conductor magnesium ion diffusion"
+    - "trivalent cation conductor calcium ion diffusion"
+    - "trivalent cation conductor zinc ion diffusion"
+    - "trivalent cation conductor magnesium migration barrier"
+    - "trivalent cation conductor calcium migration barrier"
+    - "trivalent cation conductor zinc migration barrier"
+    - "trivalent cation conductor ion transport mechanism"
+    - "trivalent cation conductor grain boundary conductivity"
+    - "trivalent cation conductor bulk ionic conductivity"
+    - "trivalent cation conductor impedance spectroscopy"
+    - "trivalent cation conductor temperature dependent conductivity"
+    - "trivalent cation conductor diffusion coefficient"
+    - "trivalent cation conductor doping ionic conductivity"
+    - "trivalent cation conductor electronic conductivity"
+    - "trivalent cation conductor electrochemical stability window"
+    - "trivalent cation conductor interfacial resistance"
+    - "trivalent cation conductor molecular dynamics magnesium diffusion"
+    - "trivalent cation conductor molecular dynamics calcium diffusion"
+    - "trivalent cation conductor molecular dynamics zinc diffusion"
+    - "trivalent cation conductor density functional theory migration"
+    - "trivalent cation conductor NMR magnesium dynamics"
+    - "trivalent cation conductor NMR calcium dynamics"
+    - "trivalent cation conductor NMR zinc dynamics"
+    - "trivalent cation conductor synthesis ionic conductivity"
+    - "trivalent cation conductor fast ion conductor"
+    - "trivalent cation conductor superionic conductor"
+
+    # magnesium solid electrolyte: transport mechanisms
+    - "magnesium solid electrolyte concerted migration"
+    - "magnesium solid electrolyte vacancy mechanism"
+    - "magnesium solid electrolyte interstitial mechanism"
+    - "magnesium solid electrolyte interstitialcy mechanism"
+    - "magnesium solid electrolyte paddle-wheel mechanism"
+    - "magnesium solid electrolyte correlated ion hopping"
+    - "magnesium solid electrolyte percolation conduction pathway"
+    - "magnesium solid electrolyte bottleneck size migration"
+    - "magnesium solid electrolyte anion framework lithium diffusion"
+
+  years: [2014, 2026]
+
+  sources: [openalex, arxiv, crossref, semanticscholar, europepmc, openaire, doaj, jstage, core, springernature,
+            scopus, ads, ieee, wos, zenodo, datacite, plos, ntrs, figshare, osf, lareferencia, thesesfr, lens, base,
+            dimensions]
+
+  max_per_query: 200
+  include_preprints: true
+
+  abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
+
+  # DOI list collected for this job only.
+  doi_list: WebScraping/Fetch_DOIs/dois_multivalent.csv
+  collect_dois: true
+screen:
+  topic_words:
+    # Multivalent conductor aliases
+    - "magnesium solid electrolyte"
+    - "solid-state magnesium electrolyte"
+    - "magnesium ion conductor"
+    - "Mg-ion conductor"
+    - "magnesium superionic conductor"
+    - "calcium solid electrolyte"
+    - "calcium ion conductor"
+    - "Ca-ion conductor"
+    - "zinc ion conductor"
+    - "Zn-ion solid electrolyte"
+    - "aluminium ion conductor"
+    - "aluminum ion conductor"
+    - "trivalent cation conductor"
+    - "trivalent ion conduction"
+    - "multivalent ion conductor"
+    - "divalent cation conductor"
+
+    # Multivalent formulas
+    - "MgSc2Se4"
+    - "MgSc2S4"
+    - "MgZr4(PO4)6"
+    - "Mg0.5Zr2(PO4)3"
+    - "Mg0.5Ti2(PO4)3"
+    - "Mg(BH4)2"
+    - "Mg(BH4)(NH2)"
+    - "Ca(BH4)2"
+    - "Sc2(WO4)3"
+    - "Al2(WO4)3"
+    - "ZnPS3"
+
+  property_words:
+    # Activation energy and migration barriers
+    - "activation energy"
+    - "activation energies"
+    - "activation enthalpy"
+    - "activation barrier"
+    - "migration barrier"
+    - "migration energy"
+    - "migration enthalpy"
+    - "hopping barrier"
+    - "hopping energy"
+    - "diffusion barrier"
+    - "energy barrier"
+    - "energy barriers"
+    - "ionic migration energy"
+    - "transport activation energy"
+    - "apparent activation energy"
+    - "Arrhenius activation energy"
+    - "Ea"
+    - "E_a"
+    - "Em"
+
+    # Ionic conductivity and ion transport
+    - "ionic conductivity"
+    - "ionic conductivities"
+    - "total ionic conductivity"
+    - "bulk ionic conductivity"
+    - "grain boundary conductivity"
+    - "grain interior conductivity"
+    - "specific conductivity"
+    - "Li-ion conductivity"
+    - "lithium ion conductivity"
+    - "Na-ion conductivity"
+    - "sodium ion conductivity"
+    - "ionic transport"
+    - "ion transport"
+    - "ionic conduction"
+    - "superionic conduction"
+    - "conductivity enhancement"
+    - "conductivity temperature dependence"
+    - "ionic mobility"
+
+    # Diffusion
+    - "diffusion coefficient"
+    - "diffusion coefficients"
+    - "diffusion constant"
+    - "self-diffusion"
+    - "self diffusion"
+    - "tracer diffusion"
+    - "chemical diffusion"
+    - "collective diffusion"
+    - "lithium diffusivity"
+    - "sodium diffusivity"
+    - "mean squared displacement"
+    - "mean square displacement"
+    - "MSD"
+    - "diffusion pathway"
+    - "diffusion kinetics"
+    - "atomic mobility"
+    - "ionic diffusivity"
+    - "ionic diffusion"
+
+    # Electronic transport
+    - "electronic conductivity"
+    - "electronic conductivities"
+    - "electron transport"
+    - "electronic transport"
+    - "electronic resistivity"
+    - "electron mobility"
+    - "polaron hopping"
+    - "electronic leakage"
+
+    # Experimental measurements and impedance
+    - "electrochemical impedance spectroscopy"
+    - "impedance spectroscopy"
+    - "impedance analysis"
+    - "Nyquist plot"
+    - "Arrhenius plot"
+    - "temperature dependent conductivity"
+    - "temperature-dependent conductivity"
+    - "AC impedance"
+    - "DC polarization"
+    - "ionic transference number"
+    - "transference number"
+    - "bulk resistance"
+    - "grain boundary resistance"
+    - "total resistance"
+    - "electrical resistivity"
+
+    # Computational transport descriptors
+    - "nudged elastic band"
+    - "NEB calculation"
+    - "migration pathway"
+    - "migration pathways"
+    - "potential energy surface"
+    - "free energy barrier"
+    - "free energy landscape"
+    - "diffusion trajectory"
+    - "ionic hopping"
+    - "hopping frequency"
+    - "attempt frequency"
+    - "pre-exponential factor"
+    - "Nernst-Einstein relation"
+    - "Einstein relation"
+
+    # Additional battery-relevant properties
+    - "electrochemical stability window"
+    - "critical current density"
+    - "interfacial resistance"
+    - "interfacial impedance"
+    - "space charge layer"
+
+    # Transport mechanisms and the older names of fast ion conduction
+    - "concerted migration"
+    - "vacancy mechanism"
+    - "interstitial mechanism"
+    - "interstitialcy"
+    - "paddle-wheel"
+    - "correlated migration"
+    - "correlated hopping"
+    - "percolation pathway"
+    - "bottleneck size"
+    - "fast ion conductor"
+    - "fast-ion conductor"
+    - "superionic conductor"
+    - "superionic conductivity"
+    - "solid ionic conductor"
+    - "solid-state ionics"
+
+    # Multivalent transport
+    - "magnesium ion conductivity"
+    - "Mg2+ conductivity"
+    - "calcium ion conductivity"
+    - "zinc ion conductivity"
+    - "divalent ion conduction"
+    - "multivalent ion migration"
+
+  exclude_words:
+    - "magnesium alloy"
+    - "corrosion"
+    - "biodegradable"
+    - "implant"
+    - "bone"
+    - "cement"
+    - "fertilizer"
+    - "dietary"
+    - "zinc oxide nanoparticles"
+    - "galvanizing"
+    - "aqueous zinc"
+    - "supercapacitor"
+    - "photocatalyst"
+    - "solar cell"
+    - "fuel cell"
+    - "SOFC"
+    - "water splitting"
+    - "electrolyzer"
+
+  min_score: 2
+  # Papers no free copy is known for are kept too: the repositories and the publishers' services are asked,
+  # and what none of them has goes to to_download_by_hand.csv (with its link).
+  propose_closed: true
+  review: false
+
+fetch:
+  folder: WebScraping/papers_multivalent
+  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+            semanticscholar, ads, openaire, core, crossref]
+  workers: 4
+  max_pdf_mb: 60
+
+extract:
+  properties: [Activation_Energy, Ionic_Conductivity, Diffusion_Coefficient, Electronic_Conductivity,
+               Ionic_Radius]
+  require_material: true
+  # Materials of another kind (electrodes, interphase salts) are flagged; the ranking leaves them out.
+  domain: electrolyte

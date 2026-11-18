@@ -47,7 +47,7 @@ table), and `python -m WebScraping --stage fetch` goes on from there.
 | Option | What it does |
 |---|---|
 | `--job FILE` | The job file: what to search for, which papers to keep, what to extract (default: `configs/sse.yaml`) |
-| `--output DIR`, `-o` | Where the database goes (default: `WebScraping/web_output`) |
+| `--output DIR`, `-o` | Where the database goes (default: the job's own — `WebScraping/web_output` for the PDF folder `WebScraping/papers`, `WebScraping/web_output_NAME` for `WebScraping/papers_NAME`) |
 | `--stage discover\|fetch\|extract` | The first stage to run (default: `discover`, i.e. all of them) |
 | `--limit N` | Fetch at most N papers in this run |
 | `--yes` | Approve every proposal without a review, even with `review: true` |
@@ -61,7 +61,7 @@ paper twice. The same steps are buttons in [the window](#the-window), with the r
 table instead of a spreadsheet.
 
 Your e-mail and keys (Elsevier, Wiley, CORE, Springer Nature, NASA ADS, ...), all optional and all
-free, go in `WebScraping/averageScrap/.env` — or in **API keys…** in the window (one card per
+free, go in `~/MoukhlijMatExtract/.env` — or in **API keys…** in the window (one card per
 organization), which writes that file. The file
 already has an empty line for each one; a source whose key is empty is skipped, and `--check` says
 where each key is had (see [Where papers are searched for](#where-papers-are-searched-for)).
@@ -80,7 +80,7 @@ where each key is had (see [Where papers are searched for](#where-papers-are-sea
     Semantic Scholar, CORE, Springer Nature, NASA ADS, IEEE Xplore, Web of Science, The Lens, Dimensions,
     BASE — each with what
     its key opens, whether it is set, and a **Get a free key ↗** button to its sign-up page. They are
-    saved in `WebScraping/averageScrap/.env`, which git ignores.
+    saved in `~/MoukhlijMatExtract/.env`, readable by you alone.
   - **Search settings…** shows the job as a form — searches, years, sources, screening words, where
     copies are looked for, the properties to keep — each number within its bounds, and saves it as a
     job file the terminal reads too, keeping its comments and `# headings`. What may not change (the
@@ -172,15 +172,21 @@ extraction.
    engines), Unpaywall, arXiv, then the repositories. A file is kept only if it is a real PDF (not the
    paywall page a server sometimes sends under a `.pdf` name), at least article-sized, and its
    first pages carry the paper's title (not a supplement or another article). A refusal (401/403)
-   or a `robots.txt` "Disallow" just means "next source" — nothing tries to get around one.
+   or a `robots.txt` "Disallow" just means "next source" — nothing tries to get around one. A site
+   that refuses three downloads in a row (HTTP 403) refuses programs, not one paper: it is not asked
+   again for the rest of the run, and the papers it held do not lose a try for it.
    Failures are retried on the next runs, three attempts in all; a paper with no legal copy is
    marked `closed` ("needs a manual PDF": drop it into `LocalExtraction/papers/` and Project 1 handles it).
+   The papers it could not get are listed after each download, with why and what to do — see
+   [Papers to download by hand](#papers-to-download-by-hand).
 5. **Extract** — Project 1's pipeline over `WebScraping/papers/`, with the metadata the source reported
    (a better title, journal and DOI than can be guessed from a PDF's first page) — what the source
    did not report (a license, an OpenAlex id) is completed from OpenAlex — and only the data you
    asked for (`extract.properties`, `extract.require_material`). Every cell of every table is
    answered, as in [LocalExtraction](../../LocalExtraction/README.md#no-open-answer). The result goes to
-   `WebScraping/web_output/` (`--output` to choose another folder), apart from that of your own PDFs.
+   the job's own database, beside its PDF folder: `WebScraping/web_output/` for `WebScraping/papers/`,
+   `WebScraping/web_output_NAME/` for `WebScraping/papers_NAME/` (`--output` to choose another folder). Two jobs never
+   share a database, and the web database stays apart from that of your own PDFs.
    Each run **appends** the papers it fetched to the tables already there, never losing a row — see
    [Adding papers to a database](../../LocalExtraction/README.md#adding-papers-to-a-database).
 
@@ -192,9 +198,11 @@ extraction.
 | `WebScraping/papers/<doi>.json` | Its provenance: DOI, title, source, URL, license, retrieval date, SHA-256, page count, how well the title matched |
 | `WebScraping/papers/ledger.sqlite` | One row per paper ever found, with its status: new → screened → approved/rejected → downloaded/closed/failed → extracted |
 | `WebScraping/papers/candidates.csv` | The review list |
+| `WebScraping/papers/to_download_by_hand.csv` | Every paper the downloads could not get: DOI, title, journal, open-access status, reason, what to do, link |
+| `WebScraping/papers/by_hand/` | Where you save the PDFs of that list from your browser; the next download takes them in |
 | `WebScraping/web_output/` | The database of the web papers. In its `papers.csv`, `origin` = `web`, with `source_service`, `source_url`, `license`, `retrieved_at`, `file_sha256`, `openalex_id` and `metadata_basis` |
 
-`WebScraping/papers/` and `WebScraping/averageScrap/.env` are git-ignored: the PDFs are someone else's copyright and the keys are secret.
+`WebScraping/papers/` is git-ignored: the PDFs are someone else's copyright. The keys are kept outside the repository, in `~/MoukhlijMatExtract/.env`, readable by you alone.
 
 ## The job file
 
@@ -221,7 +229,7 @@ otherwise quietly keep its default).
 Every source of `search.sources` is asked every query (up to `max_per_query` papers each); the same
 paper found by several of them is one candidate (by its DOI), and `found_by` says who found it. A
 source that needs a key is skipped — with a line saying so — until the key is in
-`WebScraping/averageScrap/.env`, where an empty line is waiting for it. Every key here is free.
+`~/MoukhlijMatExtract/.env`, where an empty line is waiting for it. Every key here is free.
 
 | `search.sources` | What it is | Needs |
 |---|---|---|
@@ -284,6 +292,29 @@ minutes** — the status line counts down; Pause holds the wait and Stop ends it
 still refused for the next run, which checks it first. A refused try does not count against a
 paper's three tries; a check refused six times (a service that is gone, not busy) is given up.
 A source that refuses three searches in a row is not asked the rest now: they go on the list unasked.
+
+**How a word is found.** A word is found in the title or the abstract whatever its case, with a space or a hyphen
+between its parts, and in the plural. A formula (a word with a digit and a capital letter, such as `Li7La3Zr2O12`)
+keeps its case, and is found however the text writes it: with spaces (`Li 7 La 3 Zr 2 O 12`), subscript digits or
+`<sub>` tags. It is also found inside a longer formula: `La3Zr2O12` finds `Li6.4Ga0.2La3Zr2O12`, so the part of a
+family's formula brings in its doped members.
+
+**Settings changed after a search.** A paper is screened once, when it is found. To decide again, with the
+settings of now, the papers screened before and not downloaded yet, press “Re-screen with the settings…” in the
+Candidates tab, or run `mme-web run --rescreen`. Use it after ticking “Also keep papers no free copy is known for”
+(`screen.propose_closed`), or after changing the words or the minimum score. A paper whose decision changes becomes a
+new proposal, fetched by the next “3 · Download”. A yes or no set by hand is decided again too; papers downloaded,
+failed or closed, and duplicates, are left as they are.
+
+**The papers a busy service refused, at the end of a download.** A site that answers "too many requests" (HTTP 429)
+is asked less often for the rest of the run: at least 6 s between two requests, doubled at each new 429, up to
+30 s (Semantic Scholar, for example: "one request every 30 s to it for the rest of this run"). The papers it
+refused are tried again at the end of the download, after each pause of the watcher, **one after another**, as
+many seconds apart as the slowest service asked for (5 s at least). A line of the Web scraping window, under the
+status line, says how many papers wait, which services refused them, the pace they asked for and the round. It
+stays on the step's card, until the next step. What is still refused after the last round stays on the watch list
+and is tried first by the next “3 · Download”. A paper that waits only on services that did not answer at all
+(down, not busy) is left for the next download at once.
 
 At the end of each step it reports what was checked — in the log, and on the step's card. It looks
 like this (the numbers are an example):
@@ -350,7 +381,7 @@ what a subscription includes — not by scraping ScienceDirect pages. You need:
 
 1. an **API key** (free): https://dev.elsevier.com/ → "I want an API key", created while you are
    on your university's network;
-2. the key in `WebScraping/averageScrap/.env` (or **API keys…** in the window): `ELSEVIER_API_KEY=...`;
+2. the key in `~/MoukhlijMatExtract/.env` (or **API keys…** in the window): `ELSEVIER_API_KEY=...`;
 3. to run from the **university network or VPN** — the API only returns full texts for the
    institution the key belongs to — or to ask Elsevier for an **institutional token**
    (`ELSEVIER_INSTTOKEN=...`), which lets the key work from anywhere.
@@ -372,7 +403,7 @@ is refused, never saved as the paper.
 Wiley's web pages turn scripts away, also for open-access articles; its text-and-data-mining API
 is the way it offers instead. Sign in at
 https://onlinelibrary.wiley.com/library-info/resources/text-and-datamining, accept the agreement,
-and put the token in `WebScraping/averageScrap/.env`: `WILEY_TDM_TOKEN=...`. It fetches Wiley's open-access articles from
+and put the token in `~/MoukhlijMatExtract/.env`: `WILEY_TDM_TOKEN=...`. It fetches Wiley's open-access articles from
 anywhere and the subscribed ones from your university's network, at no more than 60 requests in
 10 minutes (the program waits accordingly). `--check` tells you whether the token works.
 
@@ -388,6 +419,49 @@ bypasses a paywall, a login, a bot check or a refusal, and shadow libraries (Sci
 are not used and cannot be added as a source: they hand out papers without the right to. Papers
 with no legal copy stay a manual step — your library, an inter-library loan, or a request to the
 authors.
+
+## Papers to download by hand
+
+Not every paper can be downloaded by a program. Many publishers' sites (MDPI, Wiley, ACS, RSC,
+ChemRxiv…) answer a program's download with HTTP 403, even for an open-access paper, while a person in a
+browser gets it; that answer is respected. Instead, every download step lists **every paper it could not
+get** in `to_download_by_hand.csv` (in the papers folder), the ones you can get at once first:
+
+| Column | What |
+|---|---|
+| `doi`, `title`, `year`, `journal` | The paper |
+| `open_access` | `gold`, `diamond`, `hybrid`, `bronze`, `green`, `closed` or `unknown` |
+| `reason` | Why it has no PDF yet (below) |
+| `what_to_do` | What can be done about it |
+| `link` | `https://doi.org/<doi>`: the article's page at its publisher |
+| `detail` | What each source answered |
+
+| Reason | What to do |
+|---|---|
+| Site refuses programs | Open the link in your browser and save the PDF into `by_hand/` |
+| Subscription needed | Run "3 · Download" on the university's network (campus or VPN), or get it by hand |
+| No open copy found | Get it by hand: the publisher's page, your library, or the authors |
+| Not found at the sources | Tried again by the next download; or get it by hand |
+| Site busy or not answering | Nothing: the next download tries it again by itself |
+
+**In the window**, a download that missed papers opens the window *Papers not downloaded
+automatically*: how many and why, the papers themselves (double-click one to open its page in your
+browser; select several and press *Open in browser*, or *Copy the links*), and buttons to open the list
+and the `by_hand/` folder. The result card of the download shows the count, and its button
+*Papers not downloaded (N)…* opens the same window for every download so far.
+
+Open a link, save the PDF into the **`by_hand/`** folder of the papers folder under any name, and run
+"3 · Download" again. Each PDF there is taken in when:
+
+1. a DOI of the list is printed on its first two pages or in its metadata, or is its file name
+   (`10.3390_batteries9020137.pdf`), and
+2. its first pages carry the paper's title.
+
+It is then moved into the papers folder under the paper's name, with the same provenance record as a
+downloaded paper: `source_service` = "by hand (the article's page, in a browser)", `source_url` = its
+link, its license, the date and its SHA-256. It counts as a legal copy from then on, in the database
+and in the release. A PDF that matches nothing stays in `by_hand/`, and the log says why. The list
+shrinks as the PDFs come in, and is removed once it is empty.
 
 ## Known limitations
 

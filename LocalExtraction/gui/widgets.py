@@ -210,6 +210,8 @@ class Table(ttk.Frame):
         self._rows: List[Row] = []
         self._sorted: Optional[Tuple[str, bool]] = None  # (column, reversed)
         self._on_open = on_open
+        from .design import stripes
+        stripes(self.tree)  # every other row shaded
         if on_open is not None:
             self.tree.bind("<Double-1>", self._opened)
             self.tree.bind("<Return>", self._opened)
@@ -239,8 +241,9 @@ class Table(ttk.Frame):
             rows = sorted(rows, key=lambda row: _sort_key(str(row[1][index])), reverse=reverse)
         selected, top = set(self.tree.selection()), self.tree.yview()[0]
         self.tree.delete(*self.tree.get_children())
-        for identifier, values, tags in rows:
-            self.tree.insert("", "end", iid=identifier, values=list(values), tags=list(tags))
+        for index, (identifier, values, tags) in enumerate(rows):
+            self.tree.insert("", "end", iid=identifier, values=list(values),
+                             tags=[*tags, "stripe"] if index % 2 else list(tags))
         kept = [identifier for identifier, _, _ in rows if identifier in selected]
         if kept:
             self.tree.selection_set(kept)
@@ -254,7 +257,8 @@ class Table(ttk.Frame):
                 self._rows[index] = row
                 break
         if self.tree.exists(identifier):
-            self.tree.item(identifier, values=list(values), tags=list(tags))
+            striped = "stripe" in self.tree.item(identifier, "tags")
+            self.tree.item(identifier, values=list(values), tags=[*tags, "stripe"] if striped else list(tags))
 
     def sort_by(self, column: str) -> None:
         reverse = self._sorted is not None and self._sorted[0] == column and not self._sorted[1]
@@ -314,3 +318,82 @@ class FolderRow(ttk.Frame):
             relative = os.path.relpath(path)
             self.var.set(relative if not relative.startswith("..") else path)
             self._changed()
+
+
+class Scrolled(ttk.Frame):
+    """A frame whose content (`inner`) scrolls up and down, with the bar or the mouse wheel. The bar shows only when
+    the content is taller than the frame: on a large screen nothing changes; on a small one nothing is cut off."""
+
+    def __init__(self, parent: tk.Misc):
+        super().__init__(parent)
+        # Its size comes from its window or its pane, never from what it holds: else the bar, shown when the content
+        # is taller, asked for height, the window grew, the bar went, the window shrank — a loop that never settled.
+        self.pack_propagate(False)
+        background = ttk.Style().lookup("TFrame", "background") or None
+        self.canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0, background=background, height=1)
+        self.bar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        # Where the bar goes while it is hidden: an empty strip as wide, so the content keeps its width either way.
+        # Else showing the bar narrowed the content, text wrapped onto more lines and the bar stayed; hiding it widened
+        # the content, the text took fewer lines and the bar went — without end.
+        self.gap = ttk.Frame(self, width=self.bar.winfo_reqwidth())
+        self.gap.pack(side="right", fill="y")
+        self.inner = ttk.Frame(self.canvas)
+        self._window = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
+        self.inner.bind("<Configure>", lambda event: self._resized())
+        self.canvas.bind("<Configure>", self._canvas_resized)
+        self.canvas.configure(yscrollcommand=self.bar.set)
+        self.canvas.pack(side="left", fill="both", expand=True)
+        # The wheel scrolls this frame only while the pointer is over it. Moving onto one of its widgets is
+        # reported to the frame as leaving it: the wheel is let go only when the pointer is really out.
+        self.bind("<Enter>", lambda event: self._wheel(True))
+        self.bind("<Leave>", self._leave)
+        self.bind("<Destroy>", lambda event: self._wheel(False) if event.widget is self else None)
+
+    def scrolls(self) -> bool:
+        """Whether the content is taller than the frame (the bar is shown)."""
+        return bool(self.bar.winfo_manager())
+
+    def _canvas_resized(self, event: "tk.Event") -> None:
+        try:
+            self.canvas.itemconfigure(self._window, width=event.width)
+        except tk.TclError:  # the window is closing: Tk may still deliver a resize to a canvas already gone
+            return
+        self._resized()
+
+    def _resized(self) -> None:
+        try:
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            taller = self.inner.winfo_reqheight() > self.canvas.winfo_height() + 1
+            if taller and not self.bar.winfo_manager():
+                self.gap.pack_forget()
+                self.bar.pack(side="right", fill="y", before=self.canvas)
+            elif not taller and self.bar.winfo_manager():
+                self.bar.pack_forget()
+                self.gap.pack(side="right", fill="y", before=self.canvas)
+                self.canvas.yview_moveto(0)
+        except tk.TclError:  # the window is closing (see _canvas_resized)
+            pass
+
+    def _inside(self, x_root: int, y_root: int) -> bool:
+        widget = self.winfo_containing(x_root, y_root)
+        return widget is not None and str(widget).startswith(str(self))
+
+    def _leave(self, event: "tk.Event") -> None:
+        if not self._inside(event.x_root, event.y_root):
+            self._wheel(False)
+
+    def _wheel(self, on: bool) -> None:
+        for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            if on:
+                self.canvas.bind_all(sequence, self._scroll)
+            else:
+                self.canvas.unbind_all(sequence)
+
+    def _scroll(self, event: "tk.Event") -> None:
+        if not self._inside(event.x_root, event.y_root) or not self.scrolls():
+            return
+        if getattr(event, "num", 0) in (4, 5):  # Linux
+            steps = -1 if event.num == 4 else 1
+        else:  # Windows (steps of 120) and macOS (small steps)
+            steps = -int(event.delta / 120) if abs(event.delta) >= 120 else -event.delta
+        self.canvas.yview_scroll(steps, "units")

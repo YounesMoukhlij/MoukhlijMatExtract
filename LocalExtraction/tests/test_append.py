@@ -47,6 +47,27 @@ class AppendTests(unittest.TestCase):
     def table(self, name: str) -> pd.DataFrame:
         return read_table(os.path.join(self.out, f"{name}.csv"))
 
+    def test_the_database_is_the_same_whatever_order_the_papers_finish_in(self):
+        """Several workers finish papers in any order: the files must not depend on it (release checksums)."""
+        for name in ("b.pdf", "a.pdf", "c.pdf"):
+            make_pdf(os.path.join(self.pdfs, name), f"Paper {name}", energy={"a.pdf": "0.31", "b.pdf": "0.32", "c.pdf": "0.33"}[name],
+                     doi=f"10.1234/{name[0]}.2024")
+        files = {}
+        for order in (["a.pdf", "b.pdf", "c.pdf"], ["c.pdf", "a.pdf", "b.pdf"]):
+            out = os.path.join(self.root, "out_" + "".join(n[0] for n in order))
+            with redirect_stdout(io.StringIO()):
+                pipeline = NaLiXPipeline(self.pdfs, out, lookup=False)
+                results = {n: pipeline.process_document(n, os.path.join(self.pdfs, n)) for n in order}
+                for n in order:  # one paper at a time, as batches of finished papers are saved
+                    results[n].paper_id = n
+                    StrictExporter(out).export([results[n]], excel=False)
+            files[tuple(order)] = {name: open(os.path.join(out, f"{name}.csv"), "rb").read()
+                                   for name in ("papers", "activation_energy", "ionic_conductivity")}
+            files[tuple(order)]["json"] = open(os.path.join(out, "database.json"), "rb").read()
+        first, second = files.values()
+        for name in first:
+            self.assertEqual(first[name], second[name], name)
+
     def test_a_pdf_already_extracted_is_said_and_skipped(self):
         make_pdf(os.path.join(self.pdfs, "a.pdf"), "First paper on argyrodite conductors")
         self.assertEqual(self.run_pipeline(), 1)
@@ -85,11 +106,11 @@ class AppendTests(unittest.TestCase):
         papers.to_csv(path, index=False)
         StrictExporter(self.out).export([paper("a.pdf", "New title"), paper("c.pdf")], excel=False)
         papers = self.table("papers")
-        self.assertEqual(list(papers.paper_id), ["b.pdf", "a.pdf", "c.pdf"])  # a.pdf once, as written last
-        self.assertEqual(list(papers.my_notes), ["skip", ADDED_BY_HAND, ADDED_BY_HAND])
+        self.assertEqual(list(papers.paper_id), ["a.pdf", "b.pdf", "c.pdf"])  # a.pdf once, in paper order
+        self.assertEqual(list(papers.my_notes), [ADDED_BY_HAND, "skip", ADDED_BY_HAND])  # a.pdf was written again
         import json
         with open(os.path.join(self.out, "database.json"), encoding="utf-8") as f:
-            self.assertEqual([p["paper_id"] for p in json.load(f)["papers"]], ["b.pdf", "a.pdf", "c.pdf"])
+            self.assertEqual([p["paper_id"] for p in json.load(f)["papers"]], ["a.pdf", "b.pdf", "c.pdf"])
 
     def test_a_database_lacking_a_table_or_a_column_is_an_earlier_version(self):
         StrictExporter(self.out).export([paper("a.pdf")], excel=False)
@@ -155,6 +176,19 @@ class AppendTests(unittest.TestCase):
         self.assertEqual(StrictExporter.pending_rebuilds(self.out), [])  # done
         for name in TABLE_NAMES:
             self.assertTrue(os.path.exists(os.path.join(self.out, f"{name}.csv")), name)
+
+
+
+class LongCellTests(unittest.TestCase):
+    def test_a_table_cell_of_any_length_can_be_read_once_the_program_is_loaded(self):
+        """A record's abstract or a table's text can exceed the 131,072 characters Python's CSV reader takes by
+        default; the program lifts that limit as soon as it is loaded, for every part that reads a CSV file."""
+        import subprocess
+        import sys
+        script = "import csv, LocalExtraction; print(csv.field_size_limit() > 10_000_000)"
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        done = subprocess.run([sys.executable, "-c", script], cwd=root, capture_output=True, text=True, timeout=120)
+        self.assertEqual(done.stdout.strip(), "True", done.stderr[-400:])
 
 
 if __name__ == "__main__":
