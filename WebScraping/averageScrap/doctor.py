@@ -97,6 +97,25 @@ def report(job: Job, client: PoliteClient, probe_doi: str = "", papers_csv: str 
             ok, text = wiley.check(client, _WILEY_TEST_DOI)
             lines.append((ok, f"Wiley: {text}"))
 
+    if "springeroa" in job.fetch.sources:
+        key = os.environ.get("SPRINGER_NATURE_OA_KEY", "").strip()
+        if not key:
+            lines.append((False, "Springer Nature (open access): SPRINGER_NATURE_OA_KEY is not set, so open Springer, "
+                                 "Nature and BMC papers come only from other copies. The key is free: "
+                                 + KEY_SIGNUP["SPRINGER_NATURE_OA_KEY"]))
+        else:
+            try:
+                response = client.get("https://api.springernature.com/openaccess/json", stream=True,
+                                      params={"q": "keyword:battery", "p": 1, "api_key": key}, no_retry={429, 500, 502, 503})
+                status = response.status_code
+                response.close()
+                lines.append((status == 200, "Springer Nature (open access): " + (
+                    "the Open Access API key works" if status == 200 else
+                    f"HTTP {status} (the Open Access API key was refused — copy it again from API Management)"
+                    if status in (401, 403) else f"HTTP {status}")))
+            except requests.RequestException as error:
+                lines.append((False, f"Springer Nature (open access): no answer ({type(error).__name__})"))
+
     for name in job.fetch.sources:
         if name not in _PROBES:
             continue

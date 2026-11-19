@@ -204,7 +204,7 @@ class JobTests(unittest.TestCase):
         self.assertEqual(job.fetch.folder, os.path.join("WebScraping", "papers"))
         self.assertEqual(job.extract.properties, ["Activation_Energy"])
         # Every source is tried unless the job names its own; closed papers are not proposed unless it says so.
-        self.assertEqual(job.fetch.sources, ["elsevier", "wiley", "aps", "openalex", "unpaywall", "publisher", "arxiv", "pmc",
+        self.assertEqual(job.fetch.sources, ["elsevier", "wiley", "springeroa", "aps", "openalex", "unpaywall", "publisher", "arxiv", "pmc",
                                              "osti", "hal", "zenodo", "datacite", "semanticscholar", "ads", "openaire", "core",
                                              "crossref"])
         # Every search source too (one whose key is missing is skipped), and every service asked for a missing abstract.
@@ -970,6 +970,26 @@ class ResolverTests(unittest.TestCase):
         self.assertEqual(option.url, "https://api.wiley.com/onlinelibrary/tdm/v1/articles/10.1002%2Faenm.202001234")
         self.assertEqual((option.headers, option.api), ({"Wiley-TDM-Client-Token": "TOKEN"}, True))
         self.assertEqual(list(resolver.options(candidate(doi="10.1038/s41467-1"))), [])
+
+    def test_springer_nature_open_access_gives_the_pdf_of_an_open_paper_only(self):
+        """The Open Access API knows a paper only when it is open (404 otherwise): then its PDF from link.springer.com.
+        Asked only for Springer, Nature and BMC papers, and only with SPRINGER_NATURE_OA_KEY."""
+        open_paper = {"records": [{"doi": "10.1186/s40580-020-00001-1", "title": "Open"}]}
+        session = FakeSession([("api.springernature.com/openaccess", lambda url, params, headers: FakeResponse(
+            200, json_data=open_paper) if "s40580" in params["q"] else FakeResponse(404, json_data={"status": "Fail"}))])
+        self.assertEqual(self.options(candidate(doi="10.1186/s40580-020-00001-1"), ["springeroa"], session=session), [])
+        self.assertEqual(session.hits("springernature"), 0)  # no key: not asked
+        with mock.patch.dict(os.environ, {"SPRINGER_NATURE_OA_KEY": "oa-key"}):
+            option, = Resolver(client_for(session), ["springeroa"]).options(candidate(doi="10.1186/s40580-020-00001-1"))
+            self.assertEqual((option.service, option.url, option.landing),  # BMC: its own site, the article page
+                             ("springeroa", "https://doi.org/10.1186/s40580-020-00001-1", True))
+            self.assertEqual(session.calls[-1][1], {"q": "doi:10.1186/s40580-020-00001-1", "api_key": "oa-key"})
+            resolver = Resolver(client_for(session), ["springeroa"])
+            self.assertEqual(list(resolver.options(candidate(doi="10.1007/s12598-020-01441-1"))), [])  # closed: 404
+            self.assertEqual(resolver.refused(), [])  # a 404 is an answer, not a refusal
+            asked = session.hits("springernature")
+            self.assertEqual(list(resolver.options(candidate(doi="10.1021/acs.chemmater.1"))), [])
+            self.assertEqual(session.hits("springernature"), asked)  # not a Springer paper: not asked
 
     def test_aps_is_asked_in_the_journals_spelling(self):
         resolver = Resolver(client_for(FakeSession()), ["aps"])

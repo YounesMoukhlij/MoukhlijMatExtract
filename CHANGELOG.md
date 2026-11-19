@@ -8,6 +8,17 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **Springer Nature's two keys, and open Springer, Nature and BMC papers downloaded through its Open Access API.**
+  - **API keys…:** the Springer Nature card has two inputs, as the Basic plan gives two keys: the **Meta API key**
+    (search and abstracts, `SPRINGER_NATURE_API_KEY`, as before) and the **Open Access API key**
+    (`SPRINGER_NATURE_OA_KEY`).
+  - **A new source of copies, “Springer Nature (open access)” (`springeroa`):** for a Springer, Nature or BMC paper,
+    the Open Access API is asked by DOI; it knows the paper only when it is open. The PDF is then downloaded from
+    link.springer.com (whose robots.txt allows it), or, for Nature and BMC, from the article page's PDF link. A
+    closed paper is not asked again of anyone for this.
+  - **Job files:** `springeroa` follows `wiley` in the sources of copies of every shipped job.
+  - **Check setup** says whether the Open Access API key works.
+
 - **“☕ Keep the computer awake”** in every window (the footer of each part, and the main window): a long search,
   download or extraction is no longer stopped by the computer going to sleep.
   - **One switch for the program:** ticked in any window, it is ticked in all of them; it stays on until unticked,

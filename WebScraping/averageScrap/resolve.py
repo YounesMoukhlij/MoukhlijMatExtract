@@ -68,6 +68,9 @@ NOT_FOUND_ADVICE = (
     "  • your library, or a request to the authors — put the PDF in WebScraping/papers/ and “4 · Extract” "
     "reads it.")
 SEMANTIC_SCHOLAR = "https://api.semanticscholar.org/graph/v1/paper"
+SPRINGER_OA = "https://api.springernature.com/openaccess/json"
+SPRINGER_PREFIXES = ("10.1007/", "10.1023/", "10.1038/", "10.1057/", "10.1134/", "10.1140/", "10.1186/")
+SPRINGER_LINK_PREFIXES = ("10.1007/", "10.1023/", "10.1134/", "10.1140/")  # the journals link.springer.com serves
 EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 PMC_CLOUD = "https://pmc-oa-opendata.s3.amazonaws.com"
 OSTI = "https://www.osti.gov/api/v1/records"
@@ -124,6 +127,7 @@ class Resolver:
         self._semantic_scholar_key = {"x-api-key": key} if key else None
         key = os.environ.get("CORE_API_KEY", "").strip()
         self._core_key = {"Authorization": f"Bearer {key}"} if key else None
+        self._springer_oa_key = os.environ.get("SPRINGER_NATURE_OA_KEY", "").strip()
         key = os.environ.get("ADS_API_TOKEN", "").strip()
         self._ads_token = {"Authorization": f"Bearer {key}"} if key else None
         self._warned_unpaywall = False
@@ -212,6 +216,24 @@ class Resolver:
         if self.wiley and c.doi and Wiley.applies(c):
             yield FetchOption("wiley", Wiley.url(c.doi), self.wiley.headers(),
                               license=c.license or "Wiley (text-and-data-mining terms)", api=True)
+
+    def _springeroa(self, c: Candidate) -> Iterator[FetchOption]:
+        """Springer Nature's Open Access API, asked by DOI, knows the paper only when it is open access (it answers
+        404 otherwise): then its PDF, from link.springer.com, whose robots.txt allows /content/."""
+        if not (self._springer_oa_key and c.doi):
+            return
+        publisher = c.publisher.lower()
+        if not (c.doi.startswith(SPRINGER_PREFIXES) or "springer" in publisher or "nature" in publisher
+                or "biomed central" in publisher):
+            return
+        data = self._ask("Springer Nature", SPRINGER_OA, {"q": f"doi:{c.doi}", "api_key": self._springer_oa_key})
+        records = (data or {}).get("records") or []
+        if any(normalize_doi(record.get("doi") or "") == c.doi for record in records):
+            licence = c.license or "open access (Springer Nature)"
+            if c.doi.startswith(SPRINGER_LINK_PREFIXES):  # hosted on link.springer.com: the PDF itself
+                yield FetchOption("springeroa", f"https://link.springer.com/content/pdf/{c.doi}.pdf", license=licence)
+            else:  # Nature, BMC: their own sites, whose article page names its PDF
+                yield FetchOption("springeroa", f"https://doi.org/{c.doi}", license=licence, landing=True)
 
     def _aps(self, c: Candidate) -> Iterator[FetchOption]:
         """The American Physical Society serves its open-access articles to programs here (its web

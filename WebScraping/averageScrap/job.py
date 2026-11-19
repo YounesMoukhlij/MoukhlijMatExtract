@@ -34,7 +34,8 @@ ENV_SETTINGS = (
     ("OPENALEX_API_KEY", "OpenAlex API key (optional)", True),
     ("SEMANTIC_SCHOLAR_API_KEY", "Semantic Scholar API key (optional: steadier)", True),
     ("CORE_API_KEY", "CORE API key (repository full texts: search and copies)", True),
-    ("SPRINGER_NATURE_API_KEY", "Springer Nature API key (search, abstracts of Springer and Nature papers)", True),
+    ("SPRINGER_NATURE_API_KEY", "Springer Nature Meta API key (search, abstracts of Springer and Nature papers)", True),
+    ("SPRINGER_NATURE_OA_KEY", "Springer Nature Open Access API key (PDFs of its open-access papers)", True),
     ("ADS_API_TOKEN", "NASA ADS token (physics literature, arXiv versions of journal papers)", True),
     ("IEEE_API_KEY", "IEEE Xplore API key", True),
     ("WOS_API_KEY", "Web of Science Starter API key", True),
@@ -51,6 +52,7 @@ KEY_SIGNUP = {
     "SEMANTIC_SCHOLAR_API_KEY": "https://www.semanticscholar.org/product/api#api-key-form",
     "CORE_API_KEY": "https://core.ac.uk/services/api → Register now",
     "SPRINGER_NATURE_API_KEY": "https://dev.springernature.com/ → Sign up (the Basic plan)",
+    "SPRINGER_NATURE_OA_KEY": "https://dev.springernature.com/ → API Management: the Open Access API key (Basic plan)",
     "ADS_API_TOKEN": "https://ui.adsabs.harvard.edu/ → create an account, then Settings → API Token",
     "IEEE_API_KEY": "https://developer.ieee.org/ → Register",
     "WOS_API_KEY": "https://developer.clarivate.com/apis/wos-starter → Subscribe (Free Trial: 50 requests a day)",
@@ -92,8 +94,11 @@ KEY_GROUPS = (
              (("SEMANTIC_SCHOLAR_API_KEY", "API key (optional)"),), KEY_SIGNUP["SEMANTIC_SCHOLAR_API_KEY"]),
     KeyGroup("CORE", "Full texts of the world's repositories: their search, and copies of the papers.",
              (("CORE_API_KEY", "API key"),), KEY_SIGNUP["CORE_API_KEY"]),
-    KeyGroup("Springer Nature", "Search and abstracts of Springer, Nature and BMC papers.",
-             (("SPRINGER_NATURE_API_KEY", "API key"),), KEY_SIGNUP["SPRINGER_NATURE_API_KEY"]),
+    KeyGroup("Springer Nature", "Springer, Nature and BMC papers. The Basic plan gives two keys, both free: the Meta "
+             "API key searches and fetches abstracts; the Open Access API key tells which papers are open access, whose "
+             "PDFs are then downloaded from Springer.",
+             (("SPRINGER_NATURE_API_KEY", "Meta API key (search and abstracts)"),
+              ("SPRINGER_NATURE_OA_KEY", "Open Access API key (open-access PDFs)")), KEY_SIGNUP["SPRINGER_NATURE_API_KEY"]),
     KeyGroup("NASA ADS", "Physics literature, and the arXiv version of journal papers.",
              (("ADS_API_TOKEN", "API token"),), KEY_SIGNUP["ADS_API_TOKEN"]),
     KeyGroup("IEEE Xplore", "Search of IEEE journals and conferences.",
@@ -124,7 +129,7 @@ ABSTRACT_SOURCES = ("openaire", "crossref", "europepmc", "semanticscholar", "spr
 # and "wiley" only apply to those publishers' papers and only with ELSEVIER_API_KEY / WILEY_TDM_TOKEN;
 # "unpaywall" wants a contact email; "core" and "ads" their keys; every other source needs nothing but a
 # network connection.
-RESOLVERS = ("elsevier", "wiley", "aps", "openalex", "unpaywall", "publisher", "arxiv", "pmc", "osti", "hal",
+RESOLVERS = ("elsevier", "wiley", "springeroa", "aps", "openalex", "unpaywall", "publisher", "arxiv", "pmc", "osti", "hal",
              "zenodo", "datacite", "semanticscholar", "ads", "openaire", "core", "crossref")
 # How the window names them.
 LABELS = {
@@ -136,12 +141,13 @@ LABELS = {
     "zenodo": "Zenodo", "datacite": "DataCite", "plos": "PLOS", "ntrs": "NASA NTRS", "figshare": "Figshare",
     "osf": "OSF Preprints", "lareferencia": "LA Referencia", "thesesfr": "theses.fr", "lens": "The Lens", "base": "BASE",
     "dimensions": "Dimensions", "publisher": "Publisher's page (open-access journals)",
+    "springeroa": "Springer Nature (open access)",
 }
 # The setting of the .env file a source or a copy source cannot work without (all the others need none).
 NEEDS = {
     "scopus": "ELSEVIER_API_KEY", "core": "CORE_API_KEY", "springernature": "SPRINGER_NATURE_API_KEY",
     "ads": "ADS_API_TOKEN", "ieee": "IEEE_API_KEY", "wos": "WOS_API_KEY", "elsevier": "ELSEVIER_API_KEY",
-    "wiley": "WILEY_TDM_TOKEN", "unpaywall": "MME_EMAIL",
+    "wiley": "WILEY_TDM_TOKEN", "springeroa": "SPRINGER_NATURE_OA_KEY", "unpaywall": "MME_EMAIL",
     "lens": "LENS_API_TOKEN", "dimensions": "DIMENSIONS_API_KEY", "base": "BASE_ACCESS",
 }
 # The numbers of a job a person may set, and their bounds (the window and the loader both hold them).
