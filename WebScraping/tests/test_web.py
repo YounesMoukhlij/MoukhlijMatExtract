@@ -991,6 +991,32 @@ class ResolverTests(unittest.TestCase):
             self.assertEqual(list(resolver.options(candidate(doi="10.1021/acs.chemmater.1"))), [])
             self.assertEqual(session.hits("springernature"), asked)  # not a Springer paper: not asked
 
+    def test_osti_is_asked_only_of_papers_openalex_ties_to_the_us_department_of_energy(self):
+        """OSTI holds DOE-funded papers only: a paper OpenAlex ties to no DOE funder or laboratory is not asked of it
+        (and cannot wait on it); one OpenAlex does not know is asked, rather than a DOE paper missed."""
+        from WebScraping.averageScrap.resolve import doe_linked
+        self.assertTrue(doe_linked({"funders": [{"id": "https://openalex.org/F4320306084", "display_name": "U.S. Department of Energy"}]}))
+        self.assertTrue(doe_linked({"funders": [{"id": "F1", "display_name": "Basic Energy Sciences"}]}))
+        self.assertTrue(doe_linked({"authorships": [{"institutions": [{"display_name": "Argonne National Laboratory"}]}]}))
+        self.assertFalse(doe_linked({"funders": [{"id": "F2", "display_name": "National Natural Science Foundation of China"}],
+                                     "authorships": [{"institutions": [{"display_name": "Tsinghua University"}]}]}))
+        self.assertFalse(doe_linked({"funders": [{"id": "F3", "display_name": "Department of Energy, Philippines"}]}))
+        record = [{"doi": "10.1000/doe", "links": [{"rel": "fulltext", "href": "https://www.osti.gov/servlets/purl/1"}]}]
+        works = {"10.1000/doe": {"id": "W1", "funders": [{"id": "https://openalex.org/F4320306084"}]},
+                 "10.1000/nsfc": {"id": "W2", "funders": [{"id": "F2", "display_name": "NSFC"}], "authorships": []}}
+
+        def openalex(url, params, headers):
+            doi = url.split("doi:", 1)[1]
+            return FakeResponse(200, json_data=works[doi]) if doi in works else FakeResponse(404, b"")
+        session = FakeSession([("api.openalex.org", openalex), ("osti.gov", FakeResponse(200, json_data=record))])
+        resolver = Resolver(client_for(session), ["osti"])
+        self.assertEqual([o.url for o in resolver.options(candidate(doi="10.1000/doe"))], ["https://www.osti.gov/servlets/purl/1"])
+        asked = session.hits("osti.gov")
+        self.assertEqual(list(resolver.options(candidate(doi="10.1000/nsfc"))), [])
+        self.assertEqual(session.hits("osti.gov"), asked)  # not a DOE paper: OSTI not asked
+        list(resolver.options(candidate(doi="10.1000/unknown")))
+        self.assertEqual(session.hits("osti.gov"), asked + 1)  # OpenAlex does not know it: OSTI is asked
+
     def test_aps_is_asked_in_the_journals_spelling(self):
         resolver = Resolver(client_for(FakeSession()), ["aps"])
         option, = resolver.options(candidate(doi="10.1103/physrevmaterials.3.035405"))
@@ -1024,7 +1050,8 @@ class ResolverTests(unittest.TestCase):
             {"osti_id": "2", "doi": "10.1000/other", "links": [{"rel": "fulltext", "href": "https://www.osti.gov/servlets/purl/2"}]}]
         session = FakeSession([("osti.gov/api", FakeResponse(200, json_data=records))])
         self.assertEqual(self.options(candidate(), ["osti"], session=session), [("osti", "https://www.osti.gov/servlets/purl/1783756")])
-        self.assertEqual(session.calls[0][1], {"doi": "10.1000/test"})
+        osti_call, = [params for url, params, _ in session.calls if "osti.gov" in url]  # after the OpenAlex lookup
+        self.assertEqual(osti_call, {"doi": "10.1000/test"})
         self.assertEqual(self.options(candidate(), ["osti"], session=FakeSession([("osti.gov/api", FakeResponse(200, json_data=[]))])), [])
 
     def test_hal_gives_the_deposited_file(self):

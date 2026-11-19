@@ -148,32 +148,140 @@ STOPPED_BY_CTRL_C = ("Stopped (Ctrl-C). What was finished is kept; run the same 
                      "from where it stopped.")
 
 
-@contextmanager
-def ctrl_c_stops() -> Iterator[RunControl]:
-    """For a step run from the terminal: the first Ctrl-C stops it as Stop does in the window — the
-    work under way is left off, what was finished is kept and saved, so the same command goes on
-    from there — and a second Ctrl-C quits at once. Yields the step's RunControl (its stop event)."""
-    control = RunControl()
+# ---------------------------------------------------------------------------------------------------------------------
+# Stopping from the terminal: every way a terminal stops a program, said in a box that cannot be missed
+# ---------------------------------------------------------------------------------------------------------------------
+_SIGNAL_WORDS = {"SIGINT": "Ctrl-C", "SIGTERM": "a stop signal (SIGTERM)", "SIGHUP": "the terminal was closed (SIGHUP)",
+                 "SIGBREAK": "Ctrl-Break"}
+_COLOURS = {"wait": "33", "done": "32", "quit": "31"}  # yellow, green, red
 
-    def on_ctrl_c(signum, frame) -> None:
-        if control.is_set():
-            raise KeyboardInterrupt
-        control.set()
-        # os.write, not print: a signal handler must not take the lock of sys.stdout
-        os.write(2, b"\nStopping (Ctrl-C): what is under way is left off, what was finished is saved. "
-                    b"Press Ctrl-C again to quit at once.\n")
 
+def stop_signals() -> List[int]:
+    """The signals a terminal stops a program with, those this system has: Ctrl-C, kill (SIGTERM), the terminal
+    closed (SIGHUP), Ctrl-Break (Windows)."""
+    import signal
+    return [getattr(signal, name) for name in ("SIGINT", "SIGTERM", "SIGHUP", "SIGBREAK") if hasattr(signal, name)]
+
+
+def signal_words(signum: int) -> str:
     import signal
     try:
-        before = signal.signal(signal.SIGINT, on_ctrl_c)
-    except ValueError:  # not the main thread: Ctrl-C keeps its usual meaning
-        before = None
+        return _SIGNAL_WORDS.get(signal.Signals(signum).name, signal.Signals(signum).name)
+    except ValueError:
+        return f"signal {signum}"
+
+
+def stop_box(kind: str, cause: str = "", what: str = "MoukhlijMatExtract") -> str:
+    """The box said when a run is stopped from the terminal. `kind`: "wait" (stopping: please wait), "done"
+    (stopped cleanly) or "quit" (quitting at once). Coloured when the terminal shows colours (not with NO_COLOR)."""
+    if kind == "wait":
+        title = f"⏳  Stop requested{f' — {cause}' if cause else ''}"
+        lines = [f"Please wait: {what} is saving its work and finishing peacefully.",
+                 "What is finished is kept; the same command goes on from there next time.",
+                 "", "Press Ctrl-C again only to quit at once (the item under way is lost)."]
+    elif kind == "done":
+        title = "✓  Stopped cleanly"
+        lines = ["Everything finished is saved.", "Run the same command again to go on where it stopped."]
+    else:
+        title = "✗  Quitting at once"
+        lines = ["What was already saved is kept; the item under way is not.",
+                 "Run the same command again to go on."]
+    body = [title, ""] + lines
+    width = max(_columns(line) for line in body) + 4
+    box = (["╭" + "─" * width + "╮"] + [f"│  {line}{' ' * (width - 4 - _columns(line))}  │" for line in body]
+           + ["╰" + "─" * width + "╯"])
+    text = "\n" + "\n".join(box) + "\n"
+    try:
+        import sys
+        colour = sys.stderr.isatty() and not os.environ.get("NO_COLOR")
+    except Exception:
+        colour = False
+    return f"\033[{_COLOURS[kind]}m{text}\033[0m" if colour else text
+
+
+def _columns(text: str) -> int:
+    """How many columns a line takes in a terminal: wide characters (⏳, CJK) take two."""
+    import unicodedata
+    return sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1 for ch in text)
+
+
+def say_box(kind: str, cause: str = "", what: str = "MoukhlijMatExtract") -> None:
+    """Writes the box to the terminal. os.write, not print: safe inside a signal handler; a closed terminal
+    (SIGHUP) is not an error."""
+    try:
+        os.write(2, stop_box(kind, cause, what).encode("utf-8", "replace"))
+    except OSError:
+        pass
+
+
+def _install(handler, signals: List[int]) -> dict:
+    import signal
+    before = {}
+    for sig in signals:
+        try:
+            before[sig] = signal.signal(sig, handler)
+        except (ValueError, OSError):  # not the main thread, or not allowed here: that signal keeps its meaning
+            pass
+    return before
+
+
+def _restore(before: dict) -> None:
+    import signal
+    for sig, handler in before.items():
+        try:
+            signal.signal(sig, handler)
+        except (ValueError, OSError, TypeError):
+            pass
+
+
+@contextmanager
+def ctrl_c_stops(what: str = "MoukhlijMatExtract") -> Iterator[RunControl]:
+    """For a step run from the terminal: the first stop signal (Ctrl-C, kill, the terminal closed, Ctrl-Break)
+    stops it as Stop does in the window — the work under way is left off, what was finished is kept and saved, so
+    the same command goes on from there — with a box saying to wait; a box says when it has stopped cleanly. A
+    second signal quits at once. Yields the step's RunControl (its stop event)."""
+    control = RunControl()
+    asked = []
+
+    def on_signal(signum, frame) -> None:
+        if control.is_set():
+            say_box("quit")
+            raise KeyboardInterrupt
+        control.set()
+        asked.append(signum)
+        say_box("wait", signal_words(signum), what)
+
+    before = _install(on_signal, stop_signals())
     try:
         with bound(control):
             yield control
     finally:
-        if before is not None:
-            signal.signal(signal.SIGINT, before)
+        _restore(before)
+        if asked:
+            say_box("done")
+
+
+@contextmanager
+def finish_then_stop(what: str = "MoukhlijMatExtract") -> Iterator[None]:
+    """For a short command (a ranking, a classification, a release: seconds): a stop signal does not cut it in the
+    middle of writing its files. It says to wait, the command finishes and saves, then says it stopped. A second
+    signal quits at once."""
+    asked = []
+
+    def on_signal(signum, frame) -> None:
+        if asked:
+            say_box("quit")
+            raise KeyboardInterrupt
+        asked.append(signum)
+        say_box("wait", signal_words(signum), what)
+
+    before = _install(on_signal, stop_signals())
+    try:
+        yield
+    finally:
+        _restore(before)
+        if asked:
+            say_box("done")
 
 
 @contextmanager

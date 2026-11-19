@@ -143,7 +143,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 	print(f"Using {args.workers} parallel workers")
 
 	try:
-		with runcontrol.ctrl_c_stops() as control:
+		with runcontrol.ctrl_c_stops("Local extraction") as control:
 			code = run_extraction(args.input, args.output, max_workers=args.workers, stop_event=control,
 								  lookup=not args.offline, domain=args.domain)
 		if control.is_set():

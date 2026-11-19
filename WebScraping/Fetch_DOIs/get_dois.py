@@ -360,6 +360,8 @@ _CRITICAL = threading.Event()  # the list is being changed: a stop waits until t
 
 
 def _on_stop(signum, frame):
+    if not _STOP.is_set():  # the first stop: a box says to wait while what was found is saved
+        runcontrol.say_box("wait", runcontrol.signal_words(signum), "Fetch DOIs")
     _STOP.set()
     if not _CRITICAL.is_set():
         raise StopRequested()
@@ -371,7 +373,7 @@ def _check_stop():
 
 
 def _on_signals(handler):
-    for sig in (signal.SIGINT, signal.SIGTERM):
+    for sig in runcontrol.stop_signals():  # Ctrl-C, kill, the terminal closed, Ctrl-Break
         try:
             signal.signal(sig, handler)
         except (ValueError, AttributeError, OSError):  # not the main thread, or no such signal here
@@ -880,7 +882,7 @@ def main(argv=None):
     # Run on its own (mme-dois), Ctrl-C is caught here; run as a step of a window or of mme-web, the
     # step's own Stop (or Ctrl-C) is used, and its handler is left as it was.
     own_signals = not isinstance(runcontrol.current(), runcontrol.RunControl)
-    before_signals = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)} if own_signals else {}
+    before_signals = {sig: signal.getsignal(sig) for sig in runcontrol.stop_signals()} if own_signals else {}
     _STOP.clear()
     if own_signals:
         _on_signals(_on_stop)
@@ -894,6 +896,8 @@ def main(argv=None):
             _on_signals(signal.SIG_IGN)  # a second press must not cut the save short
         print("\nStopped — saving what was found ...")
         checkpoint()
+        if own_signals:
+            runcontrol.say_box("done")
     finally:
         for sig, handler in before_signals.items():
             try:
