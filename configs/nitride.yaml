@@ -332,7 +332,7 @@ screen:
 
 fetch:
   folder: WebScraping/papers_nitride
-  sources: [elsevier, wiley, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
+  sources: [elsevier, wiley, springeroa, aps, openalex, unpaywall, publisher, arxiv, pmc, osti, hal, zenodo, datacite,
             semanticscholar, ads, openaire, core, crossref]
   workers: 4
   max_pdf_mb: 60
