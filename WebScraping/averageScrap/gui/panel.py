@@ -182,6 +182,9 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.stop_button = ttk.Button(steps, text="Stop", command=self.stop, state="disabled")
         self.stop_button.pack(side="left", padx=(6, 0))
         self.pause_button(steps).pack(side="left", padx=(6, 0))
+        from LocalExtraction.gui.design import keep_awake_switch  # long searches and downloads go on overnight
+        self.awake_switch = keep_awake_switch(steps)
+        self.awake_switch.pack(side="left", padx=(12, 0))
         # The ledger is let go of while the dialog is open (it may be deleted), and opened again after.
         self.delete_button = delete_outputs_button(steps, "web", before=self.close, after=self._outputs_deleted,
                                                    groups=self.output_groups)
