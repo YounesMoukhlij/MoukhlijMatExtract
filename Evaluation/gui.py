@@ -122,6 +122,8 @@ class EvaluationDialog(Dialog):
         bottom = ttk.Frame(body)
         bottom.pack(fill="x", pady=(6, 0))
         ttk.Button(bottom, text="Close", command=self.destroy).pack(side="right")
+        from LocalExtraction.gui.design import keep_awake_switch  # drawing and scoring many papers takes time
+        keep_awake_switch(bottom).pack(side="left")
         self._refresh()
         self._show_last_scores()
 

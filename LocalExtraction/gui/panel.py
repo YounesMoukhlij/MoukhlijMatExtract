@@ -67,6 +67,8 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         self.stop_button = ttk.Button(buttons, text="Stop", command=self.stop, state="disabled")
         self.stop_button.pack(side="left", padx=6)
         self.pause_button(buttons).pack(side="left", padx=(0, 6))
+        from .design import keep_awake_switch  # a long extraction is not stopped by the computer sleeping
+        keep_awake_switch(buttons).pack(side="left", padx=(6, 6))
         self.delete_button = delete_outputs_button(buttons, "local", after=self._outputs_deleted)
         self.delete_button.pack(side="left")
         from Evaluation.gui import evaluate_button  # how accurate the extraction in the results folder is
