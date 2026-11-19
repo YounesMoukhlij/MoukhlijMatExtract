@@ -111,11 +111,34 @@ def footer(parent: tk.Misc, about: Optional[Callable[[], None]] = None) -> tk.Fr
     website_link(line).pack(side="right", padx=(0, 12))
     tk.Label(line, text=f"Created by {AUTHOR}", foreground=colours["muted"],
              font=("TkDefaultFont", 9)).pack(side="right", padx=(0, 12))
+    keep_awake_switch(line).pack(side="right", padx=(0, 16))
     number = version()
     text = f"MoukhlijMatExtract{f' v{number}' if number else ''} · {LICENSE_NAME} · {PROMISE}"
     tk.Label(line, text=text, foreground=colours["muted"], font=("TkDefaultFont", 9), anchor="w").pack(
         side="left", fill="x", expand=True)
     return bar
+
+
+KEEP_AWAKE_TEXT = "☕ Keep the computer awake"
+
+
+def keep_awake_switch(parent: tk.Misc):
+    """The “Keep the computer awake” switch (keep_awake.py): one state for the whole program, so ticking it in any
+    window ticks it in every other. Not packed. Disabled, with a hint, where this computer offers no way."""
+    from tkinter import ttk
+    from ..keep_awake import AWAKE
+    var = tk.BooleanVar(master=parent, value=AWAKE.on)
+    switch = ttk.Checkbutton(parent, text=KEEP_AWAKE_TEXT, variable=var, command=lambda: var.set(AWAKE.set(var.get())))
+    if not AWAKE.supported():
+        switch.state(["disabled"])
+
+    def follow(on: bool) -> None:  # another window's switch changed it
+        if switch.winfo_exists() and var.get() != on:
+            var.set(on)
+    forget = AWAKE.listen(follow)
+    switch.bind("<Destroy>", lambda event: forget() if event.widget is switch else None, add="+")
+    switch.var = var  # for the tests
+    return switch
 
 
 def website_address() -> str:
