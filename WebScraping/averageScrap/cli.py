@@ -124,7 +124,7 @@ def run_web(args: argparse.Namespace) -> int:
     if args.check:
         return check(job, PoliteClient(job.email()), args.probe_doi or "", os.path.join(args.output, "papers.csv"))
     try:
-        with runcontrol.ctrl_c_stops() as control:
+        with runcontrol.ctrl_c_stops("Web scraping") as control:
             harvest = Harvest(job, args.output)
             if getattr(args, "update", False):
                 _since_last_search(job, harvest.ledger.last_search())

@@ -229,6 +229,21 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Fixed
 
+- **OSTI held hundreds of papers it could never have had.**
+  - **The cause:** OSTI (the US Department of Energy's repository) was asked about every paper; it ran into its
+    limits, and every later paper was marked “refused by OSTI” and waited for the end of the download.
+  - **Now:** OSTI is asked only about papers OpenAlex ties to the US DOE: a DOE funder or one of its offices (Office
+    of Science, Basic Energy Sciences, EERE, ARPA-E …), or an author at a DOE national laboratory. A paper OpenAlex
+    does not know is still asked, rather than a DOE paper missed. Of 25 papers that waited on OSTI, none was tied to
+    the DOE; the three papers OSTI had supplied all are.
+
+- **Stopping from the terminal says what happens.** Every stop signal — Ctrl-C, `kill` (SIGTERM), the terminal
+  closed (SIGHUP), Ctrl-Break — shows a box: please wait, the work is being saved and finished; then a box when it
+  has stopped cleanly. A second signal quits at once, said too.
+  - **Long commands** (`mme-local`, `mme-web`, `mme-eval`, `mme-dois`) stop after the item under way, saving what
+    is finished, as Stop does in the window.
+  - **Short commands** (`mme-rank`, `mme-classify`, `mme-release`) finish and save first, then stop.
+
 - **A download spent a day retrying papers Semantic Scholar had refused.**
   - **The cause:** after three “too many requests” (HTTP 429), the download stops asking Semantic Scholar for the
     run. Every later paper without a copy was then marked “waiting: refused by Semantic Scholar” and retried at the

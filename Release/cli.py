@@ -48,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def _main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(list(sys.argv[1:] if argv is None else argv))
     enter_project_home()
     if args.finish:
@@ -98,6 +98,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
           + f"  Next: complete the parts of README.md marked TO COMPLETE, then "
           f"{command_name('mme-release', NAME)} --finish {report.folder} — and upload the .zip.")
     return 0
+
+
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """The command. Stopped from the terminal (Ctrl-C, kill, the terminal closed), it finishes and saves first, saying
+    so in a box; a second signal quits at once. The window (`gui`) has its own Stop."""
+    import sys as _sys
+    from LocalExtraction import runcontrol
+    words = list(_sys.argv[1:] if argv is None else argv)
+    if words[:1] == ["gui"]:
+        return _main(argv)
+    with runcontrol.finish_then_stop("Release"):
+        return _main(argv)
 
 
 if __name__ == "__main__":

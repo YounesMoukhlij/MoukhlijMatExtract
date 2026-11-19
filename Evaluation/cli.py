@@ -239,7 +239,7 @@ def run_reference(args) -> int:
     if args.against is not None:
         return _against(ref, tables, args.against.expanduser(), base, run)
     dois = sorted({d for t in tables.values() for x in t["doi"] for d in ref.dois_of(x)})
-    with runcontrol.ctrl_c_stops() as control:  # Ctrl-C: what was fetched and extracted is kept
+    with runcontrol.ctrl_c_stops("Evaluation") as control:  # Ctrl-C: what was fetched and extracted is kept
         if args.no_fetch:
             fetched = ref.fetch_papers([], papers)
         else:

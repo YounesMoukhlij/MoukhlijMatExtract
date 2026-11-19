@@ -152,7 +152,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _main(argv: Sequence[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv[:1] == ["gui"]:
         from LocalExtraction.about import require_tk
@@ -349,3 +349,15 @@ def _element(text: str) -> str:
     if symbol not in loader._ELEMENTS:
         raise argparse.ArgumentTypeError(f"{text!r} is not the symbol of an element (Li, Na, ...)")
     return symbol
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """The command. Stopped from the terminal (Ctrl-C, kill, the terminal closed), it finishes and saves first, saying
+    so in a box; a second signal quits at once. The window (`gui`) has its own Stop."""
+    import sys as _sys
+    from LocalExtraction import runcontrol
+    words = list(_sys.argv[1:] if argv is None else argv)
+    if words[:1] == ["gui"]:
+        return _main(argv)
+    with runcontrol.finish_then_stop("Ranking"):
+        return _main(argv)

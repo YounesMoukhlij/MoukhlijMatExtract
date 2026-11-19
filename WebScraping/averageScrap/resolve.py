@@ -69,6 +69,34 @@ NOT_FOUND_ADVICE = (
     "reads it.")
 SEMANTIC_SCHOLAR = "https://api.semanticscholar.org/graph/v1/paper"
 SPRINGER_OA = "https://api.springernature.com/openaccess/json"
+OPENALEX_WORKS = "https://api.openalex.org/works"
+# What ties a paper to the US Department of Energy, in OpenAlex's records: the DOE (OpenAlex funder F4320306084) or one
+# of its offices among the funders, or a DOE national laboratory among the authors' institutions.
+DOE_FUNDER_IDS = frozenset({"F4320306084"})
+_DOE_FUNDER = re.compile(r"\b(u\.?\s?s\.?|united states)\b.*department of energy|^department of energy$|"
+                         r"office of science$|basic energy sciences|energy efficiency and renewable energy|"
+                         r"advanced research projects agency.energy|arpa-e|vehicle technologies office|"
+                         r"national nuclear security administration", re.IGNORECASE)
+_DOE_LAB = re.compile(r"argonne|oak ridge national|lawrence berkeley|lawrence livermore|pacific northwest national|"
+                      r"sandia national|los alamos|brookhaven|idaho national|national renewable energy laborator|"
+                      r"ames (national )?laborator|slac|fermi national|princeton plasma|savannah river|"
+                      r"national energy technology laborator|jefferson lab|thomas jefferson national|"
+                      r"center for nanophase materials", re.IGNORECASE)
+
+
+def doe_linked(work: Dict[str, Any]) -> bool:
+    """Whether an OpenAlex work (its funders and authorships) is tied to the US Department of Energy."""
+    for funder in work.get("funders") or []:
+        if str(funder.get("id") or "").rsplit("/", 1)[-1] in DOE_FUNDER_IDS or _DOE_FUNDER.search(funder.get("display_name") or ""):
+            return True
+    for award in work.get("awards") or []:
+        if _DOE_FUNDER.search(award.get("funder_display_name") or ""):
+            return True
+    for authorship in work.get("authorships") or []:
+        for institution in authorship.get("institutions") or []:
+            if _DOE_LAB.search(institution.get("display_name") or ""):
+                return True
+    return False
 SPRINGER_PREFIXES = ("10.1007/", "10.1023/", "10.1038/", "10.1057/", "10.1134/", "10.1140/", "10.1186/")
 SPRINGER_LINK_PREFIXES = ("10.1007/", "10.1023/", "10.1134/", "10.1140/")  # the journals link.springer.com serves
 EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
@@ -423,8 +451,10 @@ class Resolver:
         return max(versions)[1] if versions else ""
 
     def _osti(self, c: Candidate) -> Iterator[FetchOption]:
-        """The accepted manuscript a US Department of Energy grant has its authors deposit."""
-        if not c.doi:
+        """The accepted manuscript a US Department of Energy grant has its authors deposit. Asked only of the papers
+        OpenAlex links to the DOE (a DOE funder, or an author of a DOE national laboratory): OSTI holds no other, and
+        asking it of every paper ran into its limits — hundreds of papers then waited on it for nothing."""
+        if not c.doi or not self._doe_linked(c):
             return
         records = self._ask("OSTI", OSTI, {"doi": c.doi})
         for record in records if isinstance(records, list) else []:
@@ -432,6 +462,31 @@ class Resolver:
                 for link in record.get("links") or []:
                     if link.get("rel") == "fulltext" and link.get("href"):
                         yield FetchOption("osti", link["href"], license="public access (US DOE)")
+
+    def _doe_linked(self, c: Candidate) -> bool:
+        """Whether OpenAlex links the paper to the US Department of Energy. When OpenAlex does not know the paper or
+        does not answer, the answer is yes: OSTI is asked rather than a DOE paper missed."""
+        cache = self.__dict__.setdefault("_doe_cache", {})
+        if c.doi in cache:
+            return cache[c.doi]
+        params: Dict[str, Any] = {"select": "funders,authorships"}
+        key = os.environ.get("OPENALEX_API_KEY", "").strip()
+        if key:
+            params["api_key"] = key
+        if self.contact:
+            params["mailto"] = self.contact
+        try:  # not _ask: a busy OpenAlex must not make the paper wait; OSTI is then simply asked
+            work = self.client.get_json(f"{OPENALEX_WORKS}/doi:{c.doi}", params=params)
+        except Exception:
+            work = None
+        if not isinstance(work, dict) or not work.get("id") and not work.get("funders") and not work.get("authorships"):
+            linked = True
+        else:
+            linked = doe_linked(work)
+        cache[c.doi] = linked
+        if not linked:
+            logging.debug(f"OSTI not asked for {c.doi}: OpenAlex links it to no DOE funder or laboratory")
+        return linked
 
     def _hal(self, c: Candidate) -> Iterator[FetchOption]:
         """The file its authors deposited in HAL, the French open archive."""
