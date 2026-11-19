@@ -8,6 +8,19 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **What each download got, and what it missed: the Downloads tab and `download_log.csv`.**
+  - **The record:** every download, from the window or the terminal, adds one line per paper to `download_log.csv`
+    in the job's papers folder: time, run, result (downloaded, not downloaded, waiting), title, year, journal,
+    where the copy came from or why there is none, what to do, the PDF file and the paper's link. Earlier runs are
+    kept.
+  - **The Downloads tab** (Web scraping window) shows the last download, filled live while it runs, or **every
+    paper tried so far** (from the ledger, for the papers downloaded before the log existed). Totals at the top
+    (✓ downloaded, ✗ not downloaded, ⏳ waiting), a filter, a search box, and a double-click that opens the PDF or
+    the paper's page. “See every paper of this download” on the card at the end of a download opens it.
+  - **The Candidates tab** says why a paper was not downloaded in plain words (“not downloaded (2/3 tries) — site
+    refuses programs”) instead of the raw error, which stays in the paper's details.
+  - **ⓘ lines** at the top of the Candidates and Downloads tabs say what each shows and how to use it.
+
 - **“Get the rest with my browser…”** in the Web scraping window (and “Get them with my browser…” in the window of
   the papers not downloaded): the papers left on the hand list, fetched with your own browser.
   - **Opening:** the pages open in your usual browser, a batch at a time (10 by default), a moment apart.

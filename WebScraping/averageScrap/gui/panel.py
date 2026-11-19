@@ -48,8 +48,11 @@ _GUI_STEPS = tuple(step for step in SEARCH_STEPS if step[0] != "dois")
 _NORMAL_FONT, _BOLD_FONT = ("TkDefaultFont", 11), ("TkDefaultFont", 11, "bold")
 _FILTERS = ("Proposed (yes)", "Not proposed (no)", "Downloaded", "Failed or closed", "All")
 _COLUMNS = (("decision", "✓", 30), ("score", "score", 46), ("model", "model", 50), ("access", "access", 60),
-            ("state", "state", 170),
+            ("state", "state", 300),
             ("year", "year", 46), ("title", "title", 330), ("journal", "journal", 150), ("flags", "flags", 150))
+CANDIDATES_INFO = ("ⓘ  Every paper the searches found for this job, with its score and its state: to review, "
+                   "downloaded (and from where), not downloaded (and why), waiting. Select papers and press ✓ Yes or "
+                   "✗ No (or the y and n keys); double-click one for everything known about it.")
 _REVIEWABLE = (SCREENED, APPROVED, REJECTED)  # not fetched yet: its decision can still change
 _FETCHED = (DOWNLOADED, EXTRACTED)
 _MARK = {YES: "✓", NO: "✗"}
@@ -59,10 +62,11 @@ def _state(c: Candidate) -> str:
     """Where a candidate stands, in a few words."""
     if c.status in _FETCHED:
         return f"{c.status} ({c.source_used})" if c.source_used else c.status
-    if c.status == FAILED:
-        return f"failed ({c.attempts} of {MAX_ATTEMPTS} tries): {c.error}"
-    if c.status == CLOSED:
-        return "closed: " + (c.error or "no copy found")
+    if c.status == FAILED and (c.error or "").startswith("waiting"):
+        return "waiting — a busy site, tried again"
+    if c.status in (FAILED, CLOSED):  # why, in plain words (the details of a row keep the full error)
+        tries = f" ({c.attempts}/{MAX_ATTEMPTS} tries)" if c.status == FAILED and c.attempts else ""
+        return f"not downloaded{tries} — {by_hand.reason_of(c).lower()}"
     return {SCREENED: "to review", APPROVED: "approved", REJECTED: "rejected"}.get(c.status, c.status)
 
 
@@ -243,6 +247,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.card = ResultCard(host)  # what the last step did, above the tabs
         self.stack.below(self.book, cards=[self.card])
         self.review = ttk.Frame(self.book, padding=(0, 6, 0, 0))
+        WrapLabel(self.review, foreground="#6b7280", justify="left", text=CANDIDATES_INFO).pack(fill="x", pady=(0, 6))
         bar = ttk.Frame(self.review)
         bar.pack(fill="x", pady=(0, 4))
         ttk.Label(bar, text="Show").pack(side="left")
@@ -273,6 +278,10 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.table.tree.bind("<KeyPress-y>", lambda event: self._decide(YES))
         self.table.tree.bind("<KeyPress-n>", lambda event: self._decide(NO))
         self.book.add(self.review, text="Candidates")
+        from .downloads_view import DownloadsView  # every paper of the last download: got, missed and why, waiting
+        self.downloads = DownloadsView(self.book, lambda: self.job.fetch.folder if getattr(self, "job", None) else None,
+                                       self._papers_to_get, self._tried_so_far)
+        self.book.add(self.downloads, text="Downloads")
         self.energies = EnergiesView(self.book, app, self.output.get)
         self.book.add(self.energies, text="Activation energies")
         from LocalExtraction.gui.verify import verify_tab  # a person checks each value against its page
@@ -282,6 +291,26 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.book.add(self.activity, text="Activity")
 
         self.load_job()
+
+    def _tried_so_far(self) -> List[Dict[str, str]]:
+        """“Every paper tried so far” of the Downloads tab: each paper the downloads got or tried, as it stands now
+        in the ledger (the log only holds the downloads made since it exists)."""
+        if getattr(self, "job", None) is None:
+            return []
+        from .. import download_log
+        harvest = self._harvest()
+        rows = []
+        for c in harvest.ledger.all(DOWNLOADED, EXTRACTED, FAILED, CLOSED):
+            row = download_log.entry(c, "so far")
+            row["time"] = (c.retrieved_at or "").replace("T", " ")[:19]
+            rows.append(row)
+        return rows
+
+    def _papers_to_get(self) -> None:
+        """“Papers to get by hand…” of the Downloads tab."""
+        if self.job is not None:
+            self._harvest()
+        self.show_missed()
 
     # ------------------------------------------------------------------
     # The job and its ledger
@@ -449,6 +478,8 @@ class WebPanel(Pausable, ttk.LabelFrame):
         """The Candidates tab. `reload`: read the ledger again (after a step or a decision); without it, a
         filter or a word typed works on the papers already read — tens of thousands of them. `papers`:
         the list a step read on its own thread (the window then reads nothing)."""
+        if hasattr(self, "downloads"):
+            self.downloads.show(force=True)  # after a step, or another job: the Downloads tab follows
         if papers is not None:
             candidates = papers
             self._candidates = {c.key: c for c in candidates}
@@ -930,8 +961,9 @@ class WebPanel(Pausable, ttk.LabelFrame):
             NOTHING if not got and not taken else "done"
         folder = self.job.fetch.folder if self.job else ""
         by_hand_count = len(self._hand_rows())
-        actions = [("Extract them", self.extract), ("Open the papers folder", lambda: open_path(folder)),
-                   ("Show the log", lambda: self.book.select(self.activity))]
+        actions = [("Extract them", self.extract), ("See every paper of this download",
+                                                    lambda: (self.downloads.show(force=True), self.book.select(self.downloads))),
+                   ("Open the papers folder", lambda: open_path(folder)), ("Show the log", lambda: self.book.select(self.activity))]
         if by_hand_count:
             actions.insert(1, (f"Papers not downloaded ({number(by_hand_count)})…", self.show_missed))
         self.card.show(Card(
@@ -1001,6 +1033,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
         if candidate is not None:
             self._candidates[key] = candidate
             self.table.update_row(_row(candidate))
+        self.downloads.show()  # its line in the Downloads tab (the log is read at most every 1.5 s)
 
     def _watch_stats(self, kind: str) -> List[Stat]:
         """The watcher's numbers for a card: what was checked, and what a site refused and still waits."""
