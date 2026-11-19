@@ -24,7 +24,7 @@ from LocalExtraction.exporter import StrictExporter
 from LocalExtraction.tests.test_gui import WEB, WindowTest, has_screen, paper, tk
 from WebScraping.averageScrap.fetch import Outcome
 from WebScraping.averageScrap.job import ExtractConfig, FetchConfig, Job, ScreenConfig, SearchConfig, dump_job, load_job
-from WebScraping.averageScrap.ledger import DOWNLOADED, SCREENED, Candidate, Ledger
+from WebScraping.averageScrap.ledger import DOWNLOADED, FAILED, SCREENED, Candidate, Ledger
 
 
 @unittest.skipUnless(has_screen(), "the window needs a screen")
@@ -277,6 +277,40 @@ class WindowTests(WindowTest):
             self.pump(0.5)
             self.assertEqual(helper.current, ["10.1000/next1"])
             self.assertEqual(opened.call_count, 2)
+
+    def test_the_downloads_tab_shows_every_paper_of_the_last_download_in_plain_words(self):
+        from WebScraping.averageScrap import by_hand, download_log
+        from WebScraping.averageScrap.gui.panel import _state
+        web = self.app.panel
+        self.assertIn("Downloads", [web.book.tab(t, "text") for t in web.book.tabs()])
+        folder = web.job.fetch.folder
+        got = Candidate(key="10.1000/a", doi="10.1000/a", title="Garnet A", status=DOWNLOADED, source_used="osti",
+                        file="10.1000_a.pdf")
+        shut = Candidate(key="10.1000/b", doi="10.1000/b", title="NASICON B", status=FAILED, attempts=1,
+                         error="publisher: HTTP 403")
+        for c in (got, shut):
+            download_log.add(folder, download_log.entry(c, "2026-11-19 10:00:00"))
+        web.downloads.show(force=True)
+        self.assertEqual(sorted(web.downloads.selected_results()), ["✓ downloaded", "✗ not downloaded"])
+        summary = web.downloads.summary.get()
+        for words in ("2 paper(s) tried", "✓ 1 downloaded", "✗ 1 not downloaded", "⏳ 0 waiting"):
+            self.assertIn(words, summary)
+        values = web.downloads.table.tree.item("10.1000/b", "values")
+        self.assertEqual((values[3], values[4]), (by_hand.BLOCKED, by_hand.REASONS[by_hand.BLOCKED]))
+        self.assertEqual(web.downloads.table.tree.item("10.1000/a", "values")[3], "from osti")
+        web.downloads.filter_var.set("Not downloaded")
+        web.downloads._fill()
+        self.assertEqual(web.downloads.selected_results(), ["✗ not downloaded"])
+        self.assertEqual(_state(shut), "not downloaded (1/3 tries) — site refuses programs")  # the Candidates tab
+        from WebScraping.averageScrap.gui.downloads_view import EVERY
+        harvest = web._harvest()
+        harvest.ledger.update("10.1000/wanted", status=DOWNLOADED, source_used="osti", retrieved_at="2026-11-01T09:00:00")
+        web.downloads.filter_var.set("All")
+        web.downloads.range_var.set(EVERY)
+        web.downloads.show(force=True)
+        self.assertTrue(web.downloads.summary.get().startswith("Every paper tried so far"))
+        self.assertIn("10.1000/wanted", web.downloads.rows)  # from the ledger, before any log existed
+        self.assertEqual(web.downloads.table.tree.item("10.1000/wanted", "values")[0], "2026-11-01 09:00")
 
     def test_an_email_unpaywall_refused_is_told_with_where_to_change_it(self):
         os.environ["MME_EMAIL"] = "test@example.com"

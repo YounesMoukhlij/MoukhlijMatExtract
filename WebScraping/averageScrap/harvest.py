@@ -19,7 +19,7 @@ import requests
 from LocalExtraction.exporter import read_table
 from LocalExtraction import runcontrol
 from WebScraping.averageScrap import screening
-from WebScraping.averageScrap import abstracts, by_hand, learn, sources
+from WebScraping.averageScrap import abstracts, by_hand, download_log, learn, sources
 from WebScraping.averageScrap.elsevier import Elsevier
 from WebScraping.averageScrap.fetch import HAND_LIST, NOT_ENTITLED_MARK, Downloader, Outcome, SiteBlocks
 from WebScraping.averageScrap.http import HttpError, PoliteClient
@@ -517,6 +517,7 @@ class Harvest:
         closed (no legal copy), failed, waiting (still refused). `progress_callback` (optional) is
         called after each paper as `callback(candidate, outcome, done, total)`."""
         self.watcher.start(DOWNLOAD)
+        self.run_id = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # the run each line of download_log.csv belongs to
         decided = self.ledger.apply_decisions(self.review_path)
         logging.info(f"Review list: {decided['approved']} approved, {decided['rejected']} rejected, "
                      f"{decided['waiting']} still waiting for a decision.")
@@ -658,6 +659,11 @@ class Harvest:
                 self.not_entitled = getattr(self, "not_entitled", 0) + 1
             status = self._record(candidate, outcome, later)
             missed += status in (CLOSED, FAILED)
+            try:  # the paper's line in download_log.csv: what came of it, from where or why not, what to do
+                recorded = self.ledger.get(candidate.key) or candidate
+                download_log.add(self.folder, download_log.entry(recorded, getattr(self, "run_id", "")))
+            except Exception as error:  # the record must not stop the download
+                logging.warning(f"download_log.csv could not be written: {error}")
             detail = (f"via {outcome.service}" if outcome.status == DOWNLOADED else
                       f"refused by {', '.join(outcome.refused)} — tried again at the end of this download"
                       if status == "waiting" else outcome.error[:120])

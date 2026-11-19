@@ -1238,6 +1238,39 @@ class HarvestTests(unittest.TestCase):
         self.assertIn("the next “3 · Download” tries them first", notices[-1])
         self.assertEqual(self.harvest.ledger.get("10.1000/b3").attempts, 0)  # a refusal is not a failed try
 
+    def test_every_paper_of_a_download_gets_its_line_in_the_download_log(self):
+        """download_log.csv: one line per paper tried — downloaded and from where, not downloaded with why and what
+        to do, waiting — in plain words; a later download adds its own run without touching the earlier one."""
+        from WebScraping.averageScrap import download_log
+        from WebScraping.averageScrap import harvest as module
+        for key in ("10.1000/got", "10.1000/shut", "10.1000/busy"):
+            self.harvest.ledger.add(Candidate(key=key, doi=key, title=f"Paper {key[-4:]}", status=APPROVED, decision="yes"))
+
+        def fetch(downloader, candidate):
+            if candidate.key == "10.1000/got":
+                Path(self.job.fetch.folder, "10.1000_got.pdf").write_bytes(b"%PDF-1.4")
+                return Outcome(candidate.key, DOWNLOADED, service="osti", file="10.1000_got.pdf")
+            if candidate.key == "10.1000/busy":
+                return Outcome(candidate.key, FAILED, error="osti: HTTP 429", refused=["OSTI"])
+            return Outcome(candidate.key, FAILED, error="publisher: HTTP 403")
+        with mock.patch.object(module.Downloader, "fetch", autospec=True, side_effect=fetch), \
+                mock.patch.object(self.harvest.watcher, "wait"), mock.patch.object(self.harvest.client, "pause"):
+            self.harvest.fetch()
+        rows = download_log.last_run(download_log.read(self.job.fetch.folder))
+        by_key = {row["key"]: row for row in rows}
+        self.assertEqual(set(by_key), {"10.1000/got", "10.1000/shut", "10.1000/busy"})
+        self.assertEqual((by_key["10.1000/got"]["result"], by_key["10.1000/got"]["source"]), (download_log.GOT, "osti"))
+        shut = by_key["10.1000/shut"]
+        self.assertEqual((shut["result"], shut["why"]), (download_log.MISSED, by_hand.BLOCKED))
+        self.assertEqual(shut["what_to_do"], by_hand.REASONS[by_hand.BLOCKED])
+        self.assertEqual(by_key["10.1000/busy"]["result"], download_log.WAITING)
+        first_run = rows[0]["run"]
+        self.harvest.run_id = "a later run"
+        download_log.add(self.job.fetch.folder, download_log.entry(self.harvest.ledger.get("10.1000/shut"), "a later run"))
+        everything = download_log.read(self.job.fetch.folder)
+        self.assertIn(first_run, {row["run"] for row in everything})  # the earlier run is kept
+        self.assertEqual([row["key"] for row in download_log.last_run(everything)], ["10.1000/shut"])
+
     def test_a_paper_only_semantic_scholar_refused_is_filed_not_held_for_the_rounds(self):
         """Semantic Scholar only adds to what the others find: its “too many requests” alone does not make a paper
         wait for the rounds at the end (900 such papers took a day). The paper is filed with what the others
