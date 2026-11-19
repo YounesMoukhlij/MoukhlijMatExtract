@@ -8,6 +8,15 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **“☕ Keep the computer awake”** in every window (the footer of each part, and the main window): a long search,
+  download or extraction is no longer stopped by the computer going to sleep.
+  - **One switch for the program:** ticked in any window, it is ticked in all of them; it stays on until unticked,
+    and goes off when the program ends, even after a crash.
+  - **How:** macOS `caffeinate` (display, idle and system sleep), Windows' power request, Linux `systemd-inhibit`.
+    The switch is greyed out where the computer offers none.
+  - **What it cannot do:** keep a laptop awake with its lid closed (macOS's own rule, unless on power with an
+    external display).
+
 - **What each download got, and what it missed: the Downloads tab and `download_log.csv`.**
   - **The record:** every download, from the window or the terminal, adds one line per paper to `download_log.csv`
     in the job's papers folder: time, run, result (downloaded, not downloaded, waiting), title, year, journal,

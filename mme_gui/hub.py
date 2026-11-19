@@ -464,6 +464,8 @@ def build(root):
         from LocalExtraction.gui.about_window import open_about
         open_about(root)
     ttk.Button(top, text="About & methods", command=about).pack(side="right", padx=(0, 8))
+    # One switch for every window: a long search or download is not stopped by the computer going to sleep.
+    design.keep_awake_switch(top).pack(side="right", padx=(0, 14))
 
     ttk.Label(frame, style="Muted.TLabel",
               text="Pick a step. Each opens in its own window; the pipeline runs left to right — "
