@@ -65,6 +65,11 @@ def part_tables(part: str, home: Path = PROJECT_HOME) -> Tuple[str, Path, List[T
                        (f"{word} — all materials", folder / component / "all_materials.csv"),
                        (f"{word} — values", folder / component / "values.csv")]
         return "3 · Ranking — one ranking per transport component", folder, tables
+    if part == "ml":
+        folder = home / "Ready for ML"
+        made = sorted(p for p in folder.iterdir() if (p / "dataset.csv").is_file()) if folder.is_dir() else []
+        tables = [(f"{p.name} — {table}", p / f"{table}.csv") for p in made for table in ("dataset", "values", "excluded")]
+        return "5 · ML datasets — ready for machine learning", folder, tables
     if part == "classify":
         folder = home / "Classification"
         return "4 · Classification — by crystal structure and structure family", folder, [

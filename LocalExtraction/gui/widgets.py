@@ -375,8 +375,15 @@ class Scrolled(ttk.Frame):
             pass
 
     def _inside(self, x_root: int, y_root: int) -> bool:
-        widget = self.winfo_containing(x_root, y_root)
-        return widget is not None and str(widget).startswith(str(self))
+        """Whether the pointer is over this area. Asked by window path, not by widget: under the pointer may be a
+        window Tk makes itself, with no Python widget behind it (the open list of a combobox, “….popdown”), which
+        winfo_containing cannot name (KeyError). An open list is not this area: the wheel scrolls the list."""
+        try:
+            path = self.tk.call("winfo", "containing", "-displayof", self._w, x_root, y_root)
+        except tk.TclError:  # the window is closing
+            return False
+        path = str(path)
+        return bool(path) and path.startswith(str(self)) and ".popdown" not in path
 
     def _leave(self, event: "tk.Event") -> None:
         if not self._inside(event.x_root, event.y_root):

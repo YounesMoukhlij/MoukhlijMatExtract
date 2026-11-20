@@ -75,6 +75,7 @@ flowchart LR
 | 2 | **Web scraping** (`mme-web`) | keywords of a job file | the legal open-access copies of the papers it finds, and a database of the same form as part 1 |
 | 3 | **Ranking** (`mme-rank`) | the databases of parts 1 and 2 | the materials ranked by activation energy, and an HTML report |
 | 4 | **Classification** (`mme-classify`) | the databases of parts 1 and 2 | one database per crystal-structure type and per structure family |
+| 5 | **ML datasets** (`mme-ml-export`) | the classes of part 4, or a database | a dataset for machine learning in `Ready for ML/`: one row per material, the values behind it, a datasheet |
 
 Each part has its own README with every detail: [LocalExtraction](LocalExtraction/README.md),
 [WebScraping](WebScraping/README.md), [SelectingTopMaterial](SelectingTopMaterial/README.md),
@@ -206,9 +207,10 @@ parts always find each other's files:
 ├── WebScraping/papers/                   ← PDFs downloaded by part 2
 ├── WebScraping/web_output/               ← database of part 2
 ├── SelectingTopMaterial/results/         ← the ranking (part 3)
-└── Classification/                       ← the classes (part 4)
-    ├── crystal_structure/
-    └── structure_families/
+├── Classification/                       ← the classes (part 4)
+│   ├── crystal_structure/
+│   └── structure_families/
+└── Ready for ML/                         ← the datasets for machine learning (part 5)
 ```
 
 ### Step 1 — Extract your own PDFs
@@ -535,6 +537,7 @@ cannot be emptied until it is done.
 | `mme-web` | 2 · search, download and extract (`mme-web gui`: in a window) |
 | `mme-rank` | 3 · rank by activation energy (`mme-rank gui`: in a window) |
 | `mme-classify` | 4 · classify by structure (`mme-classify gui`: in a window) |
+| `mme-ml-export` | 5 · a dataset for machine learning (`mme-ml-export gui`: step by step in a window) |
 | `mme-dois` | 2 · 1 · Fetch DOIs: collect the DOIs of the topic |
 | `mme-eval` | how accurate is the extraction: `sheet`, `score`, `agree` |
 | `mme-release` | the dataset, ready to deposit (Zenodo): license-checked, with datasheet and checksums |

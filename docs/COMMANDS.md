@@ -19,6 +19,8 @@ hand. How to use the commands, in order, and how to reproduce a result: [MANUAL.
 | [`mme-rank gui`](#mme-rank-gui) | `python -m SelectingTopMaterial gui` | `make rank-gui` | the same, in its window |
 | [`mme-classify`](#mme-classify) | `python -m Classification` | `make classify` | sorts the materials by crystal and structure family |
 | [`mme-classify gui`](#mme-classify-gui) | `python -m Classification gui` | `make classify-gui` | the same, in its window |
+| [`mme-ml-export`](#mme-ml-export) | `python -m MLDataset` | `make ml-export` | prepares a dataset for machine learning into Ready for ML/ |
+| [`mme-ml-export gui`](#mme-ml-export-gui) | `python -m MLDataset gui` | `make ml-gui` | the same, step by step in its window |
 | [`mme-eval sheet`](#mme-eval-sheet) | `python -m Evaluation sheet` | `make eval-sheet` | draws papers, writes the workbook to annotate |
 | [`mme-eval score`](#mme-eval-score) | `python -m Evaluation score` | `make eval-score` | precision, recall, F1 against the annotations |
 | [`mme-eval agree`](#mme-eval-agree) | `python -m Evaluation agree` | `make eval-agree` | agreement of two annotators |
@@ -30,13 +32,14 @@ hand. How to use the commands, in order, and how to reproduce a result: [MANUAL.
 *Every command* — every command in one: mme help, mme commands, mme <part> …. Same as `python -m mme_gui.commands`; with make: `make help`.
 
 ```text
-usage: mme [-h] [--version] {help,commands,gui,local,web,dois,rank,classify,eval,release} ...
+usage: mme [-h] [--version]
+           {help,commands,gui,local,web,dois,rank,classify,eval,release,ml-export} ...
 
 Every command of MoukhlijMatExtract in one. `mme <part> …` runs a part (gui, local, web, dois,
-rank, classify, eval, release): mme local, mme web run, mme rank --domain cathode …
+rank, classify, eval, release, ml-export): mme local, mme web run, mme rank --domain cathode …
 
 positional arguments:
-  {help,commands,gui,local,web,dois,rank,classify,eval,release}
+  {help,commands,gui,local,web,dois,rank,classify,eval,release,ml-export}
     help                Every command at a glance, with the typical runs
     commands            Every command with all of its options
     gui                 Runs mme_gui (mme-gui); add --help for its options
@@ -48,6 +51,7 @@ positional arguments:
     classify            Runs Classification (mme-classify); add --help for its options
     eval                Runs Evaluation (mme-eval); add --help for its options
     release             Runs Release (mme-release); add --help for its options
+    ml-export           Runs MLDataset (mme-ml-export); add --help for its options
 
 options:
   -h, --help            show this help message and exit
@@ -398,6 +402,78 @@ options:
                         WebScraping/web_output)
   --out, -o DIR         Folder the class folders are written into (default: Classification/)
   --no-write            Only show the classes; write no file
+
+MoukhlijMatExtract (MME) — Created by Younes Moukhlij.
+```
+
+## mme-ml-export
+
+*5 · ML datasets* — prepares a dataset for machine learning into Ready for ML/. Same as `python -m MLDataset`; with make: `make ml-export`.
+
+```text
+usage: mme-ml-export [-h] [--version] [--list] [--settings SETTINGS] [--family FAMILY]
+                     [--target TARGET] [--component {bulk,grain_boundary,total,surface,any}]
+                     [--origin {experimental,simulation,any}]
+                     [--attribution {this-work,cited,any}] [--kind KIND] [--ion ION]
+                     [--temperature TEMPERATURE] [--min VALUE_MIN] [--max VALUE_MAX]
+                     [--include-flagged] [--no-needs-check] [--min-confidence MIN_CONFIDENCE]
+                     [--verified-only] [--per-value] [--min-values MIN_VALUES] [--name NAME]
+                     [--out OUT]
+
+Prepare a dataset for machine learning: one family of materials, one property, one transport
+component and origin, filtered for quality. Written to ~/MoukhlijMatExtract/Ready for ML/<name>/
+(dataset.csv, values.csv, excluded.csv, README.md, settings.json).
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+  --list                List the families, with how many values of each property
+  --settings SETTINGS   Make again the dataset of a settings.json (other options override it)
+  --family, -f FAMILY   garnet, NASICON, oxide … (a class of Classification), or a database such
+                        as database:WebScraping/web_output
+  --target, -t TARGET   Ea (activation energy), sigma (ionic conductivity), sigma_e (electronic
+                        conductivity) or D (diffusion coefficient)
+  --component, -c {bulk,grain_boundary,total,surface,any}
+                        Transport component (default: any)
+  --origin, -o {experimental,simulation,any}
+                        Measured or computed (default: any)
+  --attribution {this-work,cited,any}
+                        The paper's own results, cited ones, or any (default: this-work)
+  --kind KIND           Activation energies: kind of energy (default: arrhenius; any for all)
+  --ion ION             Mobile ion: Li+, Na+ … (default: any)
+  --temperature TEMPERATURE
+                        Conductivities and diffusion: any, room, or a range in K such as 300-400
+  --min VALUE_MIN       Smallest value kept (in the property's unit)
+  --max VALUE_MAX       Largest value kept (in the property's unit)
+  --include-flagged     Keep the values the extraction flagged
+  --no-needs-check      Leave out the values marked worth a look too
+  --min-confidence MIN_CONFIDENCE
+                        Smallest extraction confidence kept (0 to 1)
+  --verified-only       Activation energies checked by hand only
+  --per-value           dataset.csv with one row per value, not per material
+  --min-values MIN_VALUES
+                        A material needs at least this many values (default 1)
+  --name NAME           Name of the dataset folder (default: made from the settings)
+  --out OUT             Folder to write into (default: ~/MoukhlijMatExtract/Ready for ML)
+
+Examples: mme-ml-export --list · mme-ml-export --family garnet --target Ea --component bulk
+--origin experimental · mme-ml-export --family NASICON --target sigma --temperature room · mme-ml-
+export gui
+```
+
+## mme-ml-export gui
+
+*5 · ML datasets* — the same, step by step in its window. Same as `python -m MLDataset gui`; with make: `make ml-gui`.
+
+```text
+usage: mme-ml-export gui [-h] [--version]
+
+The window of the ML datasets: choose the family, the property, the component, the origin and the
+filters step by step, then generate the dataset into ~/MoukhlijMatExtract/Ready for ML/.
+
+options:
+  -h, --help  show this help message and exit
+  --version   show program's version number and exit
 
 MoukhlijMatExtract (MME) — Created by Younes Moukhlij.
 ```

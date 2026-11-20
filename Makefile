@@ -58,6 +58,14 @@ RANK_OPTS   = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,CRIT
 RANK_GUI_OPTS = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,CRITERIA,--criteria)
 CLASSIFY_OPTS = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call switch,FORCE,--force)
 CLASSIFY_GUI_OPTS = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call switch,NO_WRITE,--no-write)
+ML_OPTS = $(call switch,LIST,--list) $(call opt,SETTINGS,--settings) $(call opt,FAMILY,--family) \
+              $(call opt,TARGET,--target) $(call opt,COMPONENT,--component) $(call opt,ORIGIN,--origin) \
+              $(call opt,ATTRIBUTION,--attribution) $(call opt,KIND,--kind) $(call opt,ION,--ion) \
+              $(call opt,TEMPERATURE,--temperature) $(call opt,MIN,--min) $(call opt,MAX,--max) \
+              $(call switch,INCLUDE_FLAGGED,--include-flagged) $(call switch,NO_NEEDS_CHECK,--no-needs-check) \
+              $(call opt,MIN_CONFIDENCE,--min-confidence) $(call switch,VERIFIED_ONLY,--verified-only) \
+              $(call switch,PER_VALUE,--per-value) $(call opt,MIN_VALUES,--min-values) $(call opt,NAME,--name) \
+              $(call opt,OUT,--out)
 EVAL_SHEET_OPTS = $(call list,SOURCE,--source) $(call opt,PAPERS,--papers) $(call opt,SEED,--seed) \
               $(call opt,OUT,--out) $(call switch,FORCE,--force) $(call switch,ALL_PAPERS,--all-papers)
 EVAL_SCORE_OPTS = $(call opt,GOLD,--gold) $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,SEED,--seed) \
@@ -333,7 +341,7 @@ release-help:
 mme-help:
 	@$(PYTHON) -m mme_gui.commands --help
 
-.PHONY: demo help install install-locked lock dictionary commands manual test clean version gui local local-rebuild local-gui \
+.PHONY: demo help ml-export ml-gui install install-locked lock dictionary commands manual test clean version gui local local-rebuild local-gui \
         local-cathode local-anode web-cathode web-anode rank-cathode rank-anode mme-help \
         doi web web-check web-fetch web-extract \
         web-dois web-gui coverage update rank rank-gui classify classify-gui gui-help local-help local-gui-help web-help \
@@ -342,3 +350,10 @@ mme-help:
 
 # Every target that runs the program first makes sure .venv knows the package as it is now ($(STAMP)).
 test demo dictionary commands manual gui local local-rebuild local-gui local-cathode local-anode doi web web-check web-fetch web-extract web-dois web-gui coverage update web-cathode web-anode rank rank-gui rank-cathode rank-anode classify classify-gui eval-sheet eval-score eval-reference eval-agree release: | $(STAMP)
+
+# ---- 5 · ML datasets ----------------------------------------------------------------------------------
+ml-export:  ## a dataset for machine learning: make ml-export FAMILY=garnet TARGET=Ea COMPONENT=bulk ORIGIN=experimental
+	$(PYTHON) -m MLDataset $(ML_OPTS)
+
+ml-gui:  ## the ML datasets window
+	$(PYTHON) -m MLDataset gui

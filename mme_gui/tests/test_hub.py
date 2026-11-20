@@ -244,7 +244,7 @@ class ResultsButtonTests(unittest.TestCase):
             for child in widget.winfo_children():
                 yield from walk(child)
         buttons = [w for w in walk(root) if w.winfo_class() == "TButton" and w.cget("text") == "Results…"]
-        self.assertEqual(len(buttons), 4)
+        self.assertEqual(len(buttons), 5)  # the five parts
         buttons[0].invoke()
         root.update()
         self.assertTrue(any(isinstance(w, ResultsBrowser) for w in walk(root)))
