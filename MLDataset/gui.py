@@ -191,7 +191,7 @@ class MLWindow:
         box = ttk.Frame(grid)
         box.grid(row=line, column=1, columnspan=2, sticky="w")
         v["plausible_only"], v["no_needs_check"] = tk.BooleanVar(value=True), tk.BooleanVar(value=False)
-        v["verified_only"] = tk.BooleanVar(value=False)
+        v["verified_only"], v["keep_duplicates"] = tk.BooleanVar(value=False), tk.BooleanVar(value=False)
         ttk.Checkbutton(box, text="leave out the values the extraction flagged (plausibility)",
                         variable=v["plausible_only"]).pack(anchor="w")
         ttk.Checkbutton(box, text="leave out the values marked worth a look (needs_check)",
@@ -199,6 +199,8 @@ class MLWindow:
         if target == "Ea":
             ttk.Checkbutton(box, text="only the values checked by hand (Verify tab)",
                             variable=v["verified_only"]).pack(anchor="w")
+        ttk.Checkbutton(box, text="keep a value repeated in its paper or quoted from another (else counted once)",
+                        variable=v["keep_duplicates"]).pack(anchor="w")
         row = ttk.Frame(box)
         row.pack(anchor="w", pady=(4, 0))
         v["min_confidence"], v["min_values"] = tk.StringVar(value="0"), tk.StringVar(value="1")
@@ -221,7 +223,8 @@ class MLWindow:
         grid.columnconfigure(2, weight=1)
         ttk.Label(step, textvariable=self.preview, font=("TkDefaultFont", 12, "bold")).pack(anchor="w", pady=(10, 0))
         for name in ("attribution", "energy_kind", "temperature", "t_low", "t_high", "mobile_ion", "value_min", "value_max",
-                     "plausible_only", "no_needs_check", "verified_only", "min_confidence", "min_values", "per_material"):
+                     "plausible_only", "no_needs_check", "verified_only", "keep_duplicates", "min_confidence", "min_values",
+                     "per_material"):
             if name in v:
                 v[name].trace_add("write", lambda *a: self._later())
         self._generate_step()
@@ -255,6 +258,7 @@ class MLWindow:
             mobile_ion=v["mobile_ion"].get(), temperature=temperature, value_min=optional("value_min"),
             value_max=optional("value_max"), plausible_only=v["plausible_only"].get(),
             no_needs_check=v["no_needs_check"].get(), verified_only=v["verified_only"].get(),
+            keep_duplicates=v["keep_duplicates"].get(),
             min_confidence=float(v["min_confidence"].get() or 0), min_values=int(float(v["min_values"].get() or 1)),
             per_material=bool(v["per_material"].get()), name=v["name"].get().strip())
 

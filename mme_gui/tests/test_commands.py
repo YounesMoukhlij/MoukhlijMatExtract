@@ -18,6 +18,7 @@ MAKE_TARGET = {"mme": None, "mme-gui": "gui", "mme-local": "local", "mme-local g
                "mme-web": "web", "mme-web gui": "web-gui", "mme-web coverage": "coverage", "mme-web update": "update", "mme-rank": "rank", "mme-rank gui": "rank-gui",
                "mme-classify": "classify", "mme-classify gui": "classify-gui", "mme-ml-export": "ml-export", "mme-ml-export gui": "ml-gui", "mme-eval sheet": "eval-sheet",
                "mme-eval score": "eval-score", "mme-eval agree": "eval-agree",
+               "mme-eval benchmark": "eval-benchmark", "mme-eval gold": "eval-gold",
                "mme-eval reference": "eval-reference", "mme-release": "release"}
 _OPTION = re.compile(r'(?<![\w-])(--[a-z][a-z-]+)')
 

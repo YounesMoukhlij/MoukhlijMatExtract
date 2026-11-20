@@ -37,6 +37,10 @@ def pytest_configure(config):
     # The home folder first, before any module of the program is imported: the main folder's path is fixed when
     # LocalExtraction.about is first imported.
     config.mme_home = tempfile.mkdtemp(prefix="mme-home-")
+    # Matplotlib keeps its font list in the home folder: the real one's, so it is not built again (20 s) every run.
+    real_cache = os.path.join(os.path.expanduser("~"), ".matplotlib")
+    if "MPLCONFIGDIR" not in os.environ and os.path.isdir(real_cache):
+        os.environ["MPLCONFIGDIR"] = real_cache
     os.environ["HOME"] = os.environ["USERPROFILE"] = config.mme_home  # Path.home() on POSIX / Windows
     os.environ["MME_NO_NET_WAIT"] = "1"  # a test's failed request fails: it never waits for the internet
     from LocalExtraction import about

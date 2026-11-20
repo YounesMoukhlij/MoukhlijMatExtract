@@ -17,6 +17,17 @@ root of the repository, inside its virtual environment. Nothing here runs by its
 Choose the version with [semantic versioning](https://semver.org): a release that changes extracted values is at
 least a minor version (1.2.0), so that a database can always be traced to the code that made it.
 
+### For the article
+
+| Step | Command | Gives |
+|---|---|---|
+| Annotate | `mme-eval sheet`, then the workbook | the reference values (papers marked done) |
+| Benchmark | `mme-eval benchmark --tool ChemDataExtractor=cde.csv` | MME against the keyword baseline and other tools |
+| Gold standard | `mme-eval gold --second <2nd annotator.xlsx>` | `Evaluation/gold_standard/<name>/`: upload it to Zenodo |
+| Every table and figure | `make paper` (or `make paper-docker`) | `~/MoukhlijMatExtract/paper/` with `RESULTS.md` and `environment.json` |
+
+Run `make paper` from a clean commit: `environment.json` records `uncommitted_changes`, and a reviewer will read it.
+
 ## 1 · Build and check
 
 ```bash

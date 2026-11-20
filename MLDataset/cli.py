@@ -47,6 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-needs-check", action="store_true", help="Leave out the values marked worth a look too")
     parser.add_argument("--min-confidence", type=float, help="Smallest extraction confidence kept (0 to 1)")
     parser.add_argument("--verified-only", action="store_true", help="Activation energies checked by hand only")
+    parser.add_argument("--keep-duplicates", action="store_true",
+                        help="Keep a value repeated in its paper or quoted from another paper (default: counted once, "
+                             "its original kept)")
     parser.add_argument("--per-value", action="store_true", help="dataset.csv with one row per value, not per material")
     parser.add_argument("--min-values", type=int, help="A material needs at least this many values (default 1)")
     parser.add_argument("--name", help="Name of the dataset folder (default: made from the settings)")
@@ -88,6 +91,8 @@ def settings_from(args: argparse.Namespace) -> Settings:
         base["verified_only"] = True
     if args.per_value:
         base["per_material"] = False
+    if args.keep_duplicates:
+        base["keep_duplicates"] = True
     return Settings(**base)
 
 

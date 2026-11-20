@@ -24,6 +24,8 @@ hand. How to use the commands, in order, and how to reproduce a result: [MANUAL.
 | [`mme-eval sheet`](#mme-eval-sheet) | `python -m Evaluation sheet` | `make eval-sheet` | draws papers, writes the workbook to annotate |
 | [`mme-eval score`](#mme-eval-score) | `python -m Evaluation score` | `make eval-score` | precision, recall, F1 against the annotations |
 | [`mme-eval agree`](#mme-eval-agree) | `python -m Evaluation agree` | `make eval-agree` | agreement of two annotators |
+| [`mme-eval benchmark`](#mme-eval-benchmark) | `python -m Evaluation benchmark` | `make eval-benchmark` | MME against a keyword baseline and other tools, same papers |
+| [`mme-eval gold`](#mme-eval-gold) | `python -m Evaluation gold` | `make eval-gold` | the annotated papers as a public gold-standard dataset |
 | [`mme-eval reference`](#mme-eval-reference) | `python -m Evaluation reference` | `make eval-reference` | recall against curated databases (OBELiX, Liverpool) |
 | [`mme-release`](#mme-release) | `python -m Release` | `make release` | the dataset, ready to deposit (Zenodo) |
 
@@ -419,8 +421,8 @@ usage: mme-ml-export [-h] [--version] [--list] [--settings SETTINGS] [--family F
                      [--attribution {this-work,cited,any}] [--kind KIND] [--ion ION]
                      [--temperature TEMPERATURE] [--min VALUE_MIN] [--max VALUE_MAX]
                      [--include-flagged] [--no-needs-check] [--min-confidence MIN_CONFIDENCE]
-                     [--verified-only] [--per-value] [--min-values MIN_VALUES] [--name NAME]
-                     [--out OUT]
+                     [--verified-only] [--keep-duplicates] [--per-value] [--min-values MIN_VALUES]
+                     [--name NAME] [--out OUT]
 
 Prepare a dataset for machine learning: one family of materials, one property, one transport
 component and origin, filtered for quality. Written to ~/MoukhlijMatExtract/Ready for ML/<name>/
@@ -452,6 +454,8 @@ options:
   --min-confidence MIN_CONFIDENCE
                         Smallest extraction confidence kept (0 to 1)
   --verified-only       Activation energies checked by hand only
+  --keep-duplicates     Keep a value repeated in its paper or quoted from another paper (default:
+                        counted once, its original kept)
   --per-value           dataset.csv with one row per value, not per material
   --min-values MIN_VALUES
                         A material needs at least this many values (default 1)
@@ -561,6 +565,65 @@ positional arguments:
 
 options:
   -h, --help  show this help message and exit
+
+Typical use: mme-eval sheet → annotate Evaluation/annotation.xlsx (its Guide sheet says how) →
+mme-eval score. After changing the program and extracting again: mme-eval score --source
+LocalExtraction/local_output WebScraping/web_output, to measure the new version against the same
+reference. MoukhlijMatExtract (MME) — Created by Younes Moukhlij.
+```
+
+## mme-eval benchmark
+
+*Evaluation* — MME against a keyword baseline and other tools, same papers. Same as `python -m Evaluation benchmark`; with make: `make eval-benchmark`.
+
+```text
+usage: mme-eval benchmark [-h] [--gold FILE] [--source DIR [DIR ...]] [--tool NAME=CSV]
+                          [--no-baseline] [--out DIR] [--seed SEED]
+
+Scores MoukhlijMatExtract, a keyword baseline (a number with the property's unit in a sentence
+naming the property, read from the same PDFs) and every other tool given (ChemDataExtractor, an
+LLM prompt …, each a CSV of its values for the same papers) against the annotated workbook:
+precision, recall and F1 with 95 %% intervals, per property, the paired difference with each, and
+a figure. Only the papers marked done are scored.
+
+options:
+  -h, --help            show this help message and exit
+  --gold, -g FILE       The annotated workbook (default: Evaluation/annotation.xlsx)
+  --source, -s DIR [DIR ...]
+                        MoukhlijMatExtract's values now in these results folders (a newer run)
+                        instead of those the workbook was made from
+  --tool, -t NAME=CSV   Another tool's values for the same papers, e.g. ChemDataExtractor=cde.csv
+                        (columns paper_id, property, material, value [, unit, component, origin,
+                        confidence]); repeat for several
+  --no-baseline         Leave the keyword baseline out
+  --out, -o DIR         Folder of the benchmark (default: Evaluation/benchmark)
+  --seed SEED           Seed of the bootstrap (default: 7)
+
+Typical use: mme-eval sheet → annotate Evaluation/annotation.xlsx (its Guide sheet says how) →
+mme-eval score. After changing the program and extracting again: mme-eval score --source
+LocalExtraction/local_output WebScraping/web_output, to measure the new version against the same
+reference. MoukhlijMatExtract (MME) — Created by Younes Moukhlij.
+```
+
+## mme-eval gold
+
+*Evaluation* — the annotated papers as a public gold-standard dataset. Same as `python -m Evaluation gold`; with make: `make eval-gold`.
+
+```text
+usage: mme-eval gold [-h] [--gold FILE] [--second FILE] [--name NAME] [--out DIR]
+
+Writes the reference values of the annotated workbook, value by value (correct, partly correct and
+missed), with the papers, the annotation guide, the agreement of two annotators when a second
+workbook is given, a datasheet (README.md), .zenodo.json and SHA256SUMS. Sentences of papers whose
+licence does not allow sharing are left out.
+
+options:
+  -h, --help       show this help message and exit
+  --gold, -g FILE  The annotated workbook (default: Evaluation/annotation.xlsx)
+  --second FILE    A second annotator's copy of the workbook: its agreement (Cohen's kappa) goes
+                   in the set
+  --name NAME      Name of the dataset folder (default: the workbook's name)
+  --out, -o DIR    Folder the dataset is written in (default: Evaluation/gold_standard)
 
 Typical use: mme-eval sheet → annotate Evaluation/annotation.xlsx (its Guide sheet says how) →
 mme-eval score. After changing the program and extracting again: mme-eval score --source

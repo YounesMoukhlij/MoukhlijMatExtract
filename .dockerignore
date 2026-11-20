@@ -1,0 +1,9 @@
+.git
+.venv
+**/__pycache__
+**/*.pyc
+build
+*.egg-info
+.pytest_cache
+.DS_Store
+graphify-out
