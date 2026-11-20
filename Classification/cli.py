@@ -133,8 +133,11 @@ def _main(argv: Sequence[str] | None = None) -> int:
     run = classify_run(sources, out_dir)
     classified = classify(sources)
     summaries = write(classified, out_dir)
+    from .branches import FOLDER, write_all  # every family ▸ property ▸ type ▸ origin, one table each
+    branches = write_all(out_dir)
     record_classes(out_dir, sources, run, classified)
-    print(f"\n  {len(classified.materials)} materials classified into {_shown(out_dir)}/\n")
+    print(f"\n  {len(classified.materials)} materials classified into {_shown(out_dir)}/")
+    print(f"  {len(branches)} branches by property (family ▸ property ▸ type ▸ origin) in {_shown(out_dir)}/{FOLDER}/\n")
     for axis, _, column in AXES:
         title = {CRYSTAL_STRUCTURE: "Crystal structure", STRUCTURE_FAMILIES: "Structure families"}[axis]
         print(f"  {title} ({axis}/)")

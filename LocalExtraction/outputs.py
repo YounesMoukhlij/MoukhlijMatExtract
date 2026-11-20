@@ -31,8 +31,8 @@ TO_TRASH = send2trash is not None
 _RANKING = ("bulk", "grain_boundary", "total", "surface", "not_reported", "summary.csv",  # one folder per component
             "top_materials.csv", "all_materials.csv", "values.csv", "selection.json", "selection.xlsx",  # earlier versions
             "report.html", ".mme_done.json")
-_CLASSES = ("crystal_structure", "structure_families", "all_materials.csv", ".mme_done.json",
-            ".crystal_structure.writing", ".structure_families.writing")
+_CLASSES = ("crystal_structure", "structure_families", "by_property", "all_materials.csv", ".mme_done.json",
+            ".crystal_structure.writing", ".structure_families.writing", ".by_property.writing")
 
 
 @dataclass(frozen=True)

@@ -223,12 +223,14 @@ def _verdicts(root: Path):
     return of
 
 
-def select(settings: Settings, root: Optional[Path] = None) -> Selection:
-    """The values the settings keep, and those they leave out with the reason."""
+def select(settings: Settings, root: Optional[Path] = None, family: Optional[Family] = None,
+           rows: Optional[List[Dict[str, str]]] = None) -> Selection:
+    """The values the settings keep, and those they leave out with the reason. `family`: a family given directly
+    (the class folders a classification is writing); `rows`: its table, already read. `root` holds Verification/."""
     root = Path(root or home())
-    family = find_family(settings.family, root)
+    family = family or find_family(settings.family, root)
     prop = PROPERTIES[settings.target]
-    rows = read_rows(family, settings.target)
+    rows = read_rows(family, settings.target) if rows is None else rows
     chosen = Selection()
     verdicts = _verdicts(root)
     database_name = family.folder.name if family.kind == "database" else ""

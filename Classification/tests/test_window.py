@@ -210,7 +210,7 @@ class WindowTests(unittest.TestCase):
             widget = stack.pop()
             stack.extend(widget.winfo_children())
             if widget.winfo_class() == "TButton" and str(widget.cget("text")) in (
-                    "Add a database…", "Classify", "Open the results folder", "Browse the CSV files…", "Delete outputs…"):
+                    "Add a database…", "▶  Classify everything", "Open the results folder", "Browse the CSV files…", "Delete outputs…"):
                 self.assertTrue(widget.winfo_ismapped(), widget.cget("text"))
                 self.assertLessEqual(widget.winfo_reqwidth(), widget.winfo_width() + 2, widget.cget("text"))
         from LocalExtraction.tests.test_layout import seen

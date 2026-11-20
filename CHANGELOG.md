@@ -8,6 +8,17 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **Classification by property: “▶ Classify everything” in one click** (and `mme-classify`).
+  - **The flow:** ① every family, crystal (garnet, NASICON …) and chemical (oxide, sulfide …) → ② every property
+    alone (activation energy, ionic conductivity, diffusion coefficient, electronic conductivity) → ③ every type
+    (bulk, grain boundary, total) → ④ every origin (experimental, simulation) → ⑤ the quality defaults of the ML
+    datasets → ⑥ one table per branch.
+  - **Where:** `Classification/by_property/<axis>/<family>/<property>/<type>/<origin>/` with `dataset.csv` (one row
+    per material) and `values.csv` (every value with its sentence and page); `tree.csv` lists every branch with its
+    counts, range and best material; `README.md` shows the tree. A branch no value reaches is not written.
+  - **The window:** a first tab, **By property**, shows the tree; a branch selected lists its materials, with
+    “Open dataset.csv” and “Open its folder”.
+
 - **“‹ Back to the main window” in every window opened from it.**
   - **Where:** at the left of the header band of Local extraction, Web scraping, Ranking, Classification, ML
     datasets and About & methods; at the bottom, in place of “Close”, of the Requirements guide, the Manual, the
