@@ -115,6 +115,17 @@ class ExportTests(unittest.TestCase):
             row = next(csv.DictReader(f))
         self.assertAlmostEqual(float(row["log10_target"]), math.log10(7.5e-4), places=3)
 
+    def test_a_dataset_name_never_leaves_ready_for_ml(self):
+        folder = export.generate(self.settings(name="../../outside/x"), self.home)
+        self.assertEqual(folder.parent, self.home / "Ready for ML")
+        self.assertEqual(export.safe_name(".."), "")
+
+    def test_two_spellings_of_one_material_are_one_material(self):
+        a = {"material_formula": "Li1.3Al0.3Ti1.7(PO4)3", "composition": '{"Li": 1.3, "Al": 0.3, "Ti": 1.7, "P": 3.0, "O": 12.0}'}
+        b = {"material_formula": "Li1.3Ti1.7Al0.3(PO4)3", "composition": '{"Ti": 1.7, "Li": 1.3, "Al": 0.3, "O": 12.0, "P": 3.0}'}
+        self.assertEqual(export.material_of(a), export.material_of(b))
+        self.assertEqual(export.material_of({"material_key": "K", "material_formula": "x"}), "K")
+
     def test_settings_that_keep_nothing_are_refused(self):
         with self.assertRaises(ValueError):
             export.generate(self.settings(value_min=5.0), self.home)

@@ -71,6 +71,24 @@ class WatcherTests(unittest.TestCase):
                          ["invoice.pdf", "notes.txt", "old.pdf", "other_paper.pdf"])
         self.assertFalse(self.box.exists())
 
+    def test_a_new_pdf_keeping_an_old_date_is_still_taken(self):
+        """Some browsers keep the server's date on a download: a new file is told by its name, not its date."""
+        new = self.downloads / "kept_old_date.pdf"
+        new.write_bytes(pdf_naming("10.1000/wanted"))
+        past = time.time() - 86400 * 30
+        os.utime(new, (past, past))
+        self.watcher.scan()
+        self.assertEqual(self.watcher.scan(), [str(self.box / "kept_old_date.pdf")])
+
+    def test_another_folder_chosen_is_watched_from_then(self):
+        other = self.downloads.parent / "Other"
+        other.mkdir()
+        (other / "already.pdf").write_bytes(pdf_naming("10.1000/wanted"))
+        self.watcher.watch(str(other))
+        for _ in range(2):
+            self.assertEqual(self.watcher.scan(), [])  # there before: left alone
+        self.assertTrue((other / "already.pdf").exists())
+
     def test_a_pdf_named_after_its_doi_is_matched_by_its_name(self):
         (self.downloads / "10.1000_other.pdf").write_bytes(pdf_naming("", "No DOI printed"))
         self.watcher.scan()

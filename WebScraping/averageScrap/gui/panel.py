@@ -481,8 +481,8 @@ class WebPanel(Pausable, ttk.LabelFrame):
         """The Candidates tab. `reload`: read the ledger again (after a step or a decision); without it, a
         filter or a word typed works on the papers already read — tens of thousands of them. `papers`:
         the list a step read on its own thread (the window then reads nothing)."""
-        if hasattr(self, "downloads"):
-            self.downloads.show(force=True)  # after a step, or another job: the Downloads tab follows
+        if hasattr(self, "downloads") and (reload or papers is not None):
+            self.downloads.show(force=True)  # after a step, or another job: the Downloads tab follows (not per keystroke)
         if papers is not None:
             candidates = papers
             self._candidates = {c.key: c for c in candidates}

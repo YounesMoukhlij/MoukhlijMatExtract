@@ -59,6 +59,9 @@ class MLWindow:
     # ------------------------------------------------------------------ the steps
     def _new_step(self, number: int, title: str) -> ttk.LabelFrame:
         """A step's frame; every later step is removed first (an earlier answer changed)."""
+        if self._pending is not None:  # a count waiting for the filters about to go: not made
+            self.root.after_cancel(self._pending)
+            self._pending = None
         for frame in self.steps[number:]:
             frame.destroy()
         del self.steps[number:]
@@ -262,6 +265,8 @@ class MLWindow:
 
     def update_preview(self) -> None:
         self._pending = None
+        if len(self.steps) < 6 or not self.generate_button.winfo_exists():  # the filters are not shown (any more)
+            return
         try:
             settings = self.settings()
             chosen = export.select(settings, self.home)
