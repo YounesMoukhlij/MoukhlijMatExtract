@@ -244,6 +244,12 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Fixed
 
+- **Ctrl-C in the terminal froze a window that was running a step.** The window closed at once, but the step (a
+  search, a download, an extraction) was never told to stop: its threads went on working with no window, and the
+  program never ended. Now Ctrl-C (or SIGTERM, or the terminal closed) presses Stop on every running step, says to
+  wait while it saves, keeps the window until the step has ended, says it stopped cleanly, then closes. A second
+  Ctrl-C quits at once. With nothing running, the window closes at once, as before.
+
 - **Six bugs found in a review of the newest features.**
   - **ML datasets:** a dataset name typed with `../` could write outside `Ready for ML/` (now kept inside); two
     spellings of one material from a whole database were two materials (now merged by composition, as
