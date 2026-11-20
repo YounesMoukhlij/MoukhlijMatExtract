@@ -63,13 +63,15 @@ options:
 *The one window* — opens the main window: one button per part. Same as `python -m mme_gui`; with make: `make gui`.
 
 ```text
-usage: mme-gui [-h] [--version]
+usage: mme-gui [-h] [--version] [--install-app]
 
 Open the MoukhlijMatExtract window: one button per part.
 
 options:
-  -h, --help  show this help message and exit
-  --version   show program's version number and exit
+  -h, --help     show this help message and exit
+  --version      show program's version number and exit
+  --install-app  macOS: make ~/Applications/MoukhlijMatExtract.app, which opens this window with
+                 the program's own name and icon in the Dock (not “python”)
 ```
 
 ## mme-local

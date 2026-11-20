@@ -8,6 +8,15 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **The program's own name on macOS: “MoukhlijMatExtract” in the Dock, the app switcher (⌘-Tab) and the menu bar**,
+  in place of “python3.13” (the program runs inside the Python interpreter, which macOS named it after).
+  - **`mme-gui --install-app`** (or `make app`) makes `~/Applications/MoukhlijMatExtract.app`, with the program's
+    icon. Opened from it, macOS registers the program as that app: the Dock shows its name and icon. The app holds
+    no copy of the program: it runs this Python with this environment, so updating the project updates it. Make it
+    again after moving the project or its Python.
+  - **Started from a terminal** (`mme-gui`), the menu bar says MoukhlijMatExtract too; the Dock, which reads the name
+    only as a program starts, keeps the interpreter's name — open the app for the Dock's.
+
 - **Classification by property: “▶ Classify everything” in one click** (and `mme-classify`).
   - **The flow:** ① every family, crystal (garnet, NASICON …) and chemical (oxide, sulfide …) → ② every property
     alone (activation energy, ionic conductivity, diffusion coefficient, electronic conductivity) → ③ every type

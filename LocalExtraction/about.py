@@ -96,6 +96,13 @@ def require_tk(command: str) -> None:
             f"  macOS (Homebrew Python): brew install python-tk@{version}\n"
             "  Ubuntu/Debian:           sudo apt install python3-tk\n"
             "The terminal commands (mme-local extract, mme-web run, mme-rank, mme-classify, …) work without it.")
+    # Before the first window: the app menu macOS builds with it says “MoukhlijMatExtract”, not “Python”.
+    try:
+        from .gui.appname import NAME, _bundle_name
+        if sys.platform == "darwin":
+            _bundle_name(NAME)
+    except Exception:
+        pass
 
 
 def found_here(path):

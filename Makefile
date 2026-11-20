@@ -58,6 +58,7 @@ RANK_OPTS   = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,CRIT
 RANK_GUI_OPTS = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,CRITERIA,--criteria)
 CLASSIFY_OPTS = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call switch,FORCE,--force)
 CLASSIFY_GUI_OPTS = $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call switch,NO_WRITE,--no-write)
+GUI_OPTS = $(call switch,INSTALL_APP,--install-app)
 ML_OPTS = $(call switch,LIST,--list) $(call opt,SETTINGS,--settings) $(call opt,FAMILY,--family) \
               $(call opt,TARGET,--target) $(call opt,COMPONENT,--component) $(call opt,ORIGIN,--origin) \
               $(call opt,ATTRIBUTION,--attribution) $(call opt,KIND,--kind) $(call opt,ION,--ion) \
@@ -217,7 +218,7 @@ manual:
 
 # ---- The one window ---------------------------------------------------------------------------------
 gui:
-	@$(PYTHON) -m mme_gui
+	@$(PYTHON) -m mme_gui $(GUI_OPTS)
 
 # ---- 1 · Local extraction ---------------------------------------------------------------------------
 local:
@@ -341,7 +342,7 @@ release-help:
 mme-help:
 	@$(PYTHON) -m mme_gui.commands --help
 
-.PHONY: demo help ml-export ml-gui install install-locked lock dictionary commands manual test clean version gui local local-rebuild local-gui \
+.PHONY: demo help ml-export ml-gui app install install-locked lock dictionary commands manual test clean version gui local local-rebuild local-gui \
         local-cathode local-anode web-cathode web-anode rank-cathode rank-anode mme-help \
         doi web web-check web-fetch web-extract \
         web-dois web-gui coverage update rank rank-gui classify classify-gui gui-help local-help local-gui-help web-help \
@@ -357,3 +358,6 @@ ml-export:  ## a dataset for machine learning: make ml-export FAMILY=garnet TARG
 
 ml-gui:  ## the ML datasets window
 	$(PYTHON) -m MLDataset gui
+
+app:  ## macOS: ~/Applications/MoukhlijMatExtract.app, the main window with its own name and icon in the Dock
+	$(PYTHON) -m mme_gui --install-app
