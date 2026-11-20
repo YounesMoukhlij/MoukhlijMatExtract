@@ -93,3 +93,25 @@ class ViewTests(BranchTests):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(has_screen(), "the window needs a screen")
+class FlowWindowTests(BranchTests):
+    def test_the_flow_window_draws_every_step_with_the_numbers_of_the_last_classification(self):
+        from Classification.flow_window import open_flow
+        root = tk.Tk()
+        root.attributes("-alpha", 0.0)
+        self.addCleanup(root.destroy)
+        empty = open_flow(root, self.out)  # before any classification: the steps, no numbers
+        for words in ("▶  CLASSIFY EVERYTHING", "Crystal family", "Chemical family", "Activation energy",
+                      "Ionic conductivity", "Diffusion coefficient", "Electronic conductivity", "bulk",
+                      "grain boundary", "total", "experimental (measured)", "simulation (computed)", "One table per branch"):
+            self.assertIn(words, empty.diagram.texts)
+        empty.destroy()
+        branches.write_all(self.out, self.home)
+        window = open_flow(root, self.out)
+        root.update()
+        self.assertTrue(any("5 branches" in t for t in window.diagram.texts))
+        self.assertIn("1 family", window.diagram.texts)  # one chemical family: oxide
+        backs = [w for w in window.winfo_children() if getattr(getattr(w, "back", None), "back", False)]
+        self.assertEqual(len(backs), 1)  # the header band with its ‹ Back
