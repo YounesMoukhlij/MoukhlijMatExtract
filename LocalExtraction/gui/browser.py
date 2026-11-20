@@ -172,7 +172,8 @@ class ResultsBrowser(tk.Toplevel):
         if workbook.exists():
             ttk.Button(buttons, text="Open the workbook", command=lambda: open_path(str(workbook))).pack(side="left")
         ttk.Button(buttons, text="Open the folder", command=self._open_folder).pack(side="left", padx=6)
-        ttk.Button(buttons, text="Close", command=self.destroy).pack(side="right")
+        from .design import back_button
+        back_button(buttons, self).pack(side="right")
         ttk.Button(buttons, text="Refresh", command=self.load).pack(side="right", padx=6)
 
         self.tables = list(tables)

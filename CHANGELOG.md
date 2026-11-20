@@ -8,6 +8,16 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **“‹ Back to the main window” in every window opened from it.**
+  - **Where:** at the left of the header band of Local extraction, Web scraping, Ranking, Classification, ML
+    datasets and About & methods; at the bottom, in place of “Close”, of the Requirements guide, the Manual, the
+    Results and the CSV files. A window opened from another one says “‹ Back”, and goes back to that one.
+  - **Polite while a step runs:** in Web scraping and Local extraction it asks first; going back stops the step,
+    keeping what it has finished. Classification and Ranking (seconds, their files written in one go: they cannot be
+    stopped half-way) ask nothing: “‹ Going back when it's done …”, then back. Opening Classification starts it at
+    once, so a Back pressed right away no longer asks to stop it.
+  - **Shortcut:** ⌘[ on macOS, Alt+← elsewhere. A window started on its own (`mme-rank gui` …) has none.
+
 - **5 · ML datasets: datasets ready for machine learning** (`mme-ml-export`, a fifth card in the main window).
   - **The window** asks step by step, each step appearing once the one before is answered: ① the family (a crystal
     structure or structure family of 4 · Classification, or a whole database), ② the property (activation energy,

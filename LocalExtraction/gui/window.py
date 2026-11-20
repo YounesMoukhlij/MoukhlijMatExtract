@@ -118,6 +118,8 @@ class Window:
         outer.add(self.panel, weight=6)
         # Ctrl-C in the terminal stops this window's step as Stop does, before the window closes (crashlog).
         self._forget_step = runcontrol.register_step(self.panel.running, self.panel.stop)
+        # “‹ Back” (design.header): asks first while a step runs, then closes as the close button does.
+        self.root._mme_busy, self.root._mme_close = self.panel.running, self.close
 
         # What the engine itself logs: small by default, the divider above it can be dragged.
         self.log = LogPane(outer, height=3)

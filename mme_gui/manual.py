@@ -394,7 +394,8 @@ def open_manual(parent) -> "object":
         win.clipboard_append(text.get("1.0", "end-1c"))
         status.configure(text="The whole manual is copied.")
 
-    ttk.Button(footer, text="Close", command=win.destroy).pack(side="right")
+    from LocalExtraction.gui.design import back_button
+    back_button(footer, win).pack(side="right")
     ttk.Button(footer, text="Copy all", command=copy_all).pack(side="right", padx=(0, 6))
     ttk.Label(footer, foreground="#8c8c8c",
               text="Any command followed by --help prints the same in a terminal.").pack(side="left")

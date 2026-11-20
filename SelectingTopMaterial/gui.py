@@ -106,6 +106,9 @@ class App:
         from LocalExtraction.gui.about_window import open_about
         design.header(self.root, "Ranking the materials", "by activation energy, one ranking per transport component",
                       compact=True)
+        # “‹ Back” during a ranking (seconds, its files written in one go): it goes back once the ranking is done.
+        self.root._mme_busy = lambda: getattr(self, "_ranking", False)
+        self.root._mme_finish_first = True
         design.footer(self.root, about=lambda: open_about(self.root)).pack(side="bottom", fill="x")
 
         # The settings and the card of the last ranking above, the ranked materials below, with a divider between:
