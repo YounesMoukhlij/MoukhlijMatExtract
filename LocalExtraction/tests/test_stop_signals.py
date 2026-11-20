@@ -57,7 +57,7 @@ class SignalTests(unittest.TestCase):
             with runcontrol.ctrl_c_stops("Test"):
                 os.kill(os.getpid(), signal.SIGTERM)
                 os.kill(os.getpid(), signal.SIGINT)
-        self.assertEqual(said, ["wait", "quit", "done"])
+        self.assertEqual(said, ["wait", "quit"])  # never “stopped cleanly” after “quitting at once”
 
     def test_a_short_command_finishes_its_work_before_stopping(self):
         said, patch = self.boxes()

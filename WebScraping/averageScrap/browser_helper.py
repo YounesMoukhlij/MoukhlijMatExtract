@@ -8,14 +8,14 @@ Why a person stays in the loop: the sites still on the list (MDPI, ACS, RSC, SSR
 that disguised itself as a person to get through would break their terms and the program's rule of legal sources
 only; your own browser, used by you, is how these sites are meant to be read.
 
-What the watcher touches: only PDFs that appear in the Downloads folder after the helper started, and only those
+What the watcher touches: only PDFs that were not in the Downloads folder when it started watching it (a snapshot
+of the names, not the files' dates: some browsers keep the server's date on a download), and only those
 whose pages name a DOI of the hand list. Any other file there is left exactly where it is."""
 
 import logging
 import os
 import shutil
-import time
-from typing import Dict, Iterable, List, Optional, Sequence, Set
+from typing import Dict, Iterable, List, Sequence, Set
 
 from WebScraping.averageScrap.by_hand import BUSY, dois_in
 from WebScraping.averageScrap.ids import normalize_doi
@@ -44,14 +44,21 @@ def next_batch(rows: Sequence[Dict[str, str]], opened: Set[str], size: int) -> L
 class DownloadsWatcher:
     """Moves the PDFs of the hand list that arrive in `downloads` into `by_hand`. A file is moved once its size has
     stayed the same between two looks (a download still under way grows), and only when its pages or its name give
-    a DOI of `wanted`. A PDF older than the watcher, or of another paper, is never touched."""
+    a DOI of `wanted`. A PDF that was there when watching began, or of another paper, is never touched."""
 
-    def __init__(self, downloads: str, by_hand: str, wanted: Iterable[str], since: Optional[float] = None):
-        self.downloads, self.by_hand = downloads, by_hand
+    def __init__(self, downloads: str, by_hand: str, wanted: Iterable[str]):
+        self.by_hand = by_hand
         self.wanted: Set[str] = {normalize_doi(d) for d in wanted if normalize_doi(d)}
-        self.since = time.time() if since is None else since
+        self.watch(downloads)
+
+    def watch(self, downloads: str) -> None:
+        """Watches `downloads` from now: the PDFs already there are left alone."""
+        self.downloads = downloads
         self._sizes: Dict[str, int] = {}   # name -> size at the last look
-        self._settled: Set[str] = set()    # names already moved, or found to be of no paper of the list
+        try:  # names already moved, found to be of no paper of the list, or there before
+            self._settled: Set[str] = {n for n in os.listdir(downloads) if n.lower().endswith(".pdf")}
+        except OSError:
+            self._settled = set()
 
     def scan(self) -> List[str]:
         """One look at the Downloads folder. Returns the paths of the PDFs moved into the by_hand folder."""
@@ -69,8 +76,8 @@ class DownloadsWatcher:
                 info = os.stat(path)
             except OSError:
                 continue
-            if info.st_mtime < self.since - 2 or not os.path.isfile(path):
-                self._settled.add(name)  # there before the helper started: not ours to move
+            if not os.path.isfile(path):
+                self._settled.add(name)
                 continue
             size, before = info.st_size, self._sizes.get(name)
             self._sizes[name] = size

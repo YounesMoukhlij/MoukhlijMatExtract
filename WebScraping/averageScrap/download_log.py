@@ -66,10 +66,11 @@ def add(folder: str, row: Dict[str, str]) -> None:
 
 
 def read(folder: str) -> List[Dict[str, str]]:
-    """Every line of the log, oldest first. Empty when there is none yet."""
+    """Every line of the log, oldest first. Empty when there is none yet. A line still being written by a running
+    download (read half-way: its last column, the key, missing) is left for the next reading."""
     try:
         with open(path_of(folder), encoding="utf-8-sig", newline="") as f:
-            return list(csv.DictReader(f))
+            return [row for row in csv.DictReader(f) if row.get("key") and row.get("result")]
     except OSError:
         return []
 

@@ -245,6 +245,7 @@ def ctrl_c_stops(what: str = "MoukhlijMatExtract") -> Iterator[RunControl]:
 
     def on_signal(signum, frame) -> None:
         if control.is_set():
+            asked.append("quit")
             say_box("quit")
             raise KeyboardInterrupt
         control.set()
@@ -257,7 +258,7 @@ def ctrl_c_stops(what: str = "MoukhlijMatExtract") -> Iterator[RunControl]:
             yield control
     finally:
         _restore(before)
-        if asked:
+        if asked and "quit" not in asked:  # “stopped cleanly” only when it was: not after “quitting at once”
             say_box("done")
 
 
@@ -270,6 +271,7 @@ def finish_then_stop(what: str = "MoukhlijMatExtract") -> Iterator[None]:
 
     def on_signal(signum, frame) -> None:
         if asked:
+            asked.append("quit")
             say_box("quit")
             raise KeyboardInterrupt
         asked.append(signum)
@@ -280,7 +282,7 @@ def finish_then_stop(what: str = "MoukhlijMatExtract") -> Iterator[None]:
         yield
     finally:
         _restore(before)
-        if asked:
+        if asked and "quit" not in asked:
             say_box("done")
 
 
@@ -492,8 +494,9 @@ def _start_awake_helper(why: str):
     if sys.platform == "darwin" and shutil.which("caffeinate"):
         command = ["caffeinate", "-i", "-w", str(os.getpid())]  # ends by itself if this program ends
     elif shutil.which("systemd-inhibit"):
+        from .keep_awake import until_gone  # the lock ends with this program, killed or not
         command = ["systemd-inhibit", "--what=idle:sleep", "--who=MoukhlijMatExtract", f"--why={why}",
-                   "--mode=block", "sleep", "infinity"]
+                   "--mode=block", *until_gone(os.getpid())]
     else:
         return None
     try:

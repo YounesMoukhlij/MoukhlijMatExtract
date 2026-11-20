@@ -244,6 +244,20 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Fixed
 
+- **Six bugs found in a review of the newest features.**
+  - **ML datasets:** a dataset name typed with `../` could write outside `Ready for ML/` (now kept inside); two
+    spellings of one material from a whole database were two materials (now merged by composition, as
+    Classification does); changing an earlier step while the count was being updated could crash the window.
+  - **Downloads tab:** a line of `download_log.csv` still being written could show as a broken row; the log was read
+    again at each key typed in the Candidates filter.
+  - **Browser helper:** a new PDF whose browser kept the server's date was ignored, and the PDFs already in a folder
+    chosen with “Change…” were taken for new ones. Watching now starts from a snapshot of the folder's names.
+  - **Keep awake (Linux):** after a crash or a kill, the sleep lock stayed until the computer restarted; it now ends
+    with the program, as on macOS.
+  - **Stopping from the terminal:** “Stopped cleanly” was said after “Quitting at once”.
+  - **Springer Nature:** its daily quota used up held its papers in the rounds at the end of a download; they are now
+    filed and asked again by the next download.
+
 - **A crash, “KeyError: 'popdown'”, when the mouse wheel turned over the open list of a dropdown** (the ML datasets
   window, and any window whose controls scroll). The open list is a window Tk makes itself, with no Python widget
   behind it; the scrolling area now asks by window name, and the wheel scrolls the list.

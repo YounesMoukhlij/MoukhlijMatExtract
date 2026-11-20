@@ -198,7 +198,17 @@ def temperature_K(text: str) -> Tuple[Optional[float], Optional[float], bool]:
 
 
 def material_of(row: Dict[str, str]) -> str:
-    return (row.get("material_key") or row.get("material_formula") or "").strip()
+    """What makes rows one material: Classification's key when the table has it, else the same key made from the
+    composition (Li1.3Al0.3Ti1.7(PO4)3 and Li1.3Ti1.7Al0.3(PO4)3 are one), else the formula as it is spelled."""
+    key = (row.get("material_key") or "").strip()
+    if key:
+        return key
+    formula = (row.get("material_formula") or "").strip()
+    try:
+        from Classification.classify import composition, material_key
+        return material_key(composition(row.get("composition", "") or ""), formula)
+    except Exception:
+        return formula
 
 
 def _verdicts(root: Path):
@@ -289,7 +299,9 @@ def _why_not(row: Dict[str, str], s: Settings, prop: Property, low_T, high_T) ->
         if s.temperature.strip().lower() == "room":
             if not room:
                 return "not at room temperature"
-        elif low is None or low < low_T or high > high_T:
+        elif low is None:
+            return "temperature not stated"
+        elif low < low_T or high > high_T:
             return f"temperature outside {low_T:g}-{high_T:g} K"
     if s.value_min is not None and value < s.value_min:
         return f"value below {s.value_min:g}"
@@ -299,6 +311,12 @@ def _why_not(row: Dict[str, str], s: Settings, prop: Property, low_T, high_T) ->
 
 
 # ------------------------------------------------------------------------------------------------- writing
+def safe_name(text: str) -> str:
+    """A folder name that stays inside Ready for ML: no path separators, no “..”."""
+    name = re.sub(r"[^A-Za-z0-9._+-]+", "_", text.strip()).strip("._")
+    return name
+
+
 def default_name(s: Settings, family: Family) -> str:
     parts = [family.name, s.target, s.component, s.origin]
     if s.target == "Ea" and s.energy_kind != ANY:
@@ -330,7 +348,7 @@ def generate(settings: Settings, root: Optional[Path] = None, out: Optional[Path
     chosen = select(settings, root)
     if not chosen.kept:
         raise ValueError("No value passes these settings: loosen a filter.")
-    name = settings.name or default_name(settings, family)
+    name = safe_name(settings.name) or default_name(settings, family)
     base = Path(out) if out else root / READY
     target = base / name
     staging = base / f".{name}.writing"

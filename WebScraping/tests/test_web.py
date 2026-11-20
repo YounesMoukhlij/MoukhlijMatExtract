@@ -1311,6 +1311,11 @@ class HarvestTests(unittest.TestCase):
         self.assertEqual((shut["result"], shut["why"]), (download_log.MISSED, by_hand.BLOCKED))
         self.assertEqual(shut["what_to_do"], by_hand.REASONS[by_hand.BLOCKED])
         self.assertEqual(by_key["10.1000/busy"]["result"], download_log.WAITING)
+        with open(download_log.path_of(self.job.fetch.folder), "a", encoding="utf-8") as f:
+            f.write("2026-11-20 10:00:00,run,downloaded,10.1000/half")  # a line still being written
+        self.assertNotIn("10.1000/half", {row["key"] for row in download_log.read(self.job.fetch.folder)})
+        with open(download_log.path_of(self.job.fetch.folder), "a", encoding="utf-8") as f:
+            f.write("\n")
         first_run = rows[0]["run"]
         self.harvest.run_id = "a later run"
         download_log.add(self.job.fetch.folder, download_log.entry(self.harvest.ledger.get("10.1000/shut"), "a later run"))

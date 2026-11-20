@@ -23,6 +23,12 @@ from typing import Callable, List, Optional
 _ES_CONTINUOUS, _ES_SYSTEM_REQUIRED, _ES_DISPLAY_REQUIRED = 0x80000000, 0x00000001, 0x00000002
 
 
+def until_gone(pid: int) -> List[str]:
+    """A command that lasts as long as process `pid` (Linux): what systemd-inhibit holds its lock for, so the lock
+    ends with the program even if it is killed or crashes (as `caffeinate -w` does on macOS)."""
+    return ["sh", "-c", f"while kill -0 {pid} 2>/dev/null; do sleep 5; done"]
+
+
 class KeepAwake:
     """One switch for the whole program. `listen(callback)`: told `callback(on)` whenever it changes, so every
     window's switch shows the same state."""
@@ -95,7 +101,7 @@ class KeepAwake:
                     return False
                 self._process = subprocess.Popen(
                     [tool, "--what=idle:sleep", "--who=MoukhlijMatExtract", "--why=A long step is running",
-                     "--mode=block", "sleep", "infinity"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                     "--mode=block", *until_gone(os.getpid())], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as error:
             logging.warning(f"The computer cannot be kept awake: {error}")
             self._process = None

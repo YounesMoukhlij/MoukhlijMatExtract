@@ -100,7 +100,9 @@ LATER_ROUND_SECONDS = 30 * 60
 # end. Semantic Scholar gives an arXiv version or a repository copy, which the other services mostly know already
 # (2 of 30 papers it had refused in a run had a green copy, none an arXiv version), and it refuses often (HTTP 429).
 # Such a paper is filed with what the other services answered — the next download asks the lookup again.
-SUPPLEMENTARY_LOOKUPS = frozenset({"Semantic Scholar"})
+# Springer Nature's Open Access API is the same kind of lookup, on a daily quota (Basic plan): once used up, waiting
+# minutes changes nothing, so its papers are filed and asked again by the next download.
+SUPPLEMENTARY_LOOKUPS = frozenset({"Semantic Scholar", "Springer Nature"})
 
 
 def refusers(rows: List[Dict[str, str]]) -> str:

@@ -252,7 +252,7 @@ class BrowserHelperDialog(Dialog):
                                          title="The folder your browser saves downloads into")
         if folder:
             self.downloads.set(folder)
-            self.watcher.downloads = folder
+            self.watcher.watch(folder)  # from now: the PDFs already in that folder are left alone
 
     def _reveal(self) -> None:
         from LocalExtraction.gui.widgets import open_path
