@@ -35,6 +35,9 @@ from LocalExtraction.about import command_name, enter_project_home
 
 from .about import CRYSTAL_STRUCTURE, DEFAULT_OUT, DEFAULT_SOURCES, NAME, PROJECT_ROOT
 from .classify import COMPONENT_WORDS, COMPONENTS, NO_FAMILY
+
+# The one button: the classes, then every family ▸ property ▸ type ▸ origin (branches.py).
+CLASSIFY_ALL = "▶  Classify everything"
 from .database import (AXES, Classified, Source, class_groups, class_kind, classify, component_stats,
                        conductivities_of, energies_of, material_rows, partly_rebuilt, read, write)
 
@@ -75,6 +78,8 @@ def run(folders: Sequence[Path], out_dir: Path | None) -> Result:
     result = Result(sources, classified, energies_of(classified), conductivities_of(classified))
     if out_dir is not None:
         write(classified, out_dir)
+        from .branches import write_all  # every family ▸ property ▸ type ▸ origin, one table each
+        write_all(out_dir)
         record_classes(out_dir, sources, record, classified)
         result.written = out_dir
     return result
@@ -238,7 +243,7 @@ class App:
         buttons = ttk.Frame(top)
         buttons.pack(fill="x", pady=(4, 0))
         ttk.Button(buttons, text="Add a database…", command=self._pick_source).pack(side="left")
-        self.classify_button = ttk.Button(buttons, text="Classify", command=self.classify)
+        self.classify_button = ttk.Button(buttons, text=CLASSIFY_ALL, command=self.classify, style="Next.TButton")
         self.classify_button.pack(side="right")
         from LocalExtraction.gui.csv_browser import results_buttons
         results_buttons(buttons, "4 · Classification", lambda: str(_folder(self.out.get())))
@@ -331,6 +336,11 @@ class App:
                       foreground="#8c8c8c").pack(anchor="w", pady=(2, 0))
             pane.add(lower, weight=2)
             self.classes[axis], self.trees[axis], self.materials[axis], self.captions[axis] = table, tree, materials, caption
+        # The classification by property (family ▸ property ▸ type ▸ origin), first: what “Classify everything” makes.
+        from .branches_view import BranchesView
+        self.by_property = BranchesView(self.book, lambda: _folder(self.out.get()))
+        self.book.insert(0, self.by_property, text="  By property  ")
+        self.book.select(self.by_property)
         self._show_view(refresh=False)
 
     def _show_view(self, refresh: bool = True) -> None:
@@ -427,7 +437,7 @@ class App:
         self._busy = False
         from LocalExtraction.gui import theme
         theme.unmark(self.classify_button)
-        self.classify_button.configure(state="normal")
+        self.classify_button.configure(state="normal", style="Next.TButton")  # the one button stays the one to press
         self.delete_button.configure(state="normal")
         if result.error:
             self.status.configure(text=result.error)
@@ -435,6 +445,7 @@ class App:
             return
         self.result = result
         self.refresh()
+        self.by_property.show()  # the branches just written
         self.show_outcome()
 
     def show_outcome(self) -> None:
