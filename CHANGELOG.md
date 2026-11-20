@@ -18,6 +18,8 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
     counts, range and best material; `README.md` shows the tree. A branch no value reaches is not written.
   - **The window:** a first tab, **By property**, shows the tree; a branch selected lists its materials, with
     “Open dataset.csv” and “Open its folder”.
+  - **“Classification flow…”** opens a window that draws the flow, step by step, with the numbers of the last
+    classification (families, values per property, per type, per origin, branches).
 
 - **“‹ Back to the main window” in every window opened from it.**
   - **Where:** at the left of the header band of Local extraction, Web scraping, Ranking, Classification, ML

@@ -245,6 +245,8 @@ class App:
         ttk.Button(buttons, text="Add a database…", command=self._pick_source).pack(side="left")
         self.classify_button = ttk.Button(buttons, text=CLASSIFY_ALL, command=self.classify, style="Next.TButton")
         self.classify_button.pack(side="right")
+        # How “Classify everything” works, drawn: family ▸ property ▸ type ▸ origin ▸ one table per branch.
+        ttk.Button(buttons, text="Classification flow…", command=self.show_flow).pack(side="right", padx=(0, 6))
         from LocalExtraction.gui.csv_browser import results_buttons
         results_buttons(buttons, "4 · Classification", lambda: str(_folder(self.out.get())))
         self.delete_button = delete_outputs_button(buttons, "classify", after=self._outputs_deleted)
@@ -394,6 +396,11 @@ class App:
     # ------------------------------------------------------------------
     def busy(self) -> bool:
         return self._busy
+
+    def show_flow(self) -> tk.Toplevel:
+        """The window that draws the classification flow, with the numbers of the last classification."""
+        from .flow_window import open_flow
+        return open_flow(self.root, _folder(self.out.get()))
 
     def _outputs_deleted(self, deleted: bool) -> None:
         if deleted:
