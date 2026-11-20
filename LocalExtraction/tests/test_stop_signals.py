@@ -6,6 +6,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -94,3 +95,52 @@ class CommandTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(os.name == "posix", "signals sent to this process: POSIX")
+class WindowSignalTests(unittest.TestCase):
+    """A freeze once: Ctrl-C closed a window while its step ran; the step's threads went on with no window and the
+    program never ended. Now the running steps are stopped first, the window kept until they have."""
+
+    def test_ctrl_c_stops_the_running_step_then_closes_the_window(self):
+        from LocalExtraction.tests.test_gui import has_screen, tk
+        if not has_screen():
+            self.skipTest("the window needs a screen")
+        from LocalExtraction import crashlog
+        before = {s: signal.getsignal(s) for s in runcontrol.stop_signals()}
+        self.addCleanup(lambda: [signal.signal(s, h) for s, h in before.items()])
+        root = tk.Tk()
+        root.attributes("-alpha", 0.0)
+        step = {"running": True, "stopped_at": None}
+
+        def stop():
+            step["stopped_at"] = time.monotonic()
+            root.after(400, lambda: step.update(running=False))  # the step saves, then ends
+        forget = runcontrol.register_step(lambda: step["running"], stop)
+        self.addCleanup(forget)
+        said = []
+        with mock.patch.object(runcontrol, "say_box", side_effect=lambda kind, *a, **k: said.append(kind)):
+            crashlog.watch(root)
+            root.after(300, lambda: os.kill(os.getpid(), signal.SIGINT))
+            start = time.monotonic()
+            crashlog.run(root)
+        self.assertIsNotNone(step["stopped_at"])  # Stop pressed by the signal
+        self.assertFalse(step["running"])        # the window waited for the step to end
+        self.assertEqual(said, ["wait", "done"])
+        self.assertLess(time.monotonic() - start, 10)
+
+    def test_ctrl_c_with_nothing_running_closes_at_once(self):
+        from LocalExtraction.tests.test_gui import has_screen, tk
+        if not has_screen():
+            self.skipTest("the window needs a screen")
+        from LocalExtraction import crashlog
+        before = {s: signal.getsignal(s) for s in runcontrol.stop_signals()}
+        self.addCleanup(lambda: [signal.signal(s, h) for s, h in before.items()])
+        root = tk.Tk()
+        root.attributes("-alpha", 0.0)
+        said = []
+        with mock.patch.object(runcontrol, "say_box", side_effect=lambda kind, *a, **k: said.append(kind)):
+            crashlog.watch(root)
+            root.after(300, lambda: os.kill(os.getpid(), signal.SIGINT))
+            crashlog.run(root)
+        self.assertEqual(said, [])

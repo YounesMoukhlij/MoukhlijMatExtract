@@ -106,14 +106,52 @@ def _close_on_signals(root) -> None:
     there: Python then stopped with a fatal error ("Python quit unexpectedly"). Python runs its signal handlers on the
     main thread, where closing the window is safe."""
     import signal
+    from . import runcontrol
+    state = {"stopping": False}
 
-    def close(signum, frame) -> None:
+    def end_loop() -> None:
         # Only the loop is ended here: Tk may be in the middle of its own work (a resize), and closing the window
         # under it crashed Tk. run() closes the window once the loop has returned.
         try:
             root.quit()
         except Exception:
             pass
+
+    def wait_for_steps() -> None:
+        try:
+            if runcontrol.busy_steps():
+                root.after(200, wait_for_steps)
+                return
+        except Exception:  # the window is going
+            pass
+        runcontrol.say_box("done")
+        end_loop()
+
+    def stop_steps() -> None:
+        for _, stop in runcontrol.busy_steps():
+            try:
+                stop()  # as the Stop button: what is under way is left off, what was finished is saved
+            except Exception:
+                pass
+        wait_for_steps()
+
+    def close(signum, frame) -> None:
+        if state["stopping"]:  # a second signal while the steps stop: quit at once
+            runcontrol.say_box("quit")
+            root._mme_force_exit = True
+            end_loop()
+            return
+        if not runcontrol.busy_steps():  # nothing running: the window closes now
+            end_loop()
+            return
+        # A step runs (a search, a download, an extraction): closing the window under it left its threads working
+        # with no window, and the program never ended. It is stopped first, the window kept until it has.
+        state["stopping"] = True
+        runcontrol.say_box("wait", runcontrol.signal_words(signum))
+        try:
+            root.after(0, stop_steps)  # from the loop, not from inside whatever Tk was doing
+        except Exception:
+            end_loop()
 
     close._mme_closes = True
     for name in ("SIGINT", "SIGTERM", "SIGHUP"):
@@ -134,3 +172,11 @@ def run(root) -> None:
             root.destroy()
     except Exception:  # already closed
         pass
+    if getattr(root, "_mme_force_exit", False):  # “quit at once”: the threads of a step are not waited for
+        import os
+        import sys
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        finally:
+            os._exit(130)

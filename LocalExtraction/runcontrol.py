@@ -234,6 +234,39 @@ def _restore(before: dict) -> None:
             pass
 
 
+# The steps the windows run, for a stop signal (Ctrl-C in the terminal the window was started from): each window
+# registers (is a step running?, stop it), and the signal stops them as Stop does before the windows close.
+_running_steps: List[tuple] = []
+_steps_lock = threading.Lock()
+
+
+def register_step(busy: Callable[[], bool], stop: Callable[[], None]) -> Callable[[], None]:
+    """A window's running step, for stop signals. Returns the function that forgets it (the window closed)."""
+    entry = (busy, stop)
+    with _steps_lock:
+        _running_steps.append(entry)
+
+    def forget() -> None:
+        with _steps_lock:
+            if entry in _running_steps:
+                _running_steps.remove(entry)
+    return forget
+
+
+def busy_steps() -> List[tuple]:
+    """The registered steps running now."""
+    with _steps_lock:
+        steps = list(_running_steps)
+    running = []
+    for busy, stop in steps:
+        try:
+            if busy():
+                running.append((busy, stop))
+        except Exception:  # a window half closed: not a step
+            pass
+    return running
+
+
 @contextmanager
 def ctrl_c_stops(what: str = "MoukhlijMatExtract") -> Iterator[RunControl]:
     """For a step run from the terminal: the first stop signal (Ctrl-C, kill, the terminal closed, Ctrl-Break)

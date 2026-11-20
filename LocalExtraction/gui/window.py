@@ -116,6 +116,8 @@ class Window:
         outer.pack(fill="both", expand=True, padx=8, pady=(0, 2))
         self.panel = self.build_panel(outer)
         outer.add(self.panel, weight=6)
+        # Ctrl-C in the terminal stops this window's step as Stop does, before the window closes (crashlog).
+        self._forget_step = runcontrol.register_step(self.panel.running, self.panel.stop)
 
         # What the engine itself logs: small by default, the divider above it can be dragged.
         self.log = LogPane(outer, height=3)
@@ -301,6 +303,7 @@ class Window:
             changed(online)
 
     def close(self) -> None:
+        self._forget_step()
         runcontrol.off_connection(self._connection)
         self.panel.stop()
         self.panel.close()
