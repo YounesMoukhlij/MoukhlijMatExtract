@@ -216,6 +216,8 @@ class App:
         from LocalExtraction.gui.about_window import open_about
         design.header(self.root, "Classification", "the materials by crystal-structure type and structure family",
                       compact=True)
+        # “‹ Back” while the classes are being written (seconds, all files in one go): it goes back once they are.
+        self.root._mme_busy, self.root._mme_finish_first = (lambda: self._busy), True
         design.footer(self.root, about=lambda: open_about(self.root)).pack(side="bottom", fill="x")
         # The settings above (they scroll when short), the classes below, a line to drag between them.
         from LocalExtraction.gui.layout import Stack

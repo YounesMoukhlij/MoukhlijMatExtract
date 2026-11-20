@@ -10,6 +10,7 @@ commits to. The colours are theme.palette's, for the light or the dark appearanc
 
 from __future__ import annotations
 
+import sys
 import tkinter as tk
 from pathlib import Path
 from typing import Callable, Optional
@@ -62,16 +63,123 @@ def emblem(parent: tk.Misc, background: str, size: int = 42) -> tk.Canvas:
     return canvas
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+# Back: every window opened from another one has a way back to it, besides the title bar's close button
+# ---------------------------------------------------------------------------------------------------------------------
+BACK_TO_MAIN = "‹  Back to the main window"
+BACK = "‹  Back"
+BACK_KEY = "<Command-bracketleft>" if sys.platform == "darwin" else "<Alt-Left>"  # the usual “go back” shortcut
+
+
+def opener_of(window: tk.Misc) -> Optional[tk.Misc]:
+    """The window a window was opened from (None for a window of its own, started alone)."""
+    window = window.winfo_toplevel()
+    if not isinstance(window, tk.Toplevel) or window.master is None:
+        return None
+    return window.master.winfo_toplevel()
+
+
+def back_text(window: tk.Misc) -> str:
+    opener = opener_of(window)
+    return BACK_TO_MAIN if opener is not None and getattr(opener, "_mme_hub", False) else BACK
+
+
+def go_back(window: tk.Misc) -> bool:
+    """Closes a window and brings back the one it was opened from. A window whose step is still running
+    (`window._mme_busy()`) asks first: going back stops the step, keeping what it finished. The window closes by its
+    own `window._mme_close` when it has one (it stops its step and lets go of its files), else it is destroyed.
+    A window whose work cannot be stopped half-way (`window._mme_finish_first`: a classification, a ranking — seconds,
+    their files written in one go) asks nothing: it says it goes back when the work is done, then does.
+    Returns whether it went back now."""
+    window = window.winfo_toplevel()
+    busy = getattr(window, "_mme_busy", None)
+
+    def running() -> bool:
+        try:
+            return bool(busy and busy())
+        except Exception:
+            return False
+    if running() and getattr(window, "_mme_finish_first", False):
+        if getattr(window, "_mme_going_back", False):
+            return False  # already waiting to go back
+        window._mme_going_back = True
+        pill = getattr(window, "_mme_back_pill", None)
+        if pill is not None:
+            pill.configure(text="‹  Going back when it's done …", cursor="watch")
+
+        def when_done() -> None:
+            try:
+                if not window.winfo_exists():
+                    return
+                if running():
+                    window.after(150, when_done)
+                    return
+            except tk.TclError:
+                return
+            window._mme_going_back = False
+            go_back(window)
+        when_done()
+        return False
+    if running():
+        from tkinter import messagebox
+        if not messagebox.askyesno(
+                "Go back?", "A step is still running in this window.\n\nGoing back stops it. Everything it has "
+                "finished is saved, and the next run goes on from there.\n\nStop it and go back?",
+                icon="warning", parent=window):
+            return False
+    opener = opener_of(window)
+    close = getattr(window, "_mme_close", None) or window.destroy
+    close()
+    if opener is not None:
+        try:
+            opener.deiconify()
+            opener.lift()
+            opener.focus_force()
+        except tk.TclError:
+            pass
+    return True
+
+
+def back_button(parent: tk.Misc, window: Optional[tk.Misc] = None):
+    """A “‹ Back” button for the bottom bar of a window without a header band (it replaces “Close”). Not packed."""
+    from tkinter import ttk
+    window = (window or parent).winfo_toplevel()
+    button = ttk.Button(parent, text=back_text(window), command=lambda: go_back(window))
+    window.bind(BACK_KEY, lambda event: go_back(window))
+    button.back = True  # for the tests
+    return button
+
+
+def _back_pill(band: tk.Frame, window: tk.Misc, colours: dict, compact: bool) -> tk.Label:
+    """The back button of a header band: a quiet chip that lights up under the pointer, at the band's left."""
+    rest, lit = colours["chip"], colours["garnet"]
+    pill = tk.Label(band, text=back_text(window), background=rest, foreground=colours["band_text"], cursor="hand2",
+                    font=("TkDefaultFont", 11 if compact else 12, "bold"), padx=12, pady=3 if compact else 6,
+                    takefocus=1)
+    pill.bind("<Enter>", lambda event: pill.configure(background=lit))
+    pill.bind("<Leave>", lambda event: pill.configure(background=rest))
+    for sequence in ("<Button-1>", "<Return>", "<space>"):
+        pill.bind(sequence, lambda event: go_back(window))
+    window.bind(BACK_KEY, lambda event: go_back(window))
+    pill.back = True  # for the tests
+    window._mme_back_pill = pill  # its words change while it waits for work that cannot be stopped
+    return pill
+
+
 def header(parent: tk.Misc, title: str, subtitle: str = "", kicker: str = KICKER,
-           version: Optional[str] = None, compact: bool = False) -> tk.Frame:
+           version: Optional[str] = None, compact: bool = False, back: bool = True) -> tk.Frame:
     """The band at the top of a window. Packed here (top, full width); returns the band. `version` None: the
-    installed version. `compact`: one line, for a window whose tables need the height."""
+    installed version. `compact`: one line, for a window whose tables need the height. `back`: a window opened from
+    another one gets “‹ Back” at the band's left (“‹ Back to the main window” when opened from it)."""
     colours = theme.palette(parent)
     if version is None:
         from ..about import version as installed
         version = installed()
     band = tk.Frame(parent, background=colours["band"], padx=14 if compact else 16, pady=5 if compact else 10)
     band.pack(side="top", fill="x")
+    if back and opener_of(parent) is not None:
+        band.back = _back_pill(band, parent.winfo_toplevel(), colours, compact)
+        band.back.pack(side="left", padx=(0, 14 if compact else 16))
     emblem(band, colours["band"], size=30 if compact else 42).pack(side="left", padx=(0, 12 if compact else 14))
     texts = tk.Frame(band, background=colours["band"])
     texts.pack(side="left", fill="x", expand=True)

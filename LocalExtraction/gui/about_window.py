@@ -183,7 +183,6 @@ def open_about(parent: tk.Misc) -> tk.Toplevel:
                                     command=lambda: copy(window.environment))
     environment_button.pack(side="left", padx=6)
     ttk.Button(buttons, text="Open the repository", command=lambda: webbrowser.open(REPOSITORY)).pack(side="left")
-    ttk.Button(buttons, text="Close", command=window.destroy).pack(side="right")
 
     found: List[str] = []
 

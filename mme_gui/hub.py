@@ -85,6 +85,8 @@ opening a part makes it too. Every table names its articles (a title column).
 • The blue “Manual” button beside it lists every command, with all its options, to run each part
   from a terminal (mme-local, mme-web, mme-rank, …) — and the make shortcuts.
 • Web scraping fetches legal open-access copies only, and follows each site's robots.txt.
+• “‹ Back to the main window”, at the top left of each window (⌘[ on macOS, Alt+← elsewhere), brings you
+  back here; while a step runs it asks first, and keeps what the step has finished.
 • The website shows how to use the program step by step and gives an overview of the project:
   its address is at the bottom of every window, and a click opens it.
 """
@@ -154,7 +156,8 @@ def open_requirements(parent) -> "object":
 
     footer = ttk.Frame(win, padding=(12, 8))
     footer.pack(fill="x")
-    ttk.Button(footer, text="Close", command=win.destroy).pack(side="right")
+    from LocalExtraction.gui.design import back_button
+    back_button(footer, win).pack(side="right")
     from LocalExtraction.gui.design import website_line
     website_line(win)
     return win
@@ -458,6 +461,7 @@ def build(root):
                   "Battery-materials data from the scientific literature: search, legal retrieval, extraction, "
                   "ranking and classification", kicker="Literature mining for solid electrolytes, cathodes and anodes")
     root._mme_band = band  # the announcement of the website opens under it
+    root._mme_hub = True  # the windows opened from here say “Back to the main window”
     from LocalExtraction.gui.widgets import Scrolled
     body = Scrolled(root)  # a screen too short for it all: the rest is a scroll away, never cut off
     body.pack(fill="both", expand=True)

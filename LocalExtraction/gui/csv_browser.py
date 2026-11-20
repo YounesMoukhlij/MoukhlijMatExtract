@@ -275,7 +275,8 @@ class CsvBrowser(tk.Toplevel):
         self.open_file_button = ttk.Button(buttons, text="Open this file", command=self._open_file)
         self.open_file_button.pack(side="left")
         ttk.Button(buttons, text="Open the results folder", command=self._open_folder).pack(side="left", padx=6)
-        ttk.Button(buttons, text="Close", command=self.destroy).pack(side="right")
+        from .design import back_button
+        back_button(buttons, self).pack(side="right")
         ttk.Button(buttons, text="Refresh the list", command=self.list_files).pack(side="right", padx=6)
 
         self._pages_buttons(False)
