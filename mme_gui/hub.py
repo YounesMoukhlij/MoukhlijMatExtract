@@ -6,6 +6,7 @@ hub — no second Tk(), nothing rebuilt. tkinter is imported lazily, as in every
 
 import logging
 import os
+import subprocess
 import threading
 from pathlib import Path
 from typing import Callable
@@ -85,6 +86,8 @@ opening a part makes it too. Every table names its articles (a title column).
 • The blue “Manual” button beside it lists every command, with all its options, to run each part
   from a terminal (mme-local, mme-web, mme-rank, …) — and the make shortcuts.
 • Web scraping fetches legal open-access copies only, and follows each site's robots.txt.
+• macOS: run  mme-gui --install-app  once, then open MoukhlijMatExtract from Applications (or the Dock):
+  the Dock then shows the program's own name and icon, not “python”.
 • “‹ Back to the main window”, at the top left of each window (⌘[ on macOS, Alt+← elsewhere), brings you
   back here; while a step runs it asks first, and keeps what the step has finished.
 • The website shows how to use the program step by step and gives an overview of the project:
@@ -685,7 +688,18 @@ def main(argv=None) -> None:
     parser = argparse.ArgumentParser(
         prog="mme-gui", description="Open the MoukhlijMatExtract window: one button per part.")
     parser.add_argument("--version", action="version", version=version_text("mme-gui"))
-    parser.parse_args(argv)
+    parser.add_argument("--install-app", action="store_true",
+                        help="macOS: make ~/Applications/MoukhlijMatExtract.app, which opens this window with the "
+                             "program's own name and icon in the Dock (not “python”)")
+    args = parser.parse_args(argv)
+    if args.install_app:
+        from .macapp import build as build_app  # not `build`: the window's own build() is called below
+        try:
+            path = build_app()
+        except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
+            raise SystemExit(f"mme-gui --install-app: {error}")
+        print(f"Made {path}\nOpen it from Applications (or drag it to the Dock): the Dock then says MoukhlijMatExtract.")
+        return
     require_tk("mme-gui")
     import tkinter as tk
     # The main results folder is not made here: "Create the main results folder" makes it, or the

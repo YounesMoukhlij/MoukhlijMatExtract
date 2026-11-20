@@ -37,6 +37,8 @@ def app_icon(root: tk.Misc) -> None:
         root.winfo_toplevel()._mme_icon = (large, small)  # kept: an image Python lets go of is gone from the Dock
     except (tk.TclError, OSError):
         pass
+    from .appname import set_app_name
+    set_app_name()  # “MoukhlijMatExtract” in the Dock, the app switcher and the menu bar of macOS, not “python”
 
 
 def emblem(parent: tk.Misc, background: str, size: int = 42) -> tk.Canvas:
