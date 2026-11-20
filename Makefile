@@ -65,18 +65,23 @@ ML_OPTS = $(call switch,LIST,--list) $(call opt,SETTINGS,--settings) $(call opt,
               $(call opt,TEMPERATURE,--temperature) $(call opt,MIN,--min) $(call opt,MAX,--max) \
               $(call switch,INCLUDE_FLAGGED,--include-flagged) $(call switch,NO_NEEDS_CHECK,--no-needs-check) \
               $(call opt,MIN_CONFIDENCE,--min-confidence) $(call switch,VERIFIED_ONLY,--verified-only) \
-              $(call switch,PER_VALUE,--per-value) $(call opt,MIN_VALUES,--min-values) $(call opt,NAME,--name) \
+              $(call switch,PER_VALUE,--per-value) $(call switch,KEEP_DUPLICATES,--keep-duplicates) $(call opt,MIN_VALUES,--min-values) $(call opt,NAME,--name) \
               $(call opt,OUT,--out)
 EVAL_SHEET_OPTS = $(call list,SOURCE,--source) $(call opt,PAPERS,--papers) $(call opt,SEED,--seed) \
               $(call opt,OUT,--out) $(call switch,FORCE,--force) $(call switch,ALL_PAPERS,--all-papers)
 EVAL_SCORE_OPTS = $(call opt,GOLD,--gold) $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,SEED,--seed) \
               $(call list,PREDICTIONS,--predictions)
+EVAL_BENCH_OPTS = $(call opt,GOLD,--gold) $(call list,SOURCE,--source) $(call opt,OUT,--out) $(call opt,SEED,--seed) \
+              $(foreach t,$(TOOL),--tool $(call quote,$(t))) $(call switch,NO_BASELINE,--no-baseline)
+EVAL_GOLD_OPTS = $(call opt,GOLD,--gold) $(call opt,SECOND,--second) $(call opt,NAME,--name) $(call opt,OUT,--out)
 EVAL_REF_OPTS = $(call list,DB,--db) $(call switch,NO_FETCH,--no-fetch) $(call opt,LIMIT,--limit) \
               $(call switch,REFRESH,--refresh) $(call opt,WORKERS,--workers) $(call list,PREDICTIONS,--predictions) \
               $(call opt,AGAINST,--against)
 RELEASE_OPTS = $(call list,SOURCE,--source) $(call list,WITH,--with) $(call switch,NO_RESULTS,--no-results) \
               $(call opt,OUT,--out) $(call switch,KEEP_TEXT,--keep-text) $(call opt,FINISH,--finish) \
               $(call switch,KEEP_UNRECORDED,--keep-unrecorded)
+PAPER_OPTS  = $(call list,DATA,--data) $(call opt,GOLD,--gold) $(foreach t,$(TOOL),--tool $(call quote,$(t))) \
+              $(call opt,OUT,--out)
 TEST_OPTS   = $(if $(call given,K),-k $(call quote,$(K))) $(call switch,VERBOSE,-v) $(call switch,FAST,-x) \
               $(if $(call given,TESTS),$(TESTS)) $(if $(call given,ARGS),$(ARGS))
 
@@ -150,6 +155,11 @@ help:
 	@echo "                      GOLD=<annotated.xlsx> SOURCE='<folder> ...' (score a newer run) OUT=<folder> SEED=<n>"
 	@echo "                      PREDICTIONS='<other_tool.csv> ...' (other tools scored the same way, compared side by side)"
 	@echo "  make eval-agree     agreement of two annotators      FIRST=<a.xlsx> SECOND=<b.xlsx>"
+	@echo "  make eval-benchmark MME, a keyword baseline and other tools on the annotated papers -> Evaluation/benchmark/"
+	@echo "                      GOLD=<annotated.xlsx> TOOL='ChemDataExtractor=cde.csv LLM=llm.csv' NO_BASELINE=1"
+	@echo "                      SOURCE='<folder> ...' OUT=<folder> SEED=<n>"
+	@echo "  make eval-gold      the annotated papers as a public dataset (Zenodo) -> Evaluation/gold_standard/"
+	@echo "                      GOLD=<annotated.xlsx> SECOND=<2nd annotator.xlsx> NAME=<name> OUT=<folder>"
 	@echo "  make eval-reference recall against curated databases (OBELiX, Liverpool), on their own papers"
 	@echo "                      AGAINST=<results folder>: that database against them, material by material"
 	@echo "                      DB='obelix liverpool' NO_FETCH=1 LIMIT=<papers> REFRESH=1 WORKERS=<n>"
@@ -160,6 +170,11 @@ help:
 	@echo "                      SOURCE='<folder> ...' WITH='<folder> ...' NO_RESULTS=1 OUT=<folder> KEEP_TEXT=1"
 	@echo "                      KEEP_UNRECORDED=1 (keep papers with no record of a legal copy: private copies only)"
 	@echo "  make release FINISH=<release folder>    after completing its README: SHA256SUMS and .zip again"
+	@echo ""
+	@echo "The article — every table and figure made again from the data (scripts/reproduce_paper.py)"
+	@echo "  make paper          tables, figures, ranking, classification, scores, benchmark + environment -> paper/"
+	@echo "                      DATA='<folder> ...' GOLD=<annotated.xlsx> TOOL='NAME=file.csv ...' OUT=<folder>"
+	@echo "  make paper-docker   the same inside the pinned Docker image (Dockerfile; needs Docker)"
 	@echo ""
 	@echo "Each command's own help: make gui-help, local-help, local-gui-help, web-help, web-gui-help, doi-help,"
 	@echo "rank-help, rank-gui-help, classify-help, classify-gui-help, eval-help, release-help, mme-help"
@@ -304,6 +319,12 @@ eval-score:
 eval-reference:
 	$(PYTHON) -m Evaluation reference $(EVAL_REF_OPTS)
 
+eval-benchmark:
+	$(PYTHON) -m Evaluation benchmark $(EVAL_BENCH_OPTS)
+
+eval-gold:
+	$(PYTHON) -m Evaluation gold $(EVAL_GOLD_OPTS)
+
 eval-agree:
 	@test -n "$(FIRST)" -a -n "$(SECOND)" || { echo "make eval-agree FIRST=<a.xlsx> SECOND=<b.xlsx>"; exit 2; }
 	$(PYTHON) -m Evaluation agree $(call quote,$(FIRST)) $(call quote,$(SECOND))
@@ -311,6 +332,14 @@ eval-agree:
 # ---- Release ----------------------------------------------------------------------------------------
 release:
 	$(PYTHON) -m Release $(RELEASE_OPTS)
+
+# ---- The article ------------------------------------------------------------------------------------
+paper:
+	$(PYTHON) scripts/reproduce_paper.py $(PAPER_OPTS)
+
+paper-docker:
+	docker build --build-arg MME_COMMIT=$$(git rev-parse HEAD 2>/dev/null) -t moukhlijmatextract .
+	docker run --rm -v "$$HOME/MoukhlijMatExtract:/data/MoukhlijMatExtract" moukhlijmatextract
 
 # ---- Each command's own help ------------------------------------------------------------------------
 gui-help:
@@ -336,6 +365,7 @@ classify-gui-help:
 eval-help:
 	@$(PYTHON) -m Evaluation --help; echo; $(PYTHON) -m Evaluation sheet --help; echo; \
 	 $(PYTHON) -m Evaluation score --help; echo; $(PYTHON) -m Evaluation agree --help; echo; \
+	 $(PYTHON) -m Evaluation benchmark --help; echo; $(PYTHON) -m Evaluation gold --help; echo; \
 	 $(PYTHON) -m Evaluation reference --help
 release-help:
 	@$(PYTHON) -m Release --help
@@ -347,10 +377,10 @@ mme-help:
         doi web web-check web-fetch web-extract \
         web-dois web-gui coverage update rank rank-gui classify classify-gui gui-help local-help local-gui-help web-help \
         web-gui-help doi-help rank-help rank-gui-help classify-help classify-gui-help eval-sheet eval-score \
-        eval-agree eval-reference eval-help release release-help
+        eval-agree eval-benchmark eval-gold eval-reference eval-help release release-help paper paper-docker
 
 # Every target that runs the program first makes sure .venv knows the package as it is now ($(STAMP)).
-test demo dictionary commands manual gui local local-rebuild local-gui local-cathode local-anode doi web web-check web-fetch web-extract web-dois web-gui coverage update web-cathode web-anode rank rank-gui rank-cathode rank-anode classify classify-gui eval-sheet eval-score eval-reference eval-agree release: | $(STAMP)
+test demo dictionary commands manual gui local local-rebuild local-gui local-cathode local-anode doi web web-check web-fetch web-extract web-dois web-gui coverage update web-cathode web-anode rank rank-gui rank-cathode rank-anode classify classify-gui eval-sheet eval-score eval-reference eval-agree eval-benchmark eval-gold release paper: | $(STAMP)
 
 # ---- 5 · ML datasets ----------------------------------------------------------------------------------
 ml-export:  ## a dataset for machine learning: make ml-export FAMILY=garnet TARGET=Ea COMPONENT=bulk ORIGIN=experimental

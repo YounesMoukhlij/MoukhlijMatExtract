@@ -18,7 +18,7 @@ from typing import Optional, Sequence
 from LocalExtraction.about import command_name, enter_project_home, version, version_text
 from LocalExtraction.provenance import Run
 
-from .about import DEFAULT_SCORES, DEFAULT_SHEET, DEFAULT_SOURCES, NAME
+from .about import DEFAULT_DIR, DEFAULT_SCORES, DEFAULT_SHEET, DEFAULT_SOURCES, NAME
 
 EPILOG = ("Typical use: mme-eval sheet → annotate Evaluation/annotation.xlsx (its Guide sheet says how) → "
           "mme-eval score. After changing the program and extracting again: mme-eval score --source "
@@ -39,7 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
                                      "activation energies, conductivities and diffusion coefficients, against "
                                      "values checked by a person.", epilog=EPILOG)
     parser.add_argument("--version", action="version", version=version_text("mme-eval"))
-    commands = parser.add_subparsers(dest="command", metavar="{sheet,score,agree,reference}", required=True)
+    commands = parser.add_subparsers(dest="command", metavar="{sheet,score,agree,benchmark,gold,reference}", required=True)
 
     sheet = commands.add_parser("sheet", help="Draw papers at random and write the workbook to annotate",
                                 description="Draws papers at random from the databases — with and without "
@@ -85,6 +85,41 @@ def build_parser() -> argparse.ArgumentParser:
                                 "agreement, and the F1 of one reference set against the other.", epilog=EPILOG)
     agree.add_argument("first", type=Path, help="The workbook of the first annotator")
     agree.add_argument("second", type=Path, help="The workbook of the second annotator")
+
+    benchmark = commands.add_parser(
+        "benchmark", help="MoukhlijMatExtract against a keyword baseline and other tools, on the annotated papers",
+        description="Scores MoukhlijMatExtract, a keyword baseline (a number with the property's unit in a sentence "
+                    "naming the property, read from the same PDFs) and every other tool given (ChemDataExtractor, an "
+                    "LLM prompt …, each a CSV of its values for the same papers) against the annotated workbook: "
+                    "precision, recall and F1 with 95 %% intervals, per property, the paired difference with each, "
+                    "and a figure. Only the papers marked done are scored.", epilog=EPILOG)
+    benchmark.add_argument("--gold", "-g", type=Path, default=DEFAULT_SHEET, metavar="FILE",
+                           help="The annotated workbook (default: Evaluation/annotation.xlsx)")
+    benchmark.add_argument("--source", "-s", nargs="+", action="extend", metavar="DIR",
+                           help="MoukhlijMatExtract's values now in these results folders (a newer run) instead of "
+                                "those the workbook was made from")
+    benchmark.add_argument("--tool", "-t", action="append", default=[], metavar="NAME=CSV",
+                           help="Another tool's values for the same papers, e.g. ChemDataExtractor=cde.csv (columns "
+                                "paper_id, property, material, value [, unit, component, origin, confidence]); "
+                                "repeat for several")
+    benchmark.add_argument("--no-baseline", action="store_true", help="Leave the keyword baseline out")
+    benchmark.add_argument("--out", "-o", type=Path, default=DEFAULT_DIR / "benchmark", metavar="DIR",
+                           help="Folder of the benchmark (default: Evaluation/benchmark)")
+    benchmark.add_argument("--seed", type=int, default=7, help="Seed of the bootstrap (default: 7)")
+
+    gold = commands.add_parser(
+        "gold", help="Package the annotated papers as a public gold-standard dataset (Zenodo-ready)",
+        description="Writes the reference values of the annotated workbook, value by value (correct, partly correct "
+                    "and missed), with the papers, the annotation guide, the agreement of two annotators when a "
+                    "second workbook is given, a datasheet (README.md), .zenodo.json and SHA256SUMS. Sentences of "
+                    "papers whose licence does not allow sharing are left out.", epilog=EPILOG)
+    gold.add_argument("--gold", "-g", type=Path, default=DEFAULT_SHEET, metavar="FILE",
+                      help="The annotated workbook (default: Evaluation/annotation.xlsx)")
+    gold.add_argument("--second", type=Path, metavar="FILE",
+                      help="A second annotator's copy of the workbook: its agreement (Cohen's kappa) goes in the set")
+    gold.add_argument("--name", metavar="NAME", help="Name of the dataset folder (default: the workbook's name)")
+    gold.add_argument("--out", "-o", type=Path, default=DEFAULT_DIR / "gold_standard", metavar="DIR",
+                      help="Folder the dataset is written in (default: Evaluation/gold_standard)")
 
     from .reference import DATABASES
     reference = commands.add_parser(
@@ -187,6 +222,47 @@ def _print_summary(metrics) -> None:
     print(f"  {'':{width}}{'precision':>10}{'recall':>9}{'F1':>8}")
     for name, precision, recall, f1 in rows:
         print(f"  {name:{width}}{pct(precision):>10}{pct(recall):>9}{pct(f1):>8}")
+
+
+def run_benchmark(args) -> int:
+    from . import benchmark
+    from .score import AnnotationError
+    sources = [Path(s).expanduser() for s in args.source] if args.source else None
+    try:
+        result = benchmark.run(args.gold.expanduser(), args.out.expanduser(), sources, args.tool,
+                               with_baseline=not args.no_baseline, seed=args.seed)
+    except (AnnotationError, OSError) as error:
+        print(error, file=sys.stderr)
+        return 1
+
+    def pct(x):
+        return "  –  " if x is None else f"{100 * x:5.1f}"
+
+    names = list(result["systems"])
+    width = max(len(n) for n in names) + 2
+    print(f"Record level, all properties:\n  {'':{width}}{'precision':>10}{'recall':>9}{'F1':>8}")
+    for name in names:
+        s = result["systems"][name]["levels"]["record"]["all"]
+        print(f"  {name:{width}}{pct(s['precision']):>10}{pct(s['recall']):>9}{pct(s['f1']):>8}")
+    for note in result["notes"]:
+        if note.startswith("The baseline could not"):
+            print("note:", note)
+    for key, path in result["paths"].items():
+        print(f"{key.capitalize()}: {path}")
+    return 0
+
+
+def run_gold(args) -> int:
+    from . import gold
+    from .score import AnnotationError
+    try:
+        folder = gold.export(args.gold.expanduser(), args.out.expanduser(),
+                             second=args.second.expanduser() if args.second else None, name=args.name)
+    except (AnnotationError, OSError) as error:
+        print(error, file=sys.stderr)
+        return 1
+    print(f"Gold-standard dataset: {folder}\n  (upload the folder to Zenodo: its .zenodo.json fills the form)")
+    return 0
 
 
 def run_agree(args) -> int:
@@ -302,7 +378,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(list(sys.argv[1:] if argv is None else argv))
     enter_project_home("eval")  # after the options are read: --help makes no folder
     return {"sheet": run_sheet, "score": run_score, "agree": run_agree,
-            "reference": run_reference}[args.command](args)
+            "benchmark": run_benchmark, "gold": run_gold, "reference": run_reference}[args.command](args)
 
 
 if __name__ == "__main__":

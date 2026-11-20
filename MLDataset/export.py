@@ -87,6 +87,7 @@ class Settings:
     verified_only: bool = False       # activation energies: only the values checked by hand (Verify tab)
     per_material: bool = True         # one row per material (else one row per value in dataset.csv)
     min_values: int = 1               # a material needs at least this many values
+    keep_duplicates: bool = False     # keep a value repeated in its paper or quoted from another (else counted once)
     name: str = ""                    # the dataset's folder name (made from the settings when empty)
 
 
@@ -252,6 +253,7 @@ def select(settings: Settings, root: Optional[Path] = None, family: Optional[Fam
             chosen.excluded.append((row, why))
         else:
             chosen.kept.append(row)
+    _duplicates(chosen, prop, root, settings.keep_duplicates)
     if settings.min_values > 1:
         per: Dict[str, int] = {}
         for row in chosen.kept:
@@ -260,6 +262,36 @@ def select(settings: Settings, root: Optional[Path] = None, family: Optional[Fam
         chosen.kept = [row for row in chosen.kept if per[material_of(row)] >= settings.min_values]
         chosen.excluded += [(row, f"its material has fewer than {settings.min_values} values") for row in few]
     return chosen
+
+
+DUPLICATE_REASONS = {"same paper": "the same measurement, repeated in its paper",
+                     "cited": "the same measurement, quoted from another paper"}
+
+
+_YEARS: Dict[tuple, Dict[str, int]] = {}
+
+
+def _years(root: Path) -> Dict[str, int]:
+    """paper_id -> publication year, from every database's papers.csv (read again only when one changed)."""
+    from LocalExtraction.duplicates import years_of
+    files = sorted(p for part in ("WebScraping", "LocalExtraction") for p in (Path(root) / part).glob("*/papers.csv"))
+    key = tuple((str(p), p.stat().st_mtime_ns) for p in files)
+    if key not in _YEARS:
+        _YEARS.clear()
+        _YEARS[key] = years_of(p.parent for p in files)
+    return _YEARS[key]
+
+
+def _duplicates(chosen: Selection, prop: Property, root: Path, keep: bool) -> None:
+    """Each value kept, marked with its measurement (LocalExtraction.duplicates); unless `keep`, a value repeated in its
+    paper or quoted from another paper is left out: the original counts for it."""
+    from LocalExtraction.duplicates import is_duplicate, mark
+    marked = mark(chosen.kept, prop.table, _years(root))
+    if keep:
+        chosen.kept = marked
+        return
+    chosen.kept = [row for row in marked if not is_duplicate(row)]
+    chosen.excluded += [(row, DUPLICATE_REASONS[row["duplicate_kind"]]) for row in marked if is_duplicate(row)]
 
 
 def _temperature_window(text: str) -> Tuple[Optional[float], Optional[float]]:
@@ -335,9 +367,10 @@ def default_name(s: Settings, family: Family) -> str:
 VALUE_COLUMNS = ("material", "material_formula", "crystal_structure", "structure_family", "value", "unit", "log10_value",
                  "transport_component", "data_origin", "attribution", "energy_kind", "mobile_ion", "temperature",
                  "temperature_K", "confidence", "plausibility", "needs_check", "verification", "paper_id", "title",
-                 "page", "extracted_from", "sentence", "database")
+                 "page", "extracted_from", "sentence", "database", "measurement_id", "duplicate_kind",
+                 "n_papers_reporting", "original_paper")
 DATASET_COLUMNS = ("material", "material_formula", "crystal_structure", "structure_family", "target", "unit",
-                   "log10_target", "mean", "std", "min", "max", "n_values", "n_papers", "verified_values", "group",
+                   "log10_target", "mean", "std", "min", "max", "n_values", "n_measurements", "n_papers", "verified_values", "group",
                    "paper_ids")
 
 
@@ -382,7 +415,9 @@ def _value_row(row: Dict[str, str], prop: Property) -> Dict[str, str]:
                                             "mobile_ion", "temperature")},
             "temperature_K": "" if low is None else f"{(low + high) / 2:.1f}",
             **{c: row.get(c, "") for c in ("confidence", "plausibility", "needs_check", "verification", "paper_id",
-                                            "title", "page", "extracted_from", "sentence", "database")}}
+                                            "title", "page", "extracted_from", "sentence", "database",
+                                            "measurement_id", "duplicate_kind", "original_paper")},
+            "n_papers_reporting": row.get("n_papers", "")}
 
 
 def _per_material(values: List[Dict[str, str]], prop: Property) -> List[Dict[str, str]]:
@@ -401,6 +436,7 @@ def _per_material(values: List[Dict[str, str]], prop: Property) -> List[Dict[str
                     "mean": f"{statistics.fmean(numbers):.6g}",
                     "std": f"{statistics.stdev(numbers):.4g}" if len(numbers) > 1 else "",
                     "min": f"{min(numbers):.6g}", "max": f"{max(numbers):.6g}", "n_values": len(numbers),
+                    "n_measurements": len({r.get("measurement_id") or id(r) for r in rows}),
                     "n_papers": len({r["paper_id"] for r in rows}),
                     "verified_values": sum(1 for r in rows if r["verification"]),
                     "group": first["crystal_structure"] or first["structure_family"] or material,
@@ -440,6 +476,8 @@ def _datasheet(s: Settings, family: Family, prop: Property, chosen: Selection, n
                 ("Minimum confidence", f"{s.min_confidence:g}"),
                 ("Checked by hand only", "yes" if s.verified_only else "no"),
                 ("Minimum values per material", str(s.min_values)),
+                ("A measurement repeated or quoted", "kept every time" if s.keep_duplicates
+                 else "counted once (its original kept)"),
                 ("Rows of dataset.csv", "one per material (median of its values)" if s.per_material else "one per value")]
     table = "\n".join(f"| {k} | {v} |" for k, v in filters)
     return f"""# {name}

@@ -479,6 +479,9 @@ def build(root):
     from .manual import add_manual_button  # every command and its options
     root._mme_manual = add_manual_button(top, root)
     root._mme_manual.pack(side="right", padx=(0, 8))
+    from .make_guide import add_make_button  # every make command, why to use it, and the project's flow
+    root._mme_make = add_make_button(top, root)
+    root._mme_make.pack(side="right", padx=(0, 8))
 
     def about() -> None:
         from LocalExtraction.gui.about_window import open_about

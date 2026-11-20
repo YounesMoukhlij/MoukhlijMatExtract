@@ -8,6 +8,44 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **“⚙ Make commands” in the main window**: every `make` command explained, and the flow of the whole project.
+  - **Project flow**: a diagram from the setup to the end of every branch. You start with *install → test → demo →
+    gui*; then your own PDFs (*local*) or papers from the web (*web-check → doi → web*, later *update* and
+    *coverage*) build **your database**. From it you rank, classify and make ML datasets. Measuring the accuracy runs
+    *eval-sheet → you annotate → eval-score → eval-benchmark*, with *eval-agree*, *eval-gold* and *eval-reference*.
+    Sharing runs *release → Zenodo* and *paper → the article*. Each command is a box, its variants (window, cathode,
+    anode …) are chips under it, and the upkeep and `*-help` commands have their own box. Click any of them: the
+    panel says what it does and why to use it, lists its options, and gives the command to copy.
+  - **Every command**: the same explanations as a list by stage, with a search box.
+  - A test checks that every target of the Makefile is explained and drawn, so the window keeps up with the Makefile.
+
+- **`mme-eval benchmark`** (`make eval-benchmark`): MoukhlijMatExtract against other methods, on the same annotated
+  papers. It scores MoukhlijMatExtract, a **keyword baseline** and any other tool you give it with
+  `--tool NAME=file.csv` (ChemDataExtractor, an LLM prompt …). The baseline reads the same PDFs and takes a number
+  with the property's unit from a sentence that names the property. Each system gets precision, recall and F1 with
+  95 % intervals, per property, plus the paired difference with MoukhlijMatExtract. Output: `benchmark.md`,
+  `benchmark.csv`, `benchmark.png`, `baseline_predictions.csv` and the run manifest, in `Evaluation/benchmark/`.
+- **`mme-eval gold`** (`make eval-gold`): the annotated papers as a **public gold-standard dataset**, ready for Zenodo.
+  `gold.csv` holds every reference value: correct, partly correct (corrected) and missed. With it come `papers.csv`,
+  the annotation guide, the agreement of two annotators (`--second`, Cohen's κ), a datasheet (`README.md`),
+  `.zenodo.json` (CC BY 4.0) and `SHA256SUMS`. Sentences are quoted only from openly licensed papers.
+- **Duplicate detection: one measurement, counted once** (`LocalExtraction/duplicates.py`). A value repeated in its
+  paper, or quoted by a later paper, is traced back to its original. Rows match on the same material (by
+  composition), property, component, origin and kind of energy, the same value within the evaluation's tolerances,
+  and compatible temperatures. Two papers that report the same value as their own are flagged as “possible”, never
+  merged.
+  - **The ML datasets and the classification by property** count each measurement once: a repeat or a quote goes to
+    `excluded.csv` with why. `values.csv` gains `measurement_id`, `duplicate_kind`, `n_papers_reporting` and
+    `original_paper`; `dataset.csv` gains `n_measurements`. To keep them all: `--keep-duplicates`
+    (`make ml-export KEEP_DUPLICATES=1`) or the new check box of the window.
+  - **A report across databases:** `python -m LocalExtraction.duplicates <folder> … --out <folder>`.
+- **`make paper`: every table and figure of the article, made again from the data** (`scripts/reproduce_paper.py`).
+  It writes the database summary, the duplicates, two figures (activation energies by component, room-temperature
+  conductivities), the ranking, the classification and, once papers are annotated, the scores and the benchmark,
+  into `~/MoukhlijMatExtract/paper/`. The seeds are fixed. `environment.json` records the commit, Python, every
+  package's version, the hash of `requirements.lock` and the inputs' checksums; `RESULTS.md` says what was made and
+  what was skipped. A **Dockerfile** pins the same environment (`make paper-docker`).
+
 - **The program's own name on macOS: “MoukhlijMatExtract” in the Dock, the app switcher (⌘-Tab) and the menu bar**,
   in place of “python3.13” (the program runs inside the Python interpreter, which macOS named it after).
   - **`mme-gui --install-app`** (or `make app`) makes `~/Applications/MoukhlijMatExtract.app`, with the program's

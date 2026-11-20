@@ -69,6 +69,10 @@ COMMANDS: List[Command] = [
             "precision, recall, F1 against the annotations", "make eval-score"),
     Command("mme-eval agree", "Evaluation", ("agree",), "Evaluation",
             "agreement of two annotators", "make eval-agree"),
+    Command("mme-eval benchmark", "Evaluation", ("benchmark",), "Evaluation",
+            "MME against a keyword baseline and other tools, same papers", "make eval-benchmark"),
+    Command("mme-eval gold", "Evaluation", ("gold",), "Evaluation",
+            "the annotated papers as a public gold-standard dataset", "make eval-gold"),
     Command("mme-eval reference", "Evaluation", ("reference",), "Evaluation",
             "recall against curated databases (OBELiX, Liverpool)", "make eval-reference"),
     Command("mme-release", "Release", (), "Release",
@@ -104,6 +108,7 @@ $ mme-rank --domain cathode --source WebScraping/web_output_cathode            a
 $ mme-classify --force                   classify again even when nothing changed
 $ mme-eval sheet --papers 60             draw 60 papers to annotate (accuracy of the extraction)
 $ mme-eval score                         precision, recall, F1 from the annotated workbook
+$ mme-eval benchmark --tool CDE=cde.csv  MME against a keyword baseline and another tool, side by side
 $ mme-release                            the dataset in one .zip, ready for Zenodo
 $ mme commands                           every option of every command (docs/COMMANDS.md)
 """
