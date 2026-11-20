@@ -56,6 +56,7 @@ It covers three domains, each with its own search and its own database:
 | 2 · Web scraping | `mme-dois`, `mme-web` | keywords and DOIs | legal open-access PDFs, then a database |
 | 3 · Ranking | `mme-rank` | one or more databases | materials ranked by activation energy, with an HTML report |
 | 4 · Classification | `mme-classify` | one or more databases | materials sorted by crystal-structure type and structure family |
+| 5 · ML datasets | `mme-ml-export` | a class of part 4, or a database | one dataset for machine learning in `Ready for ML/` |
 | Evaluation | `mme-eval` | a database and a person's checks | precision, recall, F1 with intervals; recall against curated databases |
 | Release | `mme-release` | the databases and results | one licence-checked folder and `.zip` with datasheet and checksums |
 
@@ -160,6 +161,7 @@ A job's DOIs go to its own list (`search.doi_list` in the job file): `mme-dois -
 │   └── Fetch_DOIs/              DOI lists (dois.csv, dois_cathode.csv, dois_anode.csv)
 ├── SelectingTopMaterial/results/   the ranking;  results_cathode/, results_anode/
 ├── Classification/              crystal_structure/, structure_families/
+├── Ready for ML/                the datasets for machine learning (part 5)
 ├── Evaluation/                  annotation workbooks, scores, curated-database comparison
 └── Release/                     the dataset folders and .zip
 ```
@@ -406,6 +408,35 @@ mme-classify --source WebScraping/web_output_cathode --out Classification_cathod
 
 It writes one database per class, which `mme-rank --source` can rank on its own.
 
+### 6.4b · Datasets for machine learning — `mme-ml-export`
+
+**5 · ML datasets** in the main window asks step by step: the family (a class of § 6.4, or a whole database), the
+property (activation energy, ionic or electronic conductivity, diffusion coefficient), the transport component,
+measured or computed, then the filters. Each choice shows how many values it keeps. **Generate the dataset for ML**
+writes it.
+
+```bash
+mme-ml-export --list                                                       # the families and their values
+mme-ml-export --family garnet --target Ea --component bulk --origin experimental
+mme-ml-export --family NASICON --target sigma --temperature room --ion Li+
+mme-ml-export --family garnet --target Ea --verified-only --min-values 2   # checked by hand, 2 values or more
+mme-ml-export --settings "Ready for ML/<name>/settings.json"               # the same dataset again
+mme-ml-export gui                                                          # the window
+```
+
+**What a dataset folder holds** (`~/MoukhlijMatExtract/Ready for ML/<name>/`):
+- `dataset.csv`: one row per material, the median of its values as `target` (`log10_target` for conductivities and
+  diffusion coefficients), their spread, the number of values and papers, and a `group` column for grouped splits;
+- `values.csv`: every value kept, with its paper, page and sentence;
+- `excluded.csv`: every value left out, with why;
+- `README.md`: a datasheet of the selection; `settings.json`: the settings, to make it again.
+
+**Defaults:** the paper's own results, Arrhenius activation energies, values the extraction flagged left out. The
+checks of the Verify tab apply: a value marked wrong is left out, a corrected one is taken as corrected.
+
+**Before training:** split by `group` or `material`, never by row; prefer the values checked by hand; add the
+composition descriptors yourself from `material_formula` (for example with matminer).
+
 ### 6.5 · The dataset — `mme-release`
 
 ```bash
@@ -553,6 +584,7 @@ mme-rank --source LocalExtraction/reproduced --domain <its domain> <the filters 
 | `mme-web` | search, review, download, extract | `make web`, `web-check`, `web-fetch`, `web-extract`, `web-dois`, `web-gui`, `web-cathode`, `web-anode` |
 | `mme-rank` | rank by activation energy | `make rank`, `rank-gui`, `rank-cathode`, `rank-anode` |
 | `mme-classify` | sort by crystal-structure type and family | `make classify`, `classify-gui` |
+| `mme-ml-export` | a dataset for machine learning, into `Ready for ML/` | `make ml-export`, `ml-gui` |
 | `mme-eval` | `sheet`, `score`, `agree`, `reference` | `make eval-sheet`, `eval-score`, `eval-agree`, `eval-reference` |
 | `mme-release` | the dataset, ready to deposit | `make release` |
 | (source folder) | install, tests, docs | `make install`, `install-locked`, `lock`, `test`, `demo`, `dictionary`, `commands`, `clean`, `version` |

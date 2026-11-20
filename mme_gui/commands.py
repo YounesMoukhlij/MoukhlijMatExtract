@@ -33,6 +33,7 @@ PARTS = {
     "classify": ("Classification", ()),
     "eval": ("Evaluation", ()),
     "release": ("Release", ()),
+    "ml-export": ("MLDataset", ()),
 }
 DOCS = "https://github.com/YounesMoukhlij/MoukhlijMatExtract/tree/main/docs"
 

@@ -66,12 +66,13 @@ mme-local = "LocalExtraction.cli:main"
 mme-web = "WebScraping.averageScrap.cli:main"
 mme-rank = "SelectingTopMaterial.cli:main"
 mme-classify = "Classification.cli:main"
+mme-ml-export = "MLDataset.cli:main"
 mme-dois = "WebScraping.Fetch_DOIs.get_dois:main"
 mme-eval = "Evaluation.cli:main"
 mme-release = "Release.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["LocalExtraction*", "WebScraping*", "SelectingTopMaterial*", "Classification*", "Evaluation*", "Release*", "mme_gui*",
+include = ["LocalExtraction*", "WebScraping*", "SelectingTopMaterial*", "Classification*", "Evaluation*", "Release*", "MLDataset*", "mme_gui*",
            "mme_home*"]
 exclude = ["*.tests", "*.tests.*", "tests", "tests.*"]
 

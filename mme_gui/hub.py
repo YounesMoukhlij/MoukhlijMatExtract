@@ -53,6 +53,10 @@ MoukhlijMatExtract of your home folder (~/MoukhlijMatExtract), whatever folder y
   Each is written to its own folder in  SelectingTopMaterial/results/ .
 • 4 · Classification — sorts the materials by crystal family (NASICON, garnet, …) and by structure
   family (oxide, sulfide, halide, …), one database per class in  Classification/ .
+• 5 · ML datasets — prepares a dataset for machine learning, step by step: the family, the property,
+  the transport component, measured or computed, the filters, then “Generate the dataset for ML”.
+  It is written into  Ready for ML/ : one row per material, every value with its sentence and page,
+  what was left out and why, and a datasheet.
 
 § Where your files go
 Everything lands in  ~/MoukhlijMatExtract , the main results folder:  LocalExtraction/ ,
@@ -196,6 +200,11 @@ def open_rank(root) -> None:
     App(_toplevel(root))
 
 
+def open_ml(root) -> None:
+    from MLDataset.gui import MLWindow
+    MLWindow(_toplevel(root))
+
+
 def open_classify(root) -> None:
     from Classification.gui import App
     App(_toplevel(root))
@@ -208,6 +217,7 @@ PARTS = (
     ("2 · Web scraping", "Search the open sources, download the legal copies and extract them.", open_web, "web"),
     ("3 · Ranking", "Rank the materials by activation energy.", open_rank, "rank"),
     ("4 · Classification", "Sort the materials by crystal family and structure family.", open_classify, "classify"),
+    ("5 · ML datasets", "Filter the data and prepare datasets for machine learning (Ready for ML/).", open_ml, "ml"),
 )
 
 
@@ -426,6 +436,9 @@ def part_status(part: str) -> str:
             import time
             return "last ranking: " + time.strftime("%d %b %Y %H:%M", time.localtime(summary.stat().st_mtime))
         return "no ranking written yet"
+    if part == "ml":
+        made = [p for p in folder.iterdir() if (p / "dataset.csv").is_file()] if folder.is_dir() else []
+        return f"{len(made)} dataset(s) in Ready for ML/" if made else "no dataset prepared yet"
     every = folder / "all_materials.csv"
     return f"classes written for {rows(every):,} materials" if every.is_file() else "no classes written yet"
 

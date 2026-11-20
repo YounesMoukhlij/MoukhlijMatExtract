@@ -8,6 +8,21 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **5 · ML datasets: datasets ready for machine learning** (`mme-ml-export`, a fifth card in the main window).
+  - **The window** asks step by step, each step appearing once the one before is answered: ① the family (a crystal
+    structure or structure family of 4 · Classification, or a whole database), ② the property (activation energy,
+    ionic or electronic conductivity, diffusion coefficient), ③ the transport component, ④ measured or computed,
+    ⑤ the filters (result of, kind of energy, temperature, mobile ion, value range, quality, values per material),
+    with the count of what is kept updated as they change, then ⑥ **Generate the dataset for ML**.
+  - **The folder** `~/MoukhlijMatExtract/Ready for ML/<name>/`: `dataset.csv` (one row per material: median, log10
+    for conductivities and diffusion coefficients, spread, number of values and papers, a group column for grouped
+    splits), `values.csv` (every value with its sentence and page), `excluded.csv` (every value left out and why),
+    `README.md` (a datasheet) and `settings.json` (to make it again).
+  - **The checks by hand apply:** a value marked wrong in the Verify tab is left out, a corrected one is taken as
+    corrected, and “only the values checked by hand” keeps those alone.
+  - **The command:** `mme-ml-export --family garnet --target Ea --component bulk --origin experimental`;
+    `--list` shows the families and their values; `make ml-export`, `make ml-gui`.
+
 - **Springer Nature's two keys, and open Springer, Nature and BMC papers downloaded through its Open Access API.**
   - **API keys…:** the Springer Nature card has two inputs, as the Basic plan gives two keys: the **Meta API key**
     (search and abstracts, `SPRINGER_NATURE_API_KEY`, as before) and the **Open Access API key**
@@ -228,6 +243,10 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
     the top 10 in 90 % of the resamplings").
 
 ### Fixed
+
+- **A crash, “KeyError: 'popdown'”, when the mouse wheel turned over the open list of a dropdown** (the ML datasets
+  window, and any window whose controls scroll). The open list is a window Tk makes itself, with no Python widget
+  behind it; the scrolling area now asks by window name, and the wheel scrolls the list.
 
 - **OSTI held hundreds of papers it could never have had.**
   - **The cause:** OSTI (the US Department of Energy's repository) was asked about every paper; it ran into its

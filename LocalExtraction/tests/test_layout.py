@@ -5,6 +5,7 @@ import unittest
 from unittest import mock
 
 from LocalExtraction.tests.test_gui import has_screen, tk
+from tkinter import ttk
 
 
 def screen(width, height):
@@ -183,3 +184,28 @@ class ScrolledTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(has_screen(), "the window needs a screen")
+class ScrolledWheelTests(unittest.TestCase):
+    def test_the_open_list_of_a_combobox_under_the_pointer_does_not_crash_the_wheel(self):
+        """A crash once: the wheel over the open list of a combobox (a window Tk makes itself, “….popdown”, with no
+        Python widget behind it) raised KeyError: 'popdown'. The list is not the scroll area: the wheel is the list's."""
+        from types import SimpleNamespace
+        from LocalExtraction.gui.widgets import Scrolled
+        root = tk.Tk()
+        root.attributes("-alpha", 0.0)
+        self.addCleanup(root.destroy)
+        area = Scrolled(root)
+        area.pack()
+        box = ttk.Combobox(area.inner)
+        box.pack()
+        root.update()
+        real = area.tk
+        for path, inside in ((f"{box}.popdown.f.l", False), (str(box), True), ("", False), (".other", False)):
+            area.tk = SimpleNamespace(call=lambda *args, p=path: p)
+            try:
+                self.assertEqual(area._inside(10, 10), inside, path)
+                area._scroll(SimpleNamespace(x_root=10, y_root=10, num=0, delta=-120))  # must not raise
+            finally:
+                area.tk = real

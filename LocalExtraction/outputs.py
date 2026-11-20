@@ -74,6 +74,8 @@ PARTS: Dict[str, Tuple[str, Tuple[Group, ...]]] = {
     "classify": ("4 · Classification", (
         Group("classes", "The class databases (crystal_structure/, structure_families/, all_materials.csv)",
               "Classification", _CLASSES),)),
+    "ml": ("5 · ML datasets", (
+        Group("datasets", "The datasets prepared for machine learning (Ready for ML/)", "Ready for ML"),)),
 }
 
 
