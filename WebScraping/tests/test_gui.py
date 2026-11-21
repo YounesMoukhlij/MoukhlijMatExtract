@@ -55,6 +55,37 @@ class WindowTests(WindowTest):
         return App(root, job_path=self.job_path, output_dir=self.web_output, workers=2)
 
     # ------------------------------------------------------------------
+    def test_the_search_shows_how_far_it_is(self):
+        from LocalExtraction.gui.progress_text import Pace
+        web = self.app.panel
+        web._working, web._pace = True, Pace()
+        web.stop_event.clear()
+        web._search_progress("keywords", 148, 2128, "OpenAlex: “LLZO garnet”", 312)
+        self.assertEqual(str(web.progress.cget("mode")), "determinate")
+        self.assertEqual((float(web.progress.cget("value")), float(web.progress.cget("maximum"))), (148, 2128))
+        self.assertEqual(web.status.get(), "Searching the keywords — 148 of 2,128 searches (each keyword in each "
+                                           "source) · OpenAlex: “LLZO garnet” · 312 new papers so far")
+        web._search_progress("abstracts", 40, 900, "12 found", 0)
+        self.assertIn("Looking for the abstracts the records lack — 40 of 900 papers · 12 found", web.status.get())
+        # after the step, or once Stop is pressed, a late report does not hide what is said then
+        web.status.set("Stopping …")
+        web.stop_event.set()
+        web._search_progress("keywords", 149, 2128, "", 312)
+        self.assertEqual(web.status.get(), "Stopping …")
+        web.stop_event.clear()
+        web._working = False
+
+    def test_fetch_dois_shows_how_far_it_is(self):
+        from LocalExtraction.gui.progress_text import Pace
+        web = self.app.panel
+        web._working, web._pace = True, Pace()
+        web.stop_event.clear()
+        web._doi_line("=== [12/48] LLZO garnet   (new DOIs so far: 230 of 500)")  # as Fetch DOIs prints it
+        self.pump(0.3)
+        self.assertEqual((float(web.progress.cget("value")), float(web.progress.cget("maximum"))), (12, 48))
+        self.assertEqual(web.status.get(), "Fetch DOIs — search 12 of 48 · new DOIs so far: 230 of 500")
+        web._working = False
+
     def test_the_window_shows_its_folder_of_results(self):
         energies = self.app.panel.energies
         self.assertEqual(len(energies.table), 1)

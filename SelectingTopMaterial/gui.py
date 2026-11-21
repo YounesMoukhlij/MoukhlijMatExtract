@@ -83,7 +83,9 @@ class App:
         from LocalExtraction.gui import layout
         # Fitted to the screen it opens on and centred; at least the settings, the Materials Project line and a table
         # of a few rows (as far as the screen allows: the settings then scroll).
-        layout.place(root, (1260, 820), (1000, 720))
+        # As wide as the settings need (two frames side by side, measured: about 1,270 px); a smaller screen gets
+        # what it can show (layout.minimum), and the settings scroll.
+        layout.place(root, (1320, 820), (1280, 720))
         self.criteria_path = criteria_path
         self.selections: dict[str, Selection] = {}   # one ranking per transport component
         self.written: list[Path] = []
@@ -197,12 +199,13 @@ class App:
         ttk.Label(options, text="Classes of").grid(row=6, column=2, sticky="e", pady=(6, 0))
         ttk.Combobox(options, values=tuple(DOMAIN_CRITERIA), textvariable=self.domain_var, state="readonly",
                      width=11).grid(row=6, column=3, sticky="w", padx=4, pady=(6, 0))
-        ttk.Label(options, text="(arrhenius: the measured Ea only)", foreground="#8c8c8c").grid(
+        ttk.Label(options, text="(arrhenius = measured)", foreground="#8c8c8c").grid(
             row=6, column=4, sticky="w", pady=(6, 0))
+        # One per line: side by side they made the frame wider than the window (its right was cut off).
         ttk.Checkbutton(options, text="Include the values the extraction flagged (out of range, not an electrolyte, …)",
-                        variable=self.flagged_var).grid(row=7, column=0, columnspan=3, sticky="w", pady=(2, 0))
+                        variable=self.flagged_var).grid(row=7, column=0, columnspan=5, sticky="w", pady=(2, 0))
         ttk.Checkbutton(options, text="Verified values only (the Verify tab)", variable=self.verified_var).grid(
-            row=7, column=3, columnspan=2, sticky="w", pady=(2, 0))
+            row=8, column=0, columnspan=5, sticky="w", pady=(2, 0))
 
         # Where the ranking is written, and the buttons
         actions = ttk.Frame(top, padding=(12, 6, 12, 4))
@@ -215,6 +218,8 @@ class App:
         self._materials_project_row(top)
         self.rank_button = ttk.Button(actions, text="Rank", command=self.rank)
         self.rank_button.pack(side="left")
+        # How far a ranking is (shown while it runs): reading and ranking, writing the files, Materials Project.
+        self.rank_progress = ttk.Progressbar(actions, mode="indeterminate", length=140, maximum=1000)
         self.write_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(actions, text="and write the files into", variable=self.write_var).pack(side="left", padx=(10, 4))
         self.out_var = tk.StringVar(value=str(out_dir))
@@ -230,8 +235,8 @@ class App:
                                                                       lambda: self.out_var.get())
 
         self.summary = tk.StringVar(value="")
-        self.summary_label = ttk.Label(top, textvariable=self.summary, wraplength=1200, justify="left",
-                                       padding=(12, 4))
+        from LocalExtraction.gui.widgets import WrapLabel  # wraps at the window's width, whatever it is
+        self.summary_label = WrapLabel(top, textvariable=self.summary, wraplength=900, padding=(12, 4))
         self.summary_label.pack(fill="x")
 
         self.book = ttk.Notebook(split, padding=(8, 0, 8, 8))
@@ -451,6 +456,13 @@ class App:
         self._ranking = True
         self.root.configure(cursor="watch")
         self.rank_button.configure(state="disabled")
+        steps: list = []  # (how far — None while it cannot be counted —, what it does), said by the working thread
+        self.rank_progress.configure(mode="indeterminate", value=0)
+        self.rank_progress.pack(side="left", padx=(8, 0), after=self.rank_button)
+        self.rank_progress.start(12)
+        self.summary.set("Reading the databases and ranking the materials …")
+        from LocalExtraction.gui.progress_text import Pace
+        pace = Pace()
         folders, policy, by_phase = [folder for folder, _ in ticked], self.policy_var.get(), self.by_phase_var.get()
         # The Materials Project entries too, when ticked: with the key typed (saved or not).
         mp_key = self.mp_key_var.get().strip() if self.mp_var.get() and write else ""
@@ -471,6 +483,7 @@ class App:
                                               by_phase=by_phase, filters=filters)
                 written_by, problem, entries = {}, "", None
                 if write and any(s.materials for s in selections.values()):
+                    steps.append((None, "Writing the files of the ranking (CSV, workbook, report) …"))
                     try:
                         written_by = write_rankings(selections, out_dir, FORMATS, top)
                         record_ranking(out_dir, ranking_stamp(folders, settings), run, selections, written_by)
@@ -478,7 +491,11 @@ class App:
                         problem = f"The files could not be written:\n{error}"
                     if mp_key and not problem:  # beside the ranking, not part of it
                         from . import materials_project
-                        entries = materials_project.link(selections, out_dir, key=mp_key)
+                        entries = materials_project.link(
+                            selections, out_dir, key=mp_key,
+                            progress=lambda done, total, name: steps.append(
+                                (done / max(total, 1), f"Materials Project — composition {done + 1:,} of {total:,}: "
+                                                       f"{name}" + pace.left("mp", done, total))))
                 done.append((selections, written_by, problem, entries))
             except Exception as error:  # said in the window, never lost on the thread
                 logging.getLogger(__name__).exception("The ranking failed")
@@ -486,9 +503,22 @@ class App:
 
         def finish() -> None:
             if not done:
+                if steps:
+                    fraction, text = steps[-1]
+                    try:
+                        if fraction is not None and str(self.rank_progress.cget("mode")) != "determinate":
+                            self.rank_progress.stop()
+                            self.rank_progress.configure(mode="determinate")
+                        if fraction is not None:
+                            self.rank_progress.configure(value=int(fraction * 1000))
+                        self.summary.set(text)
+                    except tk.TclError:
+                        return  # the window was closed meanwhile
                 self.root.after(50, finish)
                 return
             self._ranking = False
+            self.rank_progress.stop()
+            self.rank_progress.pack_forget()
             self.root.configure(cursor="")
             self.rank_button.configure(state="normal")
             selections, written_by, problem, entries = done[0]
@@ -514,7 +544,10 @@ class App:
         """Shows a ranking made on the ranking thread."""
         first = next(iter(selections.values()))
         for (_, status), report in zip(ticked, first.databases):
-            status.set(loader.describe(report))
+            # Beside the folder, the counts in short (a long line made the window too wide for its smallest size);
+            # the whole of it is in the “Rule and data” tab.
+            parts = loader.describe(report).split(" · ")
+            status.set(" · ".join(parts[:2]) + (" …" if len(parts) > 2 else ""))
         for component in selections:
             if component not in self.tabs:  # surface, or a component the paper does not state
                 self._ranking_tab(component)

@@ -19,7 +19,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Callable, Dict, Iterable, Optional
 
 BASE = "https://api.materialsproject.org/materials/summary/"
 PAGE = "https://next-gen.materialsproject.org/materials/"
@@ -46,15 +46,16 @@ def reduced(formula: str) -> Optional[str]:
         return None
 
 
-def lookup(formulas: Iterable[str], client, key: str) -> Dict[str, Optional[dict]]:
+def lookup(formulas: Iterable[str], client, key: str,
+           progress: Optional[Callable[[int, int, str], None]] = None) -> Dict[str, Optional[dict]]:
     """The most stable Materials Project entry of each formula's composition (None: no entry), by reduced formula;
-    one request per composition."""
+    one request per composition. `progress` gets (compositions asked, compositions, the one asked now)."""
     from WebScraping.averageScrap.http import HttpError
     found: Dict[str, Optional[dict]] = {}
-    for formula in formulas:
-        name = reduced(formula)
-        if name is None or name in found:
-            continue
+    names = list(dict.fromkeys(n for n in (reduced(f) for f in formulas) if n is not None))
+    for index, name in enumerate(names):
+        if progress is not None:
+            progress(index, len(names), name)
         try:
             data = client.get_json(BASE, params={"formula": name, "_fields": FIELDS, "_limit": 50},
                                    headers={"X-API-KEY": key})
@@ -70,7 +71,8 @@ def lookup(formulas: Iterable[str], client, key: str) -> Dict[str, Optional[dict
     return found
 
 
-def link(selections, out_dir: Path, client=None, key: Optional[str] = None) -> Optional[Path]:
+def link(selections, out_dir: Path, client=None, key: Optional[str] = None,
+         progress: Optional[Callable[[int, int, str], None]] = None) -> Optional[Path]:
     """materials_project.csv in `out_dir`: every ranked material of every component beside its entry. None (and
     nothing asked) without a key."""
     key = os.environ.get(KEY, "") if key is None else key
@@ -83,7 +85,7 @@ def link(selections, out_dir: Path, client=None, key: Optional[str] = None) -> O
         client = PoliteClient(os.environ.get("MME_EMAIL", ""))
     materials = [(component, m) for component, selection in selections.items() for m in selection.materials]
     try:
-        entries = lookup((m.material for _, m in materials), client, key)
+        entries = lookup((m.material for _, m in materials), client, key, progress)
     except Exception as error:  # the key refused: said once, nothing written
         logging.warning(f"Materials Project refused the key ({error}); nothing was written.")
         return None

@@ -6,7 +6,7 @@ review, a retraction, a duplicate of another candidate, no open copy known."""
 import logging
 import re
 from collections import defaultdict
-from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from WebScraping.averageScrap.elsevier import Elsevier
 from WebScraping.averageScrap.ids import normalize_title
@@ -178,13 +178,22 @@ def _judge(candidate: Candidate, cfg: ScreenConfig, words, elsevier_ok: bool, wi
             "decision": YES if passes else NO}
 
 
+def _every(done: int, total: int) -> bool:
+    """A progress report now? About a hundred over the whole loop, and the last one."""
+    return done == total or done % max(total // 100, 1) == 0
+
+
 def screen(ledger: Ledger, cfg: ScreenConfig, elsevier_ok: bool = False, approve: bool = False,
-           wiley_ok: bool = False) -> Dict[str, int]:
+           wiley_ok: bool = False, progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
     """Scores every candidate not yet scored and proposes a decision for it. With `approve` the
-    proposals are final (no review): a yes is approved for fetching, a no is rejected."""
+    proposals are final (no review): a yes is approved for fetching, a no is rejected. `progress` gets
+    (papers looked at, papers to look at)."""
     words = _words(cfg)
     scored = 0
-    for candidate in ledger.all(NEW):
+    waiting = ledger.all(NEW)
+    for index, candidate in enumerate(waiting, 1):
+        if progress is not None and _every(index, len(waiting)):
+            progress(index, len(waiting))
         if candidate.found_by == [DOI_LIST] and not candidate.openalex_id and "openalex" not in candidate.abstract_asked:
             continue  # a DOI and a title only: scored once its OpenAlex record was looked up (next search)
         ledger.update(candidate.key, status=SCREENED, **_judge(candidate, cfg, words, elsevier_ok, wiley_ok))
@@ -199,7 +208,8 @@ def screen(ledger: Ledger, cfg: ScreenConfig, elsevier_ok: bool = False, approve
     return ledger.counts()
 
 
-def rescreen(ledger: Ledger, cfg: ScreenConfig, elsevier_ok: bool = False, wiley_ok: bool = False) -> Dict[str, int]:
+def rescreen(ledger: Ledger, cfg: ScreenConfig, elsevier_ok: bool = False, wiley_ok: bool = False,
+             progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
     """Decides again, with the settings of now, the papers screened before and not downloaded yet (screened, approved
     or rejected): the settings changed since — “also keep papers no free copy is known for” ticked, a word added or
     excluded, another minimum score. A paper whose decision changes is a new proposal (screened), made final by the
@@ -208,7 +218,10 @@ def rescreen(ledger: Ledger, cfg: ScreenConfig, elsevier_ok: bool = False, wiley
     scored ("rescored"), newly proposed ("proposed") and no longer proposed ("dropped")."""
     words = _words(cfg)
     counts = {"rescored": 0, "proposed": 0, "dropped": 0}
-    for candidate in ledger.all(SCREENED, APPROVED, REJECTED):
+    every = ledger.all(SCREENED, APPROVED, REJECTED)
+    for index, candidate in enumerate(every, 1):
+        if progress is not None and _every(index, len(every)):
+            progress(index, len(every))
         if any(flag.startswith("duplicate-of") for flag in candidate.flags):
             continue
         judged = _judge(candidate, cfg, words, elsevier_ok, wiley_ok)

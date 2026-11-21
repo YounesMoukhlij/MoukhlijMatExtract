@@ -123,6 +123,8 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         self.evaluate_button.configure(state="disabled")
         self.progress.configure(maximum=max(self._total, 1), value=0)
         self.status.set(f"Reading {self._total} new PDF(s) …" if self._total else "Nothing new in this folder.")
+        from .progress_text import Pace
+        self._pace = Pace()  # the time left, once a few PDFs set the pace
         self.activity.write(f"--- Extraction of {folder} into {output}: {self._total} new PDF(s)")
         self.book.select(self.activity)
         self._working = True
@@ -153,7 +155,8 @@ class LocalPanel(Pausable, ttk.LabelFrame):
     def _paper_done(self, filename: str, paper: Optional[PaperData]) -> None:
         self._done += 1
         self.progress.configure(value=self._done)
-        self.show_status(f"{self._done} / {self._total} — {filename}")
+        self.show_status(f"Extracting — {self._done:,} of {self._total:,} PDFs · {filename}"
+                         + self._pace.left("extract", self._done, self._total))
         if paper is None:
             self._failed += 1
             self.activity.write(f"[FAILED] {filename}")

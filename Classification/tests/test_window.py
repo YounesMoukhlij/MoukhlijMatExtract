@@ -151,6 +151,19 @@ class ComponentTests(unittest.TestCase):
         self.assertEqual(sorted(kept(energies, this_work=True).Ea_eV), [0.21, 0.30, 0.42, 0.52])
         self.assertEqual(sorted(kept(energies, stated=True).component), ["bulk", "grain_boundary"])
 
+    def test_the_classification_says_how_far_it_is(self):
+        from Classification.gui import run
+        said = []
+        result = run([self.database], Path(tempfile.mkdtemp()) / "classes", progress=lambda f, text: said.append((f, text)))
+        self.assertFalse(result.error)
+        fractions = [f for f, _ in said]
+        self.assertEqual(fractions, sorted(fractions))                     # it only goes forward
+        self.assertEqual(fractions[-1], 1.0)                               # to the end
+        texts = " ".join(text for _, text in said)
+        for step in ("Step 1 of 4 · reading the databases", "Step 2 of 4 · classifying", "Step 3 of 4 · writing",
+                     "Step 4 of 4 · classification by property — family"):
+            self.assertIn(step, texts)
+
     def test_a_database_without_components_still_classifies(self):
         rows = read_csv(self.database / "activation_energy.csv")
         _write(self.database / "activation_energy.csv", ["paper_id", "material_formula", "activation_energy_eV", "material_id"], rows)

@@ -143,6 +143,26 @@ class Harvest:
         # shows them, the terminal prints them. And where the lines Fetch DOIs prints go (None: stdout).
         self.on_step: Callable[[Optional[str]], None] = _say_step
         self.on_line: Optional[Callable[[str], None]] = None
+        # How far the step under way is: (phase, done, total, what is being done, new papers so far). Phases:
+        # "keywords" (each keyword asked of each source), "records" (OpenAlex records of the new papers),
+        # "abstracts" (the abstracts the records lacked), "snowball" (the papers kept, one by one). The window
+        # shows it as its progress bar and status line; nothing is done with it in the terminal.
+        self.on_progress: Callable[[str, int, int, str, int], None] = lambda *args: None
+        self._keyword_tally: Optional[List[int]] = None  # [done, total, new] while the keywords are searched
+
+    def _progress(self, phase: str, done: int, total: int, detail: str = "", new: int = 0) -> None:
+        try:
+            self.on_progress(phase, done, total, detail, new)
+        except Exception as error:  # what shows the progress must never stop the search
+            logging.debug(f"on_progress raised: {error}")
+
+    def _complete_abstracts(self) -> Optional[int]:
+        """The OpenAlex records and the abstracts the new papers lack, with their progress shown."""
+        s = self.job.search
+        return abstracts.complete(self.ledger, self.client, s.abstract_sources, self.job.email(),
+                                  records_progress=lambda done, total: self._progress("records", done, total),
+                                  abstracts_progress=lambda done, total, found: self._progress(
+                                      "abstracts", done, total, f"{found:,} found", 0))
 
     # ------------------------------------------------------------------
     # 1. Discover
@@ -217,8 +237,7 @@ class Harvest:
         """The papers not checked yet (new: a DOI list just taken in): each one's OpenAlex record and
         abstract, then its topic score. Returns how many are proposed for download now. Stopped while
         it looks them up, they stay new and the next search goes on with them."""
-        s = self.job.search
-        found = abstracts.complete(self.ledger, self.client, s.abstract_sources, self.job.email())
+        found = self._complete_abstracts()
         if found is not None:
             logging.info(f"Abstracts: {found} found for papers whose record had none.")
         self.screen(approve=False)
@@ -279,7 +298,7 @@ class Harvest:
             if s.snowball:  # the papers kept so far bring the papers they cite and those citing them
                 self.on_step("snowball")
                 added += self.snowball(refresh)
-            found = abstracts.complete(self.ledger, self.client, s.abstract_sources, self.job.email())
+            found = self._complete_abstracts()
             if found is not None:
                 logging.info(f"Abstracts: {found} found for papers whose record had none.")
         except runcontrol.StepStopped:
@@ -311,11 +330,12 @@ class Harvest:
         try:
             for _, candidate in source.references(todo, s.years, s.include_preprints):
                 cited += self.ledger.add(candidate)
-            for seed in todo:
+            for done, seed in enumerate(todo, 1):
                 runcontrol.check()  # between two papers: Pause holds here, Stop ends it
                 for candidate in source.citing(seed, s.years, s.snowball_citing, s.include_preprints):
                     citing += self.ledger.add(candidate)
                 self.ledger.mark_searched(search(seed), s.snowball_citing)
+                self._progress("snowball", done, len(todo), "the papers citing the papers kept", cited + citing)
         except (HttpError, requests.RequestException, ValueError) as error:
             logging.warning(f"Snowballing stopped early: {error}. What it found is kept; the papers not done are "
                             "asked next time.")
@@ -330,11 +350,17 @@ class Harvest:
         # What waits from an earlier run and no longer belongs to the job is forgotten.
         self.watcher.forget(SEARCH, lambda row: row["item"] in s.queries and row["service"] in s.sources)
         added = 0
-        for name in s.sources:
-            source = self._source(name)
-            if source is None:
-                continue
-            added += self._search_queries(source, name, s.queries, refresh)
+        active = [(name, source) for name in s.sources for source in [self._source(name)] if source is not None]
+        total = len(active) * len(s.queries)
+        self._keyword_tally = [0, total, 0]
+        try:
+            for index, (name, source) in enumerate(active, 1):
+                added += self._search_queries(source, name, s.queries, refresh)
+                # a source given up on (its key refused, or refusing again and again): its other searches are done
+                self._keyword_tally[0] = index * len(s.queries)
+                self._progress("keywords", self._keyword_tally[0], total, name, added)
+        finally:
+            self._keyword_tally = None
         return added + self._recheck_searches(refresh)
 
     def _source(self, name: str):
@@ -363,6 +389,11 @@ class Harvest:
                                 f"{len(rest)} other search(es) now; the watcher keeps them and asks again later.")
                 break
             state, new = self._search_one(source, name, query, refresh, later)
+            tally = self._keyword_tally
+            if tally is not None and not later:
+                tally[0] += 1
+                tally[2] += new
+                self._progress("keywords", tally[0], tally[1], f"{name}: “{query}”", tally[2])
             if state == "key":
                 break
             refused = refused + 1 if state == "refused" else 0
@@ -447,7 +478,8 @@ class Harvest:
         Returns how many papers wait for a decision."""
         before = self.ledger.counts()
         screening.screen(self.ledger, self.job.screen, elsevier_ok=self.elsevier is not None,
-                         approve=approve or not self.job.screen.review, wiley_ok=self.wiley is not None)
+                         approve=approve or not self.job.screen.review, wiley_ok=self.wiley is not None,
+                         progress=lambda done, total: self._progress("screen", done, total))
         after = self.ledger.counts()
         if after == before and os.path.exists(self.review_path):
             return after.get(SCREENED, 0)  # nothing new was scored: the review list (and edits not read yet) kept
@@ -458,7 +490,8 @@ class Harvest:
         """Decides again, with the job's screening settings of now, the papers not downloaded yet (screening.rescreen),
         and writes the review list the download reads. Returns the counts of screening.rescreen."""
         counts = screening.rescreen(self.ledger, self.job.screen, elsevier_ok=self.elsevier is not None,
-                                    wiley_ok=self.wiley is not None)
+                                    wiley_ok=self.wiley is not None,
+                                    progress=lambda done, total: self._progress("screen", done, total))
         learn.refresh(self.ledger)
         self.ledger.write_review(self.review_path)
         logging.info(f"Re-screened {counts['rescored']:,} paper(s) not downloaded yet with the job's settings: "

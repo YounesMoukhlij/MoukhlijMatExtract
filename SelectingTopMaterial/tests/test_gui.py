@@ -74,7 +74,7 @@ class WindowTests(unittest.TestCase):
         for a few rows whatever the card holds."""
         self.app.book.select(self.app.tabs[self.app.component]["frame"])
         width, height = self.root.minsize()
-        for size, card_in_view in ((f"{width}x{height}", False), ("1260x820", True)):  # smallest, then as it opens
+        for size, card_in_view in ((f"{width}x{height}", False), ("1320x820", True)):  # smallest, then as it opens
             self.root.geometry(size)
             for _ in range(20):
                 self.root.update()

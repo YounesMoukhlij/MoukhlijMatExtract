@@ -14,7 +14,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from LocalExtraction import runcontrol
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import requests
 
@@ -33,7 +33,8 @@ ASKED_OPENALEX = "openalex"  # in abstract_asked: OpenAlex was asked for this pa
 _OPENALEX_BATCH = 50
 
 
-def complete_from_openalex(ledger: Ledger, client: PoliteClient, contact: str = "") -> int:
+def complete_from_openalex(ledger: Ledger, client: PoliteClient, contact: str = "",
+                           progress: Optional[Callable[[int, int], None]] = None) -> int:
     """OpenAlex's record merged into every new paper another source found. Returns how many it knew."""
     waiting = {c.doi: c for c in ledger.all(NEW) if c.doi and not c.openalex_id and ASKED_OPENALEX not in c.abstract_asked}
     todo = list(waiting)
@@ -52,6 +53,8 @@ def complete_from_openalex(ledger: Ledger, client: PoliteClient, contact: str = 
                 paper = ledger.get(waiting[doi].key)
                 if paper is not None and ASKED_OPENALEX not in paper.abstract_asked:
                     ledger.update(paper.key, abstract_asked=[*paper.abstract_asked, ASKED_OPENALEX])
+            if progress is not None:
+                progress(min(start + _OPENALEX_BATCH, len(todo)), len(todo))
             if start and start % (_OPENALEX_BATCH * 40) == 0:
                 logging.info(f"OpenAlex: {start:,} of {len(todo):,} new papers looked up …")
     except (HttpError, requests.RequestException, ValueError) as error:
@@ -126,7 +129,8 @@ class AbstractFinder:
         return "", "", answered
 
 
-def fill(ledger: Ledger, finder: AbstractFinder, workers: int = 4) -> int:
+def fill(ledger: Ledger, finder: AbstractFinder, workers: int = 4,
+         progress: Optional[Callable[[int, int, int], None]] = None) -> int:
     """Asks for the abstract of every paper that has none. A paper screened on its title alone and
     waiting or declined is screened again (it goes back to "new"). Returns how many abstracts were found."""
     todo = [c for c in ledger.all() if not c.abstract and c.doi and finder.pending(c)]
@@ -151,15 +155,19 @@ def fill(ledger: Ledger, finder: AbstractFinder, workers: int = 4) -> int:
     control = runcontrol.current()  # the step these lookups are for: they pause and stop with it
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for done, _ in enumerate(pool.map(lambda c: runcontrol.task(control, one, c)(), todo), 1):
+            if progress is not None:
+                progress(done, len(todo), found)
             if done % 50 == 0 or done == len(todo):
                 logging.info(f"Abstracts: {done}/{len(todo)} asked, {found} found")
     return found
 
 
 def complete(ledger: Ledger, client: PoliteClient, abstract_sources: List[str], contact: str = "",
-             workers: int = 4) -> Optional[int]:
-    """Both steps; returns how many abstracts were found (None when no service is to be asked)."""
-    complete_from_openalex(ledger, client, contact)
+             workers: int = 4, records_progress: Optional[Callable[[int, int], None]] = None,
+             abstracts_progress: Optional[Callable[[int, int, int], None]] = None) -> Optional[int]:
+    """Both steps; returns how many abstracts were found (None when no service is to be asked). The progress
+    callbacks get (done, total) of the OpenAlex lookups and (done, total, found) of the abstracts."""
+    complete_from_openalex(ledger, client, contact, records_progress)
     if not abstract_sources:
         return None
-    return fill(ledger, AbstractFinder(client, abstract_sources, contact), workers)
+    return fill(ledger, AbstractFinder(client, abstract_sources, contact), workers, abstracts_progress)

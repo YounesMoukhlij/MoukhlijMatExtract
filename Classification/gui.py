@@ -64,9 +64,24 @@ class Result:
     error: str = ""
 
 
-def run(folders: Sequence[Path], out_dir: Path | None) -> Result:
-    """Reads the databases, classifies their materials and — given a folder — writes the classes."""
-    sources = [s for s in (read(Path(folder)) for folder in folders) if s is not None]
+def run(folders: Sequence[Path], out_dir: Path | None, progress=None) -> Result:
+    """Reads the databases, classifies their materials and — given a folder — writes the classes. `progress`
+    (optional) gets (how far, 0 to 1; what it does now), at each step and for each family of the classification by
+    property, the longest step."""
+    def say(fraction: float, text: str) -> None:
+        if progress is not None:
+            try:
+                progress(min(max(fraction, 0.0), 1.0), text)
+            except Exception:  # what shows the progress never stops the classification
+                pass
+    steps = 4 if out_dir is not None else 2
+    sources = []
+    for index, folder in enumerate(folders):
+        say(0.10 * index / max(len(folders), 1), f"Step 1 of {steps} · reading the databases — {index + 1} of "
+                                                  f"{len(folders)}: {Path(folder).name}")
+        source = read(Path(folder))
+        if source is not None:
+            sources.append(source)
     if not sources:
         return Result(error="No database to classify in the folders chosen (none holds a materials.csv). "
                             "Run the extraction first: python -m LocalExtraction, or python -m WebScraping.")
@@ -74,12 +89,16 @@ def run(folders: Sequence[Path], out_dir: Path | None) -> Result:
         return Result(error=f"{out_dir} is a database it reads: choose another folder to write the classes into.")
     from .cli import classify_run, record_classes  # recorded as the command records it
     record = classify_run(sources, out_dir) if out_dir is not None else None
+    say(0.10, f"Step 2 of {steps} · classifying the materials by crystal family and chemical family …")
     classified = classify(sources)
     result = Result(sources, classified, energies_of(classified), conductivities_of(classified))
     if out_dir is not None:
+        say(0.35, f"Step 3 of {steps} · writing one database per class …")
         write(classified, out_dir)
         from .branches import write_all  # every family ▸ property ▸ type ▸ origin, one table each
-        write_all(out_dir)
+        write_all(out_dir, progress=lambda done, total, name: say(
+            0.50 + 0.50 * done / max(total, 1),
+            f"Step 4 of {steps} · classification by property — family {min(done + 1, total)} of {total}: {name}"))
         record_classes(out_dir, sources, record, classified)
         result.written = out_dir
     return result
@@ -287,8 +306,13 @@ class App:
         ttk.Button(line, text="Open every class", command=lambda: self._expand(True)).pack(side="left", padx=(12, 4))
         ttk.Button(line, text="Close every class", command=lambda: self._expand(False)).pack(side="left")
 
-        self.status = WrapLabel(host, text="", foreground="#8c8c8c", wraplength=1200)
-        self.status.pack(fill="x", padx=12, pady=(6, 2))
+        status_row = ttk.Frame(host)
+        status_row.pack(fill="x", padx=12, pady=(6, 2))
+        # How far a classification is: shown while it runs, beside what it is doing.
+        self.progress = ttk.Progressbar(status_row, mode="determinate", maximum=1000, length=180)
+        self.status = WrapLabel(status_row, text="", foreground="#8c8c8c", wraplength=1200)
+        self.status.pack(side="left", fill="x", expand=True)
+        self._steps: queue.Queue = queue.Queue()
 
         self.book = ttk.Notebook(self.root)
         self.card = ResultCard(host, padx=10)  # what the last classification found
@@ -426,9 +450,15 @@ class App:
         self.card.hide()
         self._started = time.time()
 
+        from LocalExtraction.gui.progress_text import Pace
+        self._pace = Pace()
+        self.progress.configure(value=0)
+        self.progress.pack(side="right", padx=(10, 0), before=self.status)
+        steps = self._steps
+
         def work() -> None:
             try:
-                self._queue.put(run(folders, out_dir))
+                self._queue.put(run(folders, out_dir, progress=lambda fraction, text: steps.put((fraction, text))))
             except Exception as error:  # the window must survive a failed run
                 self._queue.put(Result(error=f"The classification failed: {type(error).__name__}: {error}"))
 
@@ -436,12 +466,23 @@ class App:
         self.root.after(100, self._poll)
 
     def _poll(self) -> None:
+        latest = None
+        while True:  # the newest step said: the line and the bar follow the classification
+            try:
+                latest = self._steps.get_nowait()
+            except queue.Empty:
+                break
+        if latest is not None:
+            fraction, text = latest
+            self.progress.configure(value=int(fraction * 1000))
+            self.status.configure(text=text + self._pace.left("classify", int(fraction * 1000), 1000))
         try:
             result = self._queue.get_nowait()
         except queue.Empty:
             self.root.after(100, self._poll)
             return
         self._busy = False
+        self.progress.pack_forget()
         from LocalExtraction.gui import theme
         theme.unmark(self.classify_button)
         self.classify_button.configure(state="normal", style="Next.TButton")  # the one button stays the one to press

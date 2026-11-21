@@ -22,7 +22,7 @@ import shutil
 import statistics
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from MLDataset import export
 from MLDataset.export import ANY, PROPERTIES, Family, Settings
@@ -84,16 +84,21 @@ def families_in(out_dir: Path) -> List[Family]:
     return found
 
 
-def write_all(out_dir: Path, home: Optional[Path] = None) -> List[Branch]:
+def write_all(out_dir: Path, home: Optional[Path] = None,
+              progress: Optional[Callable[[int, int, str], None]] = None) -> List[Branch]:
     """Writes Classification/by_property/ from the class folders in `out_dir`, whole or not at all (built aside,
-    then put in place). `home`: where Verification/ is (the main folder). Returns the branches written."""
+    then put in place). `home`: where Verification/ is (the main folder). `progress` gets (families done, families,
+    the family just done). Returns the branches written."""
     out_dir = Path(out_dir)
     home = Path(home) if home is not None else export.home()
     staging = out_dir / f".{FOLDER}.writing"
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True)
     branches: List[Branch] = []
-    for family in families_in(out_dir):
+    every = families_in(out_dir)
+    for done, family in enumerate(every, 1):
+        if progress is not None:
+            progress(done - 1, len(every), family.name)
         axis = family.key.split("/", 1)[0]
         for target, prop in PROPERTIES.items():
             rows = export.read_rows(family, target)
@@ -119,6 +124,8 @@ def write_all(out_dir: Path, home: Optional[Path] = None) -> List[Branch]:
                                            len(values), chosen.papers(), numbers[0], statistics.median(numbers),
                                            numbers[-1], best["material_formula"] or best["material"],
                                            str(Path(FOLDER) / relative)))
+    if progress is not None and every:
+        progress(len(every), len(every), every[-1].name)
     export._write(staging / "tree.csv", TREE_COLUMNS, [b.row() for b in branches])
     (staging / "README.md").write_text(overview(branches), encoding="utf-8")
     target_folder = out_dir / FOLDER
