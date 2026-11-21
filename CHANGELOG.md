@@ -8,6 +8,22 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **How long a step will take, said when it starts, and “⏱ Progress details”** in every window that runs a long
+  step (Web scraping: Fetch DOIs, Search, Download, Extract, Re-screen; Local extraction; Classification; Ranking).
+  - **The estimate:** a step starts with *“Fetch DOIs — 532 searches · estimated about 26 min (from your earlier
+    runs) · done around 15:12”*. It comes from the pace each phase had on this computer in the runs finished before
+    (seconds per search, per paper, per PDF, kept in `~/.moukhlijmatextract/timings.json` as a running mean). Before
+    a phase has run once, a first guess is used and said to be one. The Fetch DOIs question shows the estimate before
+    anything starts.
+  - **The line of the step in dark yellow** while it runs (readable in light and dark mode), back to its colour at
+    the end. It ends with *“about 6 min left · done around 15:12”*.
+  - **“⏱ Progress details”**, beside the line, opens a window that follows the step live: started, elapsed, time
+    left, expected end, pace and state; the overall progress; each phase ticked off (✓ done, ▶ now, ○ next) with its
+    count, its bar, its time and its time left; what it searches or fetches now, and the counters (new DOIs, new
+    papers …); a chart of the pace (items per minute); the timeline of what was searched or fetched, and when; Pause /
+    Resume and Stop; “Save the timeline (CSV)…”. It stays after the step ends, to look back at the last run, and
+    follows the next step when one starts.
+
 - **One copy of each window.** A window asked for while it is already open is not opened a second time: the open
   one comes to the front (shown again if it was minimised), and a message says *“… is already open. Only one can be
   open at a time — it has been brought to the front.”* Different windows still open side by side (rank while a web

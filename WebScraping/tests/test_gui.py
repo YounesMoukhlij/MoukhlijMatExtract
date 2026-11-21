@@ -75,6 +75,26 @@ class WindowTests(WindowTest):
         web.stop_event.clear()
         web._working = False
 
+    def test_a_step_starts_with_its_estimate_in_dark_yellow_and_is_followed(self):
+        from LocalExtraction.gui import progress
+        web = self.app.panel
+        tracker = web._track("2 · Search", [("keywords", "Searching the keywords", "searches"),
+                                            ("screen", "Scoring the papers against the topic", "papers")],
+                             {"keywords": 40}, "Searching with 10 saved DOIs and 20 saved keywords")
+        self.assertIn("Searching with 10 saved DOIs and 20 saved keywords · estimated", web.status.get())
+        self.assertIn("done around", web.status.get())
+        self.assertEqual(str(web.status_label.cget("foreground")), progress.gold(self.root))
+        web._working = True
+        web.stop_event.clear()
+        web._search_progress("keywords", 3, 40, "OpenAlex: “garnet”", 7)
+        self.assertTrue(web.status.get().startswith("Searching the keywords — 3 of 40 searches · OpenAlex: “garnet”"))
+        self.assertIn("new papers: 7", web.status.get())
+        self.assertEqual(tracker.phases["keywords"].done, 3)
+        web._working = False
+        web._finished([])
+        self.assertEqual(tracker.outcome, "done")
+        self.assertNotEqual(str(web.status_label.cget("foreground")), progress.gold(self.root))
+
     def test_fetch_dois_shows_how_far_it_is(self):
         from LocalExtraction.gui.progress_text import Pace
         web = self.app.panel

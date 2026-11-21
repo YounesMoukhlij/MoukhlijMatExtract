@@ -10,6 +10,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING, List, Optional
 
+from .progress import Tracker, details_button, style_running
 from .progress_text import Pace
 from .. import outputs
 from .. import runcontrol
@@ -79,8 +80,12 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         outputs.register("local", self.running, "an extraction is running")
         self.progress = ttk.Progressbar(buttons, mode="determinate", length=150)
         self.progress.pack(side="right", padx=(8, 0))
+        # The extraction followed in a window of its own: its PDFs one by one, when, the time left.
+        self.tracker: Optional[Tracker] = None
+        details_button(buttons, lambda: self.tracker, "Local extraction").pack(side="right", padx=(8, 0))
         self.status = tk.StringVar(value="Idle.")
-        WrapLabel(buttons, textvariable=self.status, wraplength=220).pack(side="left", fill="x", expand=True, padx=8)
+        self.status_label = WrapLabel(buttons, textvariable=self.status, wraplength=220)  # dark yellow while it runs
+        self.status_label.pack(side="left", fill="x", expand=True, padx=8)
         ttk.Frame(host, height=6).pack(fill="x")
 
         self.book = ttk.Notebook(self)
@@ -124,8 +129,19 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         self.delete_button.configure(state="disabled")
         self.evaluate_button.configure(state="disabled")
         self.progress.configure(maximum=max(self._total, 1), value=0)
-        self.status.set(f"Reading {self._total} new PDF(s) …" if self._total else "Nothing new in this folder.")
         self._pace = Pace()  # the time left, once a few PDFs set the pace
+        self._step_failed = False
+        self.tracker = Tracker("local", "Local extraction", [("extract", "Extracting the PDFs", "PDFs")],
+                               controls={"pause": self.toggle_pause, "stop": self.stop,
+                                         "paused": lambda: bool(getattr(self.stop_event, "paused", False))})
+        self.tracker.start({"extract": self._total})
+        self.status.set(self.tracker.start_text(f"Reading {self._total} new PDF(s)") if self._total
+                        else "Nothing new in this folder.")
+        style_running(self.status_label, bool(self._total))
+        from .single import existing
+        open_one = existing("progress:Local extraction")
+        if open_one is not None:  # an open details window follows the new extraction
+            open_one.follow(self.tracker)
         self.activity.write(f"--- Extraction of {folder} into {output}: {self._total} new PDF(s)")
         self.book.select(self.activity)
         self._working = True
@@ -147,6 +163,7 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         except runcontrol.StepStopped:
             self.app.post(self.activity.write, "Stopped — what was finished is saved.")
         except Exception as error:  # the window must survive a failed run
+            self._step_failed = True
             logging.getLogger(__name__).exception("The local extraction failed")
             self.app.post(self.activity.write, f"The extraction failed: {type(error).__name__}: {error}")
         finally:
@@ -156,8 +173,12 @@ class LocalPanel(Pausable, ttk.LabelFrame):
     def _paper_done(self, filename: str, paper: Optional[PaperData]) -> None:
         self._done += 1
         self.progress.configure(value=self._done)
-        self.show_status(f"Extracting — {self._done:,} of {self._total:,} PDFs · {filename}"
-                         + self._pace.left("extract", self._done, self._total))
+        if self.tracker is not None:
+            self.tracker.update("extract", self._done, self._total, filename)
+            self.show_status(self.tracker.line())
+        else:
+            self.show_status(f"Extracting — {self._done:,} of {self._total:,} PDFs · {filename}"
+                             + self._pace.left("extract", self._done, self._total))
         if paper is None:
             self._failed += 1
             self.activity.write(f"[FAILED] {filename}")
@@ -176,6 +197,10 @@ class LocalPanel(Pausable, ttk.LabelFrame):
             self.app.database_changed()
 
     def _finished(self) -> None:
+        if self.tracker is not None and self.tracker.ended is None:
+            self.tracker.finish("failed" if getattr(self, "_step_failed", False) else
+                                "stopped" if self.stop_event.is_set() else "done")
+        style_running(self.status_label, False)
         theme.unmark(self.start_button)
         self.start_button.configure(state="normal")
         self.stop_button.configure(state="disabled")

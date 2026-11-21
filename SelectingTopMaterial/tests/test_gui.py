@@ -178,10 +178,15 @@ class WindowTests(unittest.TestCase):
     def test_while_it_ranks_it_says_so_and_a_failed_ranking_says_it_failed(self):
         with mock.patch.object(gui, "select_from_each", side_effect=RuntimeError("the database is unreadable")):
             self.app.rank(write=False)
-            self.assertEqual(self.app.summary.get(), "Reading the databases and ranking the materials …")
+            said = self.app.summary.get()
+            self.assertTrue(said.startswith("Reading the databases and ranking the materials · estimated "), said)
+            self.assertIn("done around", said)  # its estimate, from the ranking made when the window opened
+            from LocalExtraction.gui.progress import gold
+            self.assertEqual(str(self.app.summary_label.cget("foreground")), gold(self.root))  # dark yellow
             self.assertTrue(self.app.rank_progress.winfo_manager())  # the bar, beside Rank
             self.assertTrue(self.app.wait_ranked())
         self.assertFalse(self.app.rank_progress.winfo_manager())
+        self.assertEqual(self.app.tracker.outcome, "failed")
         said = self.app.summary.get()
         self.assertNotIn("Reading the databases", said)  # not the step it was at
         self.assertIn("The ranking failed", said)

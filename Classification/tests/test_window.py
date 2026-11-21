@@ -154,7 +154,7 @@ class ComponentTests(unittest.TestCase):
     def test_the_classification_says_how_far_it_is(self):
         from Classification.gui import run
         said = []
-        result = run([self.database], Path(tempfile.mkdtemp()) / "classes", progress=lambda f, text: said.append((f, text)))
+        result = run([self.database], Path(tempfile.mkdtemp()) / "classes", progress=lambda f, text, *rest: said.append((f, text)))
         self.assertFalse(result.error)
         fractions = [f for f, _ in said]
         self.assertEqual(fractions, sorted(fractions))                     # it only goes forward

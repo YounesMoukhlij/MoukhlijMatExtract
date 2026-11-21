@@ -96,8 +96,18 @@ class WindowTests(unittest.TestCase):
         holder.attributes("-alpha", 0.0)
         hub.build(holder)
         self.assertIn("Make commands", holder._mme_make.cget("text"))
-        window = holder._mme_make.open()
+        # The window of setUp is open: the button brings it back (one copy of each window) and says so.
+        from unittest import mock
+        with mock.patch("tkinter.messagebox.showinfo") as said:
+            window = holder._mme_make.open()
+        self.assertIs(window, self.win)
+        self.assertIn("already open", said.call_args[0][1])
+        self.win.destroy()
+        self.root.update()
+        window = holder._mme_make.open()  # closed: the button opens a new one
+        window.attributes("-alpha", 0.0)
         self.assertEqual(window.title(), "MoukhlijMatExtract · Make commands")
+        self.assertIsNot(window, self.win)
 
 
 if __name__ == "__main__":
