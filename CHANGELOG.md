@@ -8,6 +8,14 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **“Add MoukhlijMatExtract to the Dock?”** (macOS): when the main window opens and the program is not in the Dock,
+  a small window offers to put it there, so it starts with one click.
+  - **Add to the Dock** makes `~/Applications/MoukhlijMatExtract.app` if it is missing, adds it to the end of the
+    Dock (once) and restarts the Dock so it shows at once.
+  - **Not now** asks again next time; **Don't ask again** is remembered. `mme-gui --install-app` / `make app` still
+    make the app, to drag to the Dock by hand.
+  - It waits until any other question of the main window has been answered, and is never shown on Windows or Linux.
+
 - **Real progress in every window that runs a long step**: a filled progress bar and a line that says what it is
   doing, how many of how many, and the time left once a few items set the pace.
   - **Web scraping, “2 · Search”**: in place of “Searching with 2,540 saved DOIs and 532 saved keywords …”, each phase

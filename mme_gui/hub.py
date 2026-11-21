@@ -86,8 +86,9 @@ opening a part makes it too. Every table names its articles (a title column).
 • The blue “Manual” button beside it lists every command, with all its options, to run each part
   from a terminal (mme-local, mme-web, mme-rank, …) — and the make shortcuts.
 • Web scraping fetches legal open-access copies only, and follows each site's robots.txt.
-• macOS: run  mme-gui --install-app  once, then open MoukhlijMatExtract from Applications (or the Dock):
-  the Dock then shows the program's own name and icon, not “python”.
+• macOS: when the main window opens, it offers to add MoukhlijMatExtract to the Dock (one click to start it, with
+  its own name and icon). Declined? mme-gui --install-app makes the app, to open from Applications or drag to
+  the Dock.
 • “‹ Back to the main window”, at the top left of each window (⌘[ on macOS, Alt+← elsewhere), brings you
   back here; while a step runs it asks first, and keeps what the step has finished.
 • The website shows how to use the program step by step and gives an overview of the project:
@@ -716,6 +717,9 @@ def main(argv=None) -> None:
     build(root)
     root.after(300, lambda: announce_website(root))  # the website: how to use it, an overview (7 s, or its ✕)
     root.after(600, lambda: warn_if_missing(root))  # the folder or its job files missing: said, and offered to be made
+    from . import dock  # macOS: not in the Dock yet? offered, once the other questions are answered
+    if dock.should_offer():
+        dock.offer(root, delay_ms=2500)
     warm_up()
     from LocalExtraction.crashlog import run
     run(root)  # the loop, then the window closed cleanly
