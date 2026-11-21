@@ -74,3 +74,28 @@ def _same_working_folder():
     folder = os.getcwd()
     yield
     os.chdir(folder)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_dialog(monkeypatch):
+    """A test never waits on a real message box or file dialog, which no one is there to answer: one it opens without
+    stubbing fails at once, saying which (a test that expects one patches it, as before)."""
+    try:
+        from tkinter import filedialog, messagebox, simpledialog
+    except ImportError:  # no Tk
+        yield
+        return
+
+    def refused(kind):
+        def dialog(*args, **kwargs):
+            said = [str(a) for a in args[:2]] + [str(kwargs.get(k)) for k in ("title", "message") if kwargs.get(k)]
+            raise AssertionError(f"the test opened a real {kind} ({' / '.join(said)[:200]}): patch it in the test")
+        return dialog
+    for name in ("showinfo", "showwarning", "showerror", "askyesno", "askokcancel", "askyesnocancel", "askquestion",
+                 "askretrycancel"):
+        monkeypatch.setattr(messagebox, name, refused(f"message box ({name})"))
+    for name in ("askstring", "askinteger", "askfloat"):
+        monkeypatch.setattr(simpledialog, name, refused(f"question ({name})"))
+    for name in ("askopenfilename", "asksaveasfilename", "askdirectory", "askopenfilenames"):
+        monkeypatch.setattr(filedialog, name, refused(f"file dialog ({name})"))
+    yield

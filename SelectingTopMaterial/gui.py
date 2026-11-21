@@ -220,6 +220,9 @@ class App:
         self.rank_button.pack(side="left")
         # How far a ranking is (shown while it runs): reading and ranking, writing the files, Materials Project.
         self.rank_progress = ttk.Progressbar(actions, mode="indeterminate", length=140, maximum=1000)
+        from LocalExtraction.gui.progress import details_button
+        self.tracker = None  # the ranking followed in “⏱ Progress details”
+        details_button(actions, lambda: self.tracker, "Ranking").pack(side="right", padx=(8, 0))
         self.write_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(actions, text="and write the files into", variable=self.write_var).pack(side="left", padx=(10, 4))
         self.out_var = tk.StringVar(value=str(out_dir))
@@ -456,13 +459,26 @@ class App:
         self._ranking = True
         self.root.configure(cursor="watch")
         self.rank_button.configure(state="disabled")
-        steps: list = []  # (how far — None while it cannot be counted —, what it does), said by the working thread
+        steps: list = []  # (phase, done, total, what it does), said by the working thread
         self.rank_progress.configure(mode="indeterminate", value=0)
         self.rank_progress.pack(side="left", padx=(8, 0), after=self.rank_button)
         self.rank_progress.start(12)
-        self.summary.set("Reading the databases and ranking the materials …")
-        from LocalExtraction.gui.progress_text import Pace
-        pace = Pace()
+        from LocalExtraction.gui.progress import Tracker, style_running
+        will_write = self.write_var.get() if write is None else write
+        phases = [("rank", "Reading the databases and ranking", "")]
+        if will_write:
+            phases.append(("rank-write", "Writing the files (CSV, workbook, report)", ""))
+        if self.mp_var.get() and will_write and self.mp_key_var.get().strip():
+            phases.append(("mp", "Materials Project entries", "compositions"))
+        tracker = self.tracker = Tracker("rank", "Ranking · Rank", phases)
+        tracker.start()
+        tracker.update("rank", 0, 0)
+        self.summary.set(tracker.start_text("Reading the databases and ranking the materials"))
+        style_running(self.summary_label, True)
+        from LocalExtraction.gui.single import existing
+        open_one = existing("progress:Ranking")
+        if open_one is not None:
+            open_one.follow(tracker)
         folders, policy, by_phase = [folder for folder, _ in ticked], self.policy_var.get(), self.by_phase_var.get()
         # The Materials Project entries too, when ticked: with the key typed (saved or not).
         mp_key = self.mp_key_var.get().strip() if self.mp_var.get() and write else ""
@@ -483,7 +499,7 @@ class App:
                                               by_phase=by_phase, filters=filters)
                 written_by, problem, entries = {}, "", None
                 if write and any(s.materials for s in selections.values()):
-                    steps.append((None, "Writing the files of the ranking (CSV, workbook, report) …"))
+                    steps.append(("rank-write", 0, 0, ""))
                     try:
                         written_by = write_rankings(selections, out_dir, FORMATS, top)
                         record_ranking(out_dir, ranking_stamp(folders, settings), run, selections, written_by)
@@ -493,9 +509,7 @@ class App:
                         from . import materials_project
                         entries = materials_project.link(
                             selections, out_dir, key=mp_key,
-                            progress=lambda done, total, name: steps.append(
-                                (done / max(total, 1), f"Materials Project — composition {done + 1:,} of {total:,}: "
-                                                       f"{name}" + pace.left("mp", done, total))))
+                            progress=lambda done, total, name: steps.append(("mp", done, total, name)))
                 done.append((selections, written_by, problem, entries))
             except Exception as error:  # said in the window, never lost on the thread
                 logging.getLogger(__name__).exception("The ranking failed")
@@ -504,14 +518,15 @@ class App:
         def finish() -> None:
             if not done:
                 if steps:
-                    fraction, text = steps[-1]
+                    phase, step_done, total, name = steps[-1]
                     try:
-                        if fraction is not None and str(self.rank_progress.cget("mode")) != "determinate":
+                        if total and str(self.rank_progress.cget("mode")) != "determinate":
                             self.rank_progress.stop()
                             self.rank_progress.configure(mode="determinate")
-                        if fraction is not None:
-                            self.rank_progress.configure(value=int(fraction * 1000))
-                        self.summary.set(text)
+                        if total:
+                            self.rank_progress.configure(value=int(1000 * step_done / total))
+                        tracker.update(phase, step_done, total, name)
+                        self.summary.set(tracker.line())
                     except tk.TclError:
                         return  # the window was closed meanwhile
                 self.root.after(50, finish)
@@ -519,6 +534,8 @@ class App:
             self._ranking = False
             self.rank_progress.stop()
             self.rank_progress.pack_forget()
+            tracker.finish("done" if done[0][0] is not None and not done[0][2] else "failed")
+            style_running(self.summary_label, False)
             self.root.configure(cursor="")
             self.rank_button.configure(state="normal")
             selections, written_by, problem, entries = done[0]

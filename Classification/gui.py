@@ -66,19 +66,19 @@ class Result:
 
 def run(folders: Sequence[Path], out_dir: Path | None, progress=None) -> Result:
     """Reads the databases, classifies their materials and — given a folder — writes the classes. `progress`
-    (optional) gets (how far, 0 to 1; what it does now), at each step and for each family of the classification by
-    property, the longest step."""
-    def say(fraction: float, text: str) -> None:
+    (optional) gets (how far, 0 to 1; what it does now; the phase — read, classify, write, by_property —; how many of
+    how many in it), at each step and for each family of the classification by property, the longest step."""
+    def say(fraction: float, text: str, phase: str = "", done: int = 0, total: int = 0) -> None:
         if progress is not None:
             try:
-                progress(min(max(fraction, 0.0), 1.0), text)
+                progress(min(max(fraction, 0.0), 1.0), text, phase, done, total)
             except Exception:  # what shows the progress never stops the classification
                 pass
     steps = 4 if out_dir is not None else 2
     sources = []
     for index, folder in enumerate(folders):
         say(0.10 * index / max(len(folders), 1), f"Step 1 of {steps} · reading the databases — {index + 1} of "
-                                                  f"{len(folders)}: {Path(folder).name}")
+                                                  f"{len(folders)}: {Path(folder).name}", "read", index, len(folders))
         source = read(Path(folder))
         if source is not None:
             sources.append(source)
@@ -89,16 +89,17 @@ def run(folders: Sequence[Path], out_dir: Path | None, progress=None) -> Result:
         return Result(error=f"{out_dir} is a database it reads: choose another folder to write the classes into.")
     from .cli import classify_run, record_classes  # recorded as the command records it
     record = classify_run(sources, out_dir) if out_dir is not None else None
-    say(0.10, f"Step 2 of {steps} · classifying the materials by crystal family and chemical family …")
+    say(0.10, f"Step 2 of {steps} · classifying the materials by crystal family and chemical family …", "classify")
     classified = classify(sources)
     result = Result(sources, classified, energies_of(classified), conductivities_of(classified))
     if out_dir is not None:
-        say(0.35, f"Step 3 of {steps} · writing one database per class …")
+        say(0.35, f"Step 3 of {steps} · writing one database per class …", "write")
         write(classified, out_dir)
         from .branches import write_all  # every family ▸ property ▸ type ▸ origin, one table each
         write_all(out_dir, progress=lambda done, total, name: say(
             0.50 + 0.50 * done / max(total, 1),
-            f"Step 4 of {steps} · classification by property — family {min(done + 1, total)} of {total}: {name}"))
+            f"Step 4 of {steps} · classification by property — family {min(done + 1, total)} of {total}: {name}",
+            "by_property", done, total))
         record_classes(out_dir, sources, record, classified)
         result.written = out_dir
     return result
@@ -311,6 +312,9 @@ class App:
         # How far a classification is: shown while it runs, beside what it is doing.
         self.progress = ttk.Progressbar(status_row, mode="determinate", maximum=1000, length=180)
         self.status = WrapLabel(status_row, text="", foreground="#8c8c8c", wraplength=1200)
+        from LocalExtraction.gui.progress import Tracker, details_button
+        self.tracker: Tracker | None = None  # the classification followed in “⏱ Progress details”
+        details_button(status_row, lambda: self.tracker, "Classification").pack(side="right", padx=(10, 0))
         self.status.pack(side="left", fill="x", expand=True)
         self._steps: queue.Queue = queue.Queue()
 
@@ -450,15 +454,28 @@ class App:
         self.card.hide()
         self._started = time.time()
 
+        from LocalExtraction.gui.progress import Tracker, style_running
         from LocalExtraction.gui.progress_text import Pace
         self._pace = Pace()
+        phases = [("read", "Reading the databases", "databases"), ("classify", "Classifying the materials", "")]
+        if out_dir is not None:
+            phases += [("write", "Writing one database per class", ""),
+                       ("by_property", "Classification by property", "families")]
+        self.tracker = Tracker("classify", "Classification · ▶ Classify everything", phases)
+        self.tracker.start({"read": len(folders)})
+        self.status.configure(text=self.tracker.start_text(self.status.cget("text").rstrip(" …")))
+        style_running(self.status, True)
+        from LocalExtraction.gui.single import existing
+        open_one = existing("progress:Classification")
+        if open_one is not None:
+            open_one.follow(self.tracker)
         self.progress.configure(value=0)
         self.progress.pack(side="right", padx=(10, 0), before=self.status)
         steps = self._steps
 
         def work() -> None:
             try:
-                self._queue.put(run(folders, out_dir, progress=lambda fraction, text: steps.put((fraction, text))))
+                self._queue.put(run(folders, out_dir, progress=lambda *said: steps.put(said)))
             except Exception as error:  # the window must survive a failed run
                 self._queue.put(Result(error=f"The classification failed: {type(error).__name__}: {error}"))
 
@@ -473,9 +490,16 @@ class App:
             except queue.Empty:
                 break
         if latest is not None:
-            fraction, text = latest
+            fraction, text, phase, done, total = latest
             self.progress.configure(value=int(fraction * 1000))
-            self.status.configure(text=text + self._pace.left("classify", int(fraction * 1000), 1000))
+            tracker = self.tracker
+            if tracker is not None and phase in tracker.phases:
+                step = [key for key, _, _ in tracker.phases_spec].index(phase) + 1
+                detail = text.rsplit(": ", 1)[1] if ": " in text and phase in ("read", "by_property") else ""
+                tracker.update(phase, done, total, detail)
+                self.status.configure(text=f"Step {step} of {len(tracker.phases_spec)} · " + tracker.line())
+            else:
+                self.status.configure(text=text + self._pace.left("classify", int(fraction * 1000), 1000))
         try:
             result = self._queue.get_nowait()
         except queue.Empty:
@@ -483,6 +507,10 @@ class App:
             return
         self._busy = False
         self.progress.pack_forget()
+        from LocalExtraction.gui.progress import style_running
+        if self.tracker is not None and self.tracker.ended is None:
+            self.tracker.finish("failed" if result.error else "done")
+        style_running(self.status, False, rest="#8c8c8c")
         from LocalExtraction.gui import theme
         theme.unmark(self.classify_button)
         self.classify_button.configure(state="normal", style="Next.TButton")  # the one button stays the one to press

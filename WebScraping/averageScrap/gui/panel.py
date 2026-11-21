@@ -23,6 +23,7 @@ from LocalExtraction.gui.result_card import BAD, FAILED as CARD_FAILED, GOOD, GR
 from LocalExtraction.gui.results import EnergiesView, pending_pdfs
 from LocalExtraction.gui.summary import final_summary, summarize_paper
 from LocalExtraction.gui import theme
+from LocalExtraction.gui.progress import Tracker, details_button, style_running
 from LocalExtraction.gui.progress_text import Pace
 from LocalExtraction.gui.widgets import FolderRow, LogPane, Pausable, Row, Stopped, Table, WrapLabel, open_path
 from LocalExtraction.models import PaperData
@@ -245,8 +246,12 @@ class WebPanel(Pausable, ttk.LabelFrame):
         progress.pack(fill="x", pady=(8, 6))
         self.progress = ttk.Progressbar(progress, mode="determinate", length=170)
         self.progress.pack(side="right", padx=(8, 0))
+        # The whole step followed in a window of its own: its phases, what is searched or fetched when, the time left.
+        self.tracker: Optional[Tracker] = None
+        details_button(progress, lambda: self.tracker, "Web scraping").pack(side="right", padx=(8, 0))
         self.status = tk.StringVar()
-        WrapLabel(progress, textvariable=self.status).pack(side="left", fill="x", expand=True)
+        self.status_label = WrapLabel(progress, textvariable=self.status)  # dark yellow while a step runs
+        self.status_label.pack(side="left", fill="x", expand=True)
         # What the download says of the papers a busy service refused ("too many requests"): they are tried again
         # at the end, one after another and spaced. Shown under the status while it holds, until the next step.
         self.notice = tk.StringVar()
@@ -611,6 +616,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
             except runcontrol.StepStopped:
                 self.app.post(self.activity.write, "Stopped — what was finished is kept.")
             except Exception as error:  # the window must survive a failed step
+                self._step_failed = True
                 logging.getLogger(__name__).exception("A step of the web scraping failed")
                 self.app.post(self.activity.write, f"This step failed: {type(error).__name__}: {error}")
                 self.app.post(self.card.show, Card("This step failed", CARD_FAILED, f"{type(error).__name__}: {error}",
@@ -630,12 +636,17 @@ class WebPanel(Pausable, ttk.LabelFrame):
                 self.app.post(self._finished, papers)
 
         self._working = True
+        self._step_failed = False
         self._papers_read = None  # the list of papers a step already read for its card (handed on to the table)
         self._thread = threading.Thread(target=guarded, daemon=True)
         self._thread.start()
         self._buttons()
 
     def _finished(self, papers: Optional[List[Candidate]] = None) -> None:
+        if self.tracker is not None and self.tracker.ended is None:
+            self.tracker.finish("failed" if getattr(self, "_step_failed", False) else
+                                "stopped" if self.stop_event.is_set() else "done")
+        style_running(self.status_label, False)
         self.progress.stop()
         self.progress.configure(mode="determinate", value=0)
         for button in self._steps():
@@ -682,6 +693,15 @@ class WebPanel(Pausable, ttk.LabelFrame):
         if self._chain_download:
             self.activity.write("--- Then the papers proposed are downloaded"
                                 + (", then extracted." if self.then_extract.get() else "."))
+        phases = [("keywords", "Searching the keywords", "searches"),
+                  ("records", "Completing the new papers' records (OpenAlex)", "papers"),
+                  ("abstracts", "Looking for the missing abstracts", "papers")]
+        if s.snowball:
+            phases.append(("snowball", "Snowballing", "papers kept"))
+        phases.append(("screen", "Scoring the papers against the topic", "papers"))
+        self._track("2 · Search", phases, {"keywords": len(s.queries) * len(s.sources)},
+                    f"Searching with {saved:,} saved DOIs and {len(s.queries)} saved keywords" if saved else
+                    f"Searching with the {len(s.queries)} saved keywords only (no DOI saved)")
         self._run(self._search_work, harvest, self.job_file.get())
 
     def _search_work(self, harvest: Harvest, job_path: str) -> None:
@@ -692,6 +712,21 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self._papers_read = harvest.ledger.all()  # read here, once: the card and the table use it
         self.app.post(self._searched, added, self._papers_read)
 
+    def _track(self, title: str, phases, totals, what: str) -> Tracker:
+        """A step followed from its start: its estimate in the line (dark yellow until it ends), and the details window
+        on it."""
+        self.tracker = Tracker("web", f"Web scraping · {title}", phases,
+                               controls={"pause": self.toggle_pause, "stop": self.stop,
+                                         "paused": lambda: bool(getattr(self.stop_event, "paused", False))})
+        self.tracker.start(totals)
+        self.status.set(self.tracker.start_text(what))
+        style_running(self.status_label, True)
+        from LocalExtraction.gui.single import existing  # an open details window follows the new step
+        open_one = existing("progress:Web scraping")
+        if open_one is not None:
+            open_one.follow(self.tracker)
+        return self.tracker
+
     def _search_progress(self, phase: str, done: int, total: int, detail: str, new: int) -> None:
         """How far the search is, in the status line and the progress bar: the phase, how many of how many, what it
         is asking now, the new papers so far, the time left."""
@@ -700,12 +735,17 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.progress.stop()
         self.progress.configure(mode="determinate", maximum=total, value=min(done, total))
         title, things = _SEARCH_PHASES[phase]
+        tracker = self.tracker
+        if tracker is not None and phase in tracker.phases:
+            tracker.update(phase, done, total, detail, {"new papers": new} if phase in ("keywords", "snowball") else None)
+            self.show_status(tracker.line())  # (a pause or a lost network stays said)
+            return
         text = f"{title} — {done:,} of {total:,} {things}"
         if detail:
             text += f" · {detail}"
         if phase in ("keywords", "snowball"):
             text += f" · {new:,} new paper{'' if new == 1 else 's'} so far"
-        self.show_status(text + self._pace.left(phase, done, total))  # (a pause or a lost network stays said)
+        self.show_status(text + self._pace.left(phase, done, total))
 
     def _show_step(self, step: Optional[str], done: bool = True) -> None:
         """The step of the search under way (▶, blue) and those done before it (✓, green); `step` None:
@@ -790,6 +830,8 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.progress.configure(mode="indeterminate")
         self.progress.start(12)
         self.activity.write(f"--- Re-screen of {waiting:,} paper(s) with the settings of {self.job_file.get()}")
+        self._track("Re-screen", [("screen", "Scoring the papers again", "papers")], {"screen": waiting},
+                    f"Re-screening {waiting:,} paper(s)")
         self._run(self._rescreen_work, harvest)
 
     def _rescreen_work(self, harvest: Harvest) -> None:
@@ -854,11 +896,18 @@ class WebPanel(Pausable, ttk.LabelFrame):
         arXiv; the DOIs they give are saved in the DOI list, which "2 · Search" then searches with."""
         if self.job is None or self.running() or not self._home_ok("Fetch DOIs"):
             return
+        from LocalExtraction.gui.progress import Timings
+        from LocalExtraction.gui.progress_text import duration
+        searches = len(self.job.search.queries)
+        pace, measured = Timings().seconds("dois")
+        estimate = (f"\n\nTime: about {duration(pace * searches)} for the {searches:,} keywords of the job "
+                    f"({'from your earlier runs' if measured else 'a first guess, made better by each run'}); "
+                    "a number of DOIs asked for can end it sooner.") if searches else ""
         answer = simpledialog.askstring(
             "MoukhlijMatExtract · Fetch DOIs",
             "How many NEW DOIs should be added to the list?\n\nLeave it empty for no limit: the search goes on "
             "until you press Stop (every DOI found is kept). They come from OpenAlex, Crossref, Semantic Scholar "
-            "and arXiv, for the searches of the job file.", initialvalue=self._last_count, parent=self)
+            "and arXiv, for the searches of the job file." + estimate, initialvalue=self._last_count, parent=self)
         if answer is None:
             return
         answer = answer.strip()
@@ -876,6 +925,8 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.activity.write("--- Fetch DOIs" + (f": {count:,} new" if count else ": no limit (until Stop)"))
         self.book.select(self.activity)
         self._current(self.fetch_dois_button)
+        self._track("1 · Fetch DOIs", [("dois", "Fetch DOIs", "searches")], {"dois": searches},
+                    f"Fetching {count:,} new DOIs" if count else "Fetching DOIs with no limit — Stop ends it")
         self._run(self._fetch_dois_work, harvest, count, self.job_file.get())
 
     def _fetch_dois_work(self, harvest: Harvest, count: Optional[int], job_path: str) -> None:
@@ -908,6 +959,10 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.progress.stop()
         self.progress.configure(mode="determinate", maximum=total_n, value=min(done_n, total_n))
         # (`so_far` is Fetch DOIs' own: “230”, or “230 of 500” when a number of DOIs was asked for)
+        if self.tracker is not None and "dois" in self.tracker.phases:
+            self.tracker.update("dois", done_n, total_n, "", {"new DOIs so far": so_far})
+            self.show_status(self.tracker.line().replace("Fetch DOIs — ", "Fetch DOIs — search ", 1))
+            return
         self.show_status(f"Fetch DOIs — search {done_n:,} of {total_n:,} · new DOIs so far: {so_far}"
                          + self._pace.left("dois", done_n, total_n))
 
@@ -968,6 +1023,10 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.activity.write(f"--- Download of {what} into {self.job.fetch.folder}")
         self.book.select(self.activity)
         self._current(self.download_button)
+        phases = [("download", "Downloading the legal copies", "papers")]
+        if then_extract:
+            phases.append(("extract", "Extracting the PDFs", "PDFs"))
+        self._track("3 · Download", phases, {"download": self._total}, f"Downloading {what}")
         self._run(self._download_work, harvest, limit, then_extract, self.output.get(), self.app.workers())
 
     def _download_work(self, harvest: Harvest, limit: Optional[int], then_extract: bool, output: str, workers: int) -> None:
@@ -1056,7 +1115,13 @@ class WebPanel(Pausable, ttk.LabelFrame):
 
     def _paper_fetched(self, key: str, outcome: Outcome, done: int, total: int) -> None:
         self.progress.configure(maximum=max(total, 1), value=done)
-        self.show_status(f"Downloading — {done:,} of {total:,} papers" + self._pace.left("download", done, total))
+        if self.tracker is not None and "download" in self.tracker.phases:
+            got = "downloaded" if outcome.status == DOWNLOADED else outcome.status
+            self.tracker.update("download", done, total, f"{key}: {got}" + (f" via {outcome.service}" if
+                                                                           outcome.service and got == "downloaded" else ""))
+            self.show_status(self.tracker.line())
+        else:
+            self.show_status(f"Downloading — {done:,} of {total:,} papers" + self._pace.left("download", done, total))
         refused = bool(outcome.refused) and outcome.status != DOWNLOADED
         # The line of the paper is the engine's own ("[3/40] downloaded: … via osti"), shown in the Activity tab.
         candidate = self.harvest.ledger.get(key) if self.harvest is not None else None
@@ -1122,6 +1187,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
             return
         self.book.select(self.activity)
         self._current(self.extract_button)
+        self._track("4 · Extract", [("extract", "Extracting the PDFs", "PDFs")], {}, "Extracting the downloaded PDFs")
         self._run(self._extract_work, self._harvest(), self.output.get(), self.app.workers())
 
     def _extract_work(self, harvest: Harvest, output: str, workers: int) -> None:
@@ -1136,6 +1202,8 @@ class WebPanel(Pausable, ttk.LabelFrame):
 
     def _extraction_started(self, total: int, folder: str, output: str) -> None:
         self._total, self._done, self._papers, self._failed = total, 0, [], 0
+        if self.tracker is not None and "extract" in self.tracker.phases:
+            self.tracker.update("extract", 0, total)
         self.progress.configure(mode="determinate", maximum=max(total, 1), value=0)
         self.status.set(f"Extracting {total} downloaded article(s) …" if total else "Every downloaded article is in the database already.")
         self.activity.write(f"--- Extraction of {folder} into {output}: {total} new PDF(s)")
@@ -1143,8 +1211,12 @@ class WebPanel(Pausable, ttk.LabelFrame):
     def _paper_extracted(self, filename: str, paper: Optional[PaperData]) -> None:
         self._done += 1
         self.progress.configure(value=self._done)
-        self.show_status(f"Extracting — {self._done:,} of {self._total:,} PDFs · {filename}"
-                         + self._pace.left("extract", self._done, self._total))
+        if self.tracker is not None and "extract" in self.tracker.phases:
+            self.tracker.update("extract", self._done, self._total, filename)
+            self.show_status(self.tracker.line())
+        else:
+            self.show_status(f"Extracting — {self._done:,} of {self._total:,} PDFs · {filename}"
+                             + self._pace.left("extract", self._done, self._total))
         if paper is None:
             self._failed += 1
             self.activity.write(f"[FAILED] {filename}")
