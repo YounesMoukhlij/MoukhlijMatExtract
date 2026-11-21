@@ -493,6 +493,15 @@ class FlowDiagram:
         return self.edges_of.get(target, self.c["line"])
 
 
+def ink_on(colour: str) -> str:
+    """White or near-black, whichever reads better on this background (WCAG contrast)."""
+    colour = colour.lstrip("#")
+    channels = [int(colour[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    linear = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    light = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+    return "#ffffff" if (1.05 / (light + 0.05)) >= ((light + 0.05) / 0.05) else "#0b0b0b"
+
+
 def _short(text: str, limit: int = 58) -> str:
     first = text.split(":")[0].split(" — ")[0].split(", ")[0].rstrip(".")
     return first if len(first) <= limit else first[: limit - 1].rstrip() + "…"
@@ -541,7 +550,7 @@ def open_make_guide(parent) -> "object":
     panel.pack(side="right", fill="y")
     panel.pack_propagate(False)
     stage_line = tk.Label(panel, text="How to read the diagram", font=("TkDefaultFont", 10, "bold"),
-                          fg="white", background=colours["accent"], padx=8, pady=2)
+                          fg=ink_on(colours["accent"]), background=colours["accent"], padx=8, pady=2)
     stage_line.pack(anchor="w")
     title = ttk.Label(panel, text="", font=mono(15, "bold"))
     title.pack(anchor="w", pady=(10, 4))
@@ -570,7 +579,8 @@ def open_make_guide(parent) -> "object":
     def show(target: str) -> None:
         command = BY_TARGET[target]
         stage_title, _, light, darker = STAGE[command.stage]
-        stage_line.configure(text=stage_title, background=darker if dark else light)
+        badge = darker if dark else light
+        stage_line.configure(text=stage_title, background=badge, foreground=ink_on(badge))
         title.configure(text=f"make {target}")
         intro.pack_forget()
         for key, (head, body) in sections.items():

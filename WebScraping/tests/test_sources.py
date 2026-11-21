@@ -505,6 +505,34 @@ class DiscoveryTests(unittest.TestCase):
         self.assertIn("[ok] Scopus: the key works", printed)
         self.assertIn("[!!] Scopus abstracts: HTTP 401 (only on your university's network, or with ELSEVIER_INSTTOKEN)", printed)
 
+    def test_the_search_says_how_far_it_is(self):
+        """Each keyword asked of each source is reported — (phase, done, total, what, new papers so far) — up to the
+        end, which the window shows as its progress bar and status line."""
+        record = {"bibjson": {"title": "Argyrodite electrolytes", "abstract": ABSTRACT, "year": "2024",
+                              "identifier": [{"type": "doi", "id": "10.1/progress"}]}}
+        session = FakeSession([("doaj.org", FakeResponse(200, json_data={"results": [record]}))])
+        harvest = self._watched_harvest(session, ["argyrodite", "garnet", "nasicon"])
+        reports = []
+        harvest.on_progress = lambda *args: reports.append(args)
+        with self.assertLogs(level="INFO"):
+            harvest.discover()
+        keywords = [r for r in reports if r[0] == "keywords"]
+        self.assertEqual([r[1] for r in keywords][:3], [1, 2, 3])
+        self.assertEqual({r[2] for r in keywords}, {3})              # 3 keywords × 1 source
+        self.assertEqual(keywords[0][3], "doaj: “argyrodite”")
+        self.assertEqual(keywords[-1][1:3], (3, 3))                  # it reaches the end
+        self.assertEqual(keywords[-1][4], 1)                         # one new paper (the same record each time)
+
+    def test_a_progress_display_that_fails_never_stops_the_search(self):
+        session = FakeSession([("doaj.org", FakeResponse(200, json_data={"results": []}))])
+        harvest = self._watched_harvest(session, ["a", "b"])
+
+        def broken(*args):
+            raise RuntimeError("the window is gone")
+        harvest.on_progress = broken
+        with self.assertLogs(level="INFO"):
+            self.assertEqual(harvest.discover(), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

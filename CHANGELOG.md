@@ -8,6 +8,35 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **Real progress in every window that runs a long step**: a filled progress bar and a line that says what it is
+  doing, how many of how many, and the time left once a few items set the pace.
+  - **Web scraping, “2 · Search”**: in place of “Searching with 2,540 saved DOIs and 532 saved keywords …”, each phase
+    in turn. The keywords show the source and keyword asked now and the new papers so far (*Searching the keywords —
+    148 of 2,128 searches · OpenAlex: “LLZO garnet” · 312 new papers so far · about 6 min left*). Then come the
+    OpenAlex records of the new papers, the missing abstracts (with how many were found), snowballing and the
+    scoring.
+  - **Web scraping, “1 · Fetch DOIs”**: the bar fills with the keyword searches (it only moved to and fro). **Re-screen**:
+    the papers scored, of how many.
+  - **Download and extraction** (web and local): *Downloading — 12 of 40 papers · about 3 min left*; *Extracting — 7 of
+    25 PDFs · <file> · about 2 min left*.
+  - **Classification, “▶ Classify everything”**: a bar and its four steps (reading the databases, classifying, writing
+    one database per class, the classification by property family by family).
+  - **Ranking**: a bar beside “Rank” and its steps; the Materials Project entries, composition by composition.
+  - The progress never stops a step: a display that fails is ignored.
+
+### Fixed
+
+- **Ranking window**: its settings were cut off on the right at the size it opens at, not only at its smallest. The
+  two frames side by side need about 1,270 px and the window opened at 1,260 (smallest 1,000), so the hints, the
+  “Verified values only” box and the folder counts ran past the edge. Now the two check boxes are on lines of their
+  own, the counts beside each folder are short (all of them are in the “Rule and data” tab), and the window opens
+  at 1,320 px (smallest 1,280, or what the screen can show).
+- **Web scraping window**: at its smallest size, “Delete outputs…” was squeezed to a sliver (28 of 124 px). A second
+  “☕ Keep the computer awake” switch in the row of the steps took its room; the one in the window's footer stays
+  (the same switch, for every window).
+- **Make commands window**: in dark mode, the badge of the panel had white text on light blue (hard to read); the
+  text is now white or near-black, whichever reads better on the colour.
+
 - **“⚙ Make commands” in the main window**: every `make` command explained, and the flow of the whole project.
   - **Project flow**: a diagram from the setup to the end of every branch. You start with *install → test → demo →
     gui*; then your own PDFs (*local*) or papers from the web (*web-check → doi → web*, later *update* and
