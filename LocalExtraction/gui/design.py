@@ -169,10 +169,11 @@ def _back_pill(band: tk.Frame, window: tk.Misc, colours: dict, compact: bool) ->
 
 
 def header(parent: tk.Misc, title: str, subtitle: str = "", kicker: str = KICKER,
-           version: Optional[str] = None, compact: bool = False, back: bool = True) -> tk.Frame:
+           version: Optional[str] = None, compact: bool = False, back: bool = True, flow: bool = True) -> tk.Frame:
     """The band at the top of a window. Packed here (top, full width); returns the band. `version` None: the
     installed version. `compact`: one line, for a window whose tables need the height. `back`: a window opened from
-    another one gets “‹ Back” at the band's left (“‹ Back to the main window” when opened from it)."""
+    another one gets “‹ Back” at the band's left (“‹ Back to the main window” when opened from it). `flow`: the
+    floating “⇄ Flow” button at the window's bottom right, which opens the process flow from scratch."""
     colours = theme.palette(parent)
     if version is None:
         from ..about import version as installed
@@ -200,6 +201,12 @@ def header(parent: tk.Misc, title: str, subtitle: str = "", kicker: str = KICKER
                  font=("TkDefaultFont", 10, "bold"), padx=8, pady=2).pack(side="right", anchor="n")
     tk.Frame(parent, background=colours["garnet"], height=3).pack(side="top", fill="x")
     band.title_text = title  # what the tests and the hub read back
+    if flow:
+        try:
+            from mme_gui.process_flow import add_flow_button
+            band.flow = add_flow_button(parent.winfo_toplevel(), title)
+        except Exception:  # a button is never worth a window that does not open
+            band.flow = None
     return band
 
 
