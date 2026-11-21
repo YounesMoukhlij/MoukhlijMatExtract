@@ -21,6 +21,9 @@ ROOT = Path(__file__).resolve().parent.parent
 _BLUE = "#1f5f99"
 
 
+from LocalExtraction.gui.single import once
+
+
 class Command(NamedTuple):
     name: str          # how it is typed once installed: mme-local
     module: str        # the python -m form: LocalExtraction
@@ -204,6 +207,7 @@ def mono(size: int, weight: str = "normal") -> tuple:
     return (font.nametofont("TkFixedFont").actual("family"), size, weight)
 
 
+@once("manual", "The Manual")
 def open_manual(parent) -> "object":
     """The Manual window: what is fixed is shown at once, each command's options as they come."""
     import tkinter as tk

@@ -24,6 +24,9 @@ QUALITY = ("the paper's own results only", "values the extraction flagged left o
 _COMPONENT = {"bulk": "bulk", "grain boundary": "grain_boundary", "total": "total"}
 
 
+from LocalExtraction.gui.single import once
+
+
 def _families(n: int) -> str:
     return f"{n} family" if n == 1 else f"{n} families"
 
@@ -148,6 +151,7 @@ class FlowDiagram(tk.Canvas):
                  fill=c["selected"], step="⑥")
 
 
+@once("classification-flow", "The Classification flow")
 def open_flow(parent: tk.Misc, out_dir: Optional[Path] = None) -> tk.Toplevel:
     """The window of the classification flow, over the window it is opened from."""
     window = tk.Toplevel(parent)

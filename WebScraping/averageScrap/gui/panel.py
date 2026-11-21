@@ -1050,8 +1050,9 @@ class WebPanel(Pausable, ttk.LabelFrame):
             messagebox.showinfo("MoukhlijMatExtract", "Every paper marked yes is downloaded: nothing left to get.",
                                 parent=self)
             return
+        from LocalExtraction.gui.single import open_once  # one browser helper: asked again, it comes back
         from .browser_helper import BrowserHelperDialog
-        BrowserHelperDialog(self, self, rows)
+        open_once("browser-helper", "The browser helper", self, lambda: BrowserHelperDialog(self, self, rows))
 
     def _paper_fetched(self, key: str, outcome: Outcome, done: int, total: int) -> None:
         self.progress.configure(maximum=max(total, 1), value=done)

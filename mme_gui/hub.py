@@ -96,6 +96,9 @@ opening a part makes it too. Every table names its articles (a title column).
 """
 
 
+from LocalExtraction.gui.single import once
+
+
 def requirements_seen() -> bool:
     """True once the user has opened the Requirements guide at least once."""
     try:
@@ -117,6 +120,7 @@ def _toplevel(root):
     return tk.Toplevel(root)
 
 
+@once("requirements", "The Requirements guide")
 def open_requirements(parent) -> "object":
     """The manual and the requirements, in a scrollable read-only window."""
     import tkinter as tk
@@ -192,29 +196,41 @@ def add_requirements_button(parent, root):
     return button
 
 
+# Each part opens once: asked again, the open window comes to the front and a message says so (single.py).
+def _once(key: str, name: str, root, make):
+    from LocalExtraction.gui.single import open_once
+    return open_once(key, name, root, make)
+
+
+def _on_new_window(root, build) -> "object":
+    top = _toplevel(root)
+    build(top)
+    return top
+
+
 def open_local(root) -> None:
     from LocalExtraction.gui.app import App
-    App(_toplevel(root))
+    _once("part:local", "Local extraction", root, lambda: _on_new_window(root, App))
 
 
 def open_web(root) -> None:
     from WebScraping.webgui import open_web as open_window
-    open_window(root)
+    _once("part:web", "Web scraping", root, lambda: open_window(root))
 
 
 def open_rank(root) -> None:
     from SelectingTopMaterial.gui import App
-    App(_toplevel(root))
+    _once("part:rank", "Ranking", root, lambda: _on_new_window(root, App))
 
 
 def open_ml(root) -> None:
     from MLDataset.gui import MLWindow
-    MLWindow(_toplevel(root))
+    _once("part:ml", "ML datasets", root, lambda: _on_new_window(root, MLWindow))
 
 
 def open_classify(root) -> None:
     from Classification.gui import App
-    App(_toplevel(root))
+    _once("part:classify", "Classification", root, lambda: _on_new_window(root, App))
 
 
 # (button text, one-line description, what it opens, its key in LocalExtraction.outputs.PARTS)
@@ -231,7 +247,8 @@ PARTS = (
 def open_delete(root, part: str) -> None:
     """The "Delete outputs…" dialog of one part."""
     from LocalExtraction.gui.delete_outputs import DeleteOutputsDialog
-    DeleteOutputsDialog(root, part)
+    from LocalExtraction.outputs import PARTS as NAMES
+    _once(f"delete:{part}", f"“Delete outputs” of {NAMES[part][0]}", root, lambda: DeleteOutputsDialog(root, part))
 
 
 def home_ready() -> "Path":
@@ -388,7 +405,8 @@ def warn_if_missing(root) -> None:
 def open_results(root, part: str) -> None:
     """Every result of a part, table by table."""
     from LocalExtraction.gui.browser import open_results as browse
-    browse(root, part)
+    from LocalExtraction.outputs import PARTS as NAMES
+    _once(f"results:{part}", f"The results of {NAMES[part][0]}", root, lambda: browse(root, part))
 
 
 def _open(root, opener: Callable, make_home: bool = True, what: str = "This part") -> None:

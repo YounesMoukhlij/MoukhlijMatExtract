@@ -36,6 +36,9 @@ STAGES = (
 STAGE = {key: (title, about, light, dark) for key, title, about, light, dark in STAGES}
 
 
+from LocalExtraction.gui.single import once
+
+
 @dataclass(frozen=True)
 class MakeCommand:
     target: str
@@ -514,6 +517,7 @@ INTRO = ("Click any box or chip of the diagram: what the command does, why you w
          "terminal, in the project's folder. The main window's buttons run the same steps.")
 
 
+@once("make-commands", "The Make commands window")
 def open_make_guide(parent) -> "object":
     """The window. Returns it; `.diagram`, `.show(target)` and `.listing` are hooks for the tests."""
     import tkinter as tk

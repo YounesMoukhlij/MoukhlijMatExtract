@@ -33,6 +33,9 @@ _BOLD = ("TkDefaultFont", 11, "bold")
 _USUAL = {"local": "local_output", "web": "web_output"}  # the folder of each part's own database
 
 
+from LocalExtraction.gui.single import open_once
+
+
 def _tag(part: str, source: "str | os.PathLike | None" = None) -> str:
     """The name of the evaluation of a results folder: the part ("web") for the part's own folder, and the part
     with the folder's own name for another ("web_garnet_nasicon" for web_output_garnet_nasicon)."""
@@ -271,4 +274,5 @@ class EvaluationDialog(Dialog):
 def evaluate_button(parent: tk.Misc, source: Callable[[], str], part: str, title: str) -> ttk.Button:
     """The “Evaluate…” button of a part's window: opens the evaluation of the results folder `source()` gives."""
     return ttk.Button(parent, text="Evaluate…",
-                      command=lambda: EvaluationDialog(parent, os.path.abspath(source()), part, title))
+                      command=lambda: open_once(f"evaluate:{part}", f"Evaluate — {title}", parent,  # once per part
+                                                lambda: EvaluationDialog(parent, os.path.abspath(source()), part, title)))

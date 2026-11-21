@@ -119,7 +119,13 @@ def delete_outputs_button(parent: tk.Misc, part: str, before: Optional[Callable[
     opens (e.g. to let go of a file the window holds), `after(deleted)` once it is closed; `groups()`, when
     given, says which folders to offer when it is pressed (they may have changed: another job chosen)."""
     def open_dialog() -> None:
+        from .single import bring_back, existing, register
+        open_one = existing(f"delete:{part}")  # one dialog per part, from here or from the main window
+        if open_one is not None:  # (before() not called: the window keeps its files until a dialog is really opened)
+            bring_back(open_one, f"“Delete outputs” of {outputs.PARTS[part][0]}")
+            return
         if before is not None:
             before()
-        DeleteOutputsDialog(parent, part, on_close=after, groups=groups() if groups is not None else None)
+        register(f"delete:{part}", DeleteOutputsDialog(parent, part, on_close=after,
+                                                       groups=groups() if groups is not None else None))
     return ttk.Button(parent, text="Delete outputs…", command=open_dialog)

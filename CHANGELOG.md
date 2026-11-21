@@ -8,6 +8,17 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **One copy of each window.** A window asked for while it is already open is not opened a second time: the open
+  one comes to the front (shown again if it was minimised), and a message says *“… is already open. Only one can be
+  open at a time — it has been brought to the front.”* Different windows still open side by side (rank while a web
+  search runs).
+  - **Which:** the five parts; Results… and Delete outputs… of each part; Requirements, Manual, Make commands, About
+    & methods; the Process flow and the Classification flow; Evaluate…, API keys…, Search settings…, the browser
+    helper and “Browse the CSV files…”.
+  - Asked from another window, the Process flow that is already open moves its “You are here” to that window.
+  - The check is in each window's own opening (`LocalExtraction/gui/single.py`), so every way to it is covered: a
+    button of the main window, of a part, or a link.
+
 - **A floating “⇄ Flow” button in every window**: it opens the **Process flow**, the whole program from scratch,
   window by window.
   - **The flow:** start (install, Requirements, the main folder, the main window). Then build the database: your own

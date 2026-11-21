@@ -57,7 +57,8 @@ def results_buttons(bar: tk.Misc, part: str, folder: Callable[[], str],
             messagebox.showinfo("MoukhlijMatExtract", f"There is no results folder yet ({path}): run {part} first.",
                                 parent=window)
             return
-        CsvBrowser(window, part, path, files)
+        from .single import open_once  # one browser per part: asked again, the open one comes to the front
+        open_once(f"browse:{part}", f"The CSV files of {part}", window, lambda: CsvBrowser(window, part, path, files))
 
     browse_button = ttk.Button(bar, text="Browse the CSV files…", command=browse)
     open_button = ttk.Button(bar, text="Open the results folder", command=open_folder)
