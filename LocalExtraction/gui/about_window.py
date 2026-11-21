@@ -52,6 +52,9 @@ INTEGRITY = (
 )
 
 
+from .single import once
+
+
 def citation() -> Tuple[str, str]:
     """(the citation in words, its BibTeX), from CITATION.cff when the project folder is there."""
     from ..about import AUTHOR, FULL_NAME, REPOSITORY, version
@@ -113,6 +116,7 @@ def environment_text(env: Dict) -> str:
             f"packages: {packages}.")
 
 
+@once("about", "About & methods")
 def open_about(parent: tk.Misc) -> tk.Toplevel:
     from ..about import ABOUT_AUTHOR, LICENSE_NAME, REPOSITORY, WEBSITE, version
     colours = theme.palette(parent)

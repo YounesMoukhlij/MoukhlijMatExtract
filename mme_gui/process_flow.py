@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
+from LocalExtraction.gui.single import once
+
 from .make_guide import COLUMN_X, BOX_W, WIDTH, _rounded, ink_on
 
 # (key, title, purpose, colour light, colour dark) — the stages of the Make commands window, in the same colours.
@@ -264,8 +266,15 @@ INTRO = ("The whole process, from scratch, top to bottom. Each step says the win
          "“You are here” marks the step of the window you came from.")
 
 
+def _here_again(window, parent, here_title: str = "") -> None:
+    """The flow already open, asked from another window: “You are here” moves to that window's steps."""
+    window.set_here(here_title)
+
+
+@once("process-flow", "The Process flow", again=_here_again)
 def open_flow(parent, here_title: str = "") -> "object":
-    """The window. `here_title`: the header title of the window it is opened from (its steps are marked)."""
+    """The window. `here_title`: the header title of the window it is opened from (its steps are marked). One is open
+    at a time: asked again, it comes back with the steps of the window it is asked from marked."""
     import tkinter as tk
     from tkinter import ttk
 
@@ -305,8 +314,10 @@ def open_flow(parent, here_title: str = "") -> "object":
     open_button = ttk.Button(panel, text="", style="Next.TButton")
 
     here = here_of(here_title)
+    state = {"diagram": None, "here": here}
 
     def show(key: str) -> None:
+        here, diagram = state["here"], state["diagram"]
         step = BY_KEY[key]
         stage_title, _, light, darker = STAGE[step.stage]
         colour = darker if dark else light
@@ -336,9 +347,14 @@ def open_flow(parent, here_title: str = "") -> "object":
         hub._open(win._root(), opener, what=dict(local="Local extraction", web="Web scraping", rank="Ranking",
                                                  classify="Classification", ml="ML datasets")[part])
 
-    diagram = FlowDiagram(canvas, colours, dark, show, here)
-    if here:  # the window it came from in view
-        canvas.yview_moveto(max(0.0, (NODES[here[0]][1] - 120) / HEIGHT))
+    def set_here(title_: str) -> None:
+        """The steps of the window `title_` marked “You are here” (the diagram drawn again), and brought into view."""
+        state["here"] = here_of(title_)
+        canvas.delete("all")
+        state["diagram"] = FlowDiagram(canvas, colours, dark, show, state["here"])
+        win.diagram, win.here, win.chosen = state["diagram"], state["here"], None
+        if state["here"]:  # the window it came from in view
+            canvas.yview_moveto(max(0.0, (NODES[state["here"][0]][1] - 120) / HEIGHT))
 
     def wheel(event) -> None:
         step = -1 if (event.num == 4 or getattr(event, "delta", 0) > 0) else 1
@@ -352,7 +368,8 @@ def open_flow(parent, here_title: str = "") -> "object":
     design.back_button(footer, win).pack(side="right")
     design.website_line(win)
     win.bind("<Escape>", lambda event: design.go_back(win))
-    win.diagram, win.show, win.here, win.chosen = diagram, show, here, None
+    win.show, win.set_here = show, set_here
+    set_here(here_title)
     return win
 
 

@@ -45,6 +45,9 @@ TRANSPORT = ("Activation_Energy", "Ionic_Conductivity", "Diffusion_Coefficient",
 _listeners: List["weakref.WeakMethod"] = []
 
 
+from LocalExtraction.gui.single import once
+
+
 def when_saved(method: Callable[[str], None]) -> None:
     """`method(path)` (a method of a window) is called each time a job file is saved from the form."""
     _listeners.append(weakref.WeakMethod(method))
@@ -71,6 +74,7 @@ def shipped_job() -> Tuple[Job, Dict[str, List[str]], Dict[str, List[str]]]:
     return load_job(str(real)), headings, notes
 
 
+@once("job-settings", "The search settings")
 def open_job_settings(parent: tk.Misc, path: Optional[str] = None,
                       on_saved: Optional[Callable[[str], None]] = None) -> Optional["JobDialog"]:
     """The form for a job file (default: configs/sse.yaml, made from the shipped one if missing).

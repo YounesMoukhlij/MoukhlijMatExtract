@@ -39,7 +39,9 @@ class App(Window):
         CoverageDialog(self.root)
 
     def _settings(self) -> None:
-        SettingsDialog(self.root, on_saved=self.panel.settings_changed)
+        from LocalExtraction.gui.single import open_once  # one API keys window: asked again, it comes back
+        open_once("api-keys", "The API keys window", self.root,
+                  lambda: SettingsDialog(self.root, on_saved=self.panel.settings_changed))
 
     def open_keys(self) -> None:
         """The "API keys…" window (the contact e-mail is its first card)."""

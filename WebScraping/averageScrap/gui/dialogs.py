@@ -189,7 +189,8 @@ class StartDialog(Dialog):
             if email and self.winfo_exists():
                 self._stored = email
                 self.email.set(email)
-        SettingsDialog(self, on_saved=saved, path=self._path)
+        from LocalExtraction.gui.single import open_once  # the same API keys window as the Web scraping one's
+        open_once("api-keys", "The API keys window", self, lambda: SettingsDialog(self, on_saved=saved, path=self._path))
 
     def _continue(self) -> None:
         email = self.email.get().strip()
