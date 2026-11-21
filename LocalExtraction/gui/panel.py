@@ -10,6 +10,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING, List, Optional
 
+from .progress_text import Pace
 from .. import outputs
 from .. import runcontrol
 from ..runcontrol import RunControl
@@ -47,6 +48,7 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         self._working = False  # the extraction is under way (set when it starts, cleared by it when it ends)
         self._papers: List[PaperData] = []
         self._done = self._total = 0
+        self._pace = Pace()  # the time left of the step under way (made again as each step starts)
 
         self.input_dir, self.output_dir = os.path.abspath(input_dir), os.path.abspath(output_dir)
         folders = ttk.Frame(host)
@@ -123,7 +125,6 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         self.evaluate_button.configure(state="disabled")
         self.progress.configure(maximum=max(self._total, 1), value=0)
         self.status.set(f"Reading {self._total} new PDF(s) …" if self._total else "Nothing new in this folder.")
-        from .progress_text import Pace
         self._pace = Pace()  # the time left, once a few PDFs set the pace
         self.activity.write(f"--- Extraction of {folder} into {output}: {self._total} new PDF(s)")
         self.book.select(self.activity)

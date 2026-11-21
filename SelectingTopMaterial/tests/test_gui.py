@@ -175,6 +175,19 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(str(self.app.rank_button["state"]), "normal")
         self.assertEqual(len(self.rows()), 3)
 
+    def test_while_it_ranks_it_says_so_and_a_failed_ranking_says_it_failed(self):
+        with mock.patch.object(gui, "select_from_each", side_effect=RuntimeError("the database is unreadable")):
+            self.app.rank(write=False)
+            self.assertEqual(self.app.summary.get(), "Reading the databases and ranking the materials …")
+            self.assertTrue(self.app.rank_progress.winfo_manager())  # the bar, beside Rank
+            self.assertTrue(self.app.wait_ranked())
+        self.assertFalse(self.app.rank_progress.winfo_manager())
+        said = self.app.summary.get()
+        self.assertNotIn("Reading the databases", said)  # not the step it was at
+        self.assertIn("The ranking failed", said)
+        self.assertIn("Press Rank to try again", said)
+        self.assertTrue(any(name == "showerror" for name, _ in self.asked))
+
     def test_the_ranking_is_never_written_into_a_database(self):
         self.app.out_var.set(str(self.database))
         self.app.rank()

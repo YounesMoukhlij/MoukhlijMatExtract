@@ -154,6 +154,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self._candidates: Dict[str, Candidate] = {}
         self._papers: List[PaperData] = []
         self._done = self._total = 0
+        self._pace = Pace()  # the time left of the step under way (made again as each step starts)
 
         row = ttk.Frame(host)
         row.pack(fill="x")

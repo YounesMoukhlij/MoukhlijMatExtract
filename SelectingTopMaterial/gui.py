@@ -527,6 +527,8 @@ class App:
             self._mp_entries = entries
             if selections is not None:
                 self._ranked(ticked, selections, written_by, top, out_dir)
+            else:  # failed: the line says so, not the step it was at (“Reading the databases …”)
+                self.summary.set((problem or "The ranking failed.").split("\n")[0] + "  Press Rank to try again.")
 
         threading.Thread(target=work, name="ranking", daemon=True).start()
         self.root.after(50, finish)

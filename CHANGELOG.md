@@ -8,6 +8,19 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **A floating “⇄ Flow” button in every window**: it opens the **Process flow**, the whole program from scratch,
+  window by window.
+  - **The flow:** start (install, Requirements, the main folder, the main window). Then build the database: your own
+    PDFs, or the web (choose a job → 1 · Fetch DOIs → 2 · Search → review the candidates → 3 · Download → 4 ·
+    Extract). Then use it (check values by hand, ③ Ranking, ④ Classification → ⑤ ML datasets), measure the accuracy
+    (Evaluate… → you annotate → the scores → benchmark and gold standard) and share it (release → Zenodo; make paper
+    → the article). Each step names its window and button.
+  - **“You are here”** marks the steps of the window it was opened from (all six web steps from Web scraping).
+  - **A click on a step** says where to click, what it does and why it matters; the steps of the five parts have an
+    “Open …” button.
+  - **The button** sits where it covers no button, field, scroll bar or link, looked for again when the window is
+    resized. A drag moves it, and then it stays where it was put.
+
 - **“Add MoukhlijMatExtract to the Dock?”** (macOS): when the main window opens and the program is not in the Dock,
   a small window offers to put it there, so it starts with one click.
   - **Add to the Dock** makes `~/Applications/MoukhlijMatExtract.app` if it is missing, adds it to the end of the
@@ -34,6 +47,11 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Fixed
 
+- **Ranking window**: a ranking that failed left the line under the buttons saying “Reading the databases and ranking
+  the materials …” after the error message. It now says the ranking failed, and to press Rank to try again.
+- **“⇄ Flow” button**: it chose a free corner when a window opened or was resized, but not when another tab was
+  shown, so it could sit over a control of that tab (a scroll bar of the Candidates table). A change of tab looks
+  for a free spot again (unless the button was dragged).
 - **Ranking window**: its settings were cut off on the right at the size it opens at, not only at its smallest. The
   two frames side by side need about 1,270 px and the window opened at 1,260 (smallest 1,000), so the hints, the
   “Verified values only” box and the folder counts ran past the edge. Now the two check boxes are on lines of their
