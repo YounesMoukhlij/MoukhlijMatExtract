@@ -80,10 +80,13 @@ class WindowTests(WindowTest):
         web = self.app.panel
         tracker = web._track("2 · Search", [("keywords", "Searching the keywords", "searches"),
                                             ("screen", "Scoring the papers against the topic", "papers")],
-                             {"keywords": 40}, "Searching with 10 saved DOIs and 20 saved keywords")
+                             {"keywords": 40}, "Searching with 10 saved DOIs and 20 saved keywords",
+                             "the papers found so far are saved and scored")
         self.assertIn("Searching with 10 saved DOIs and 20 saved keywords · estimated", web.status.get())
         self.assertIn("done around", web.status.get())
         self.assertEqual(str(web.status_label.cget("foreground")), progress.gold(self.root))
+        self.assertTrue(web.stop_note.winfo_manager())  # what stopping keeps, under the line
+        self.assertIn("If you stop now, the papers found so far are saved and scored", web.stop_note.cget("text"))
         web._working = True
         web.stop_event.clear()
         web._search_progress("keywords", 3, 40, "OpenAlex: “garnet”", 7)
@@ -93,6 +96,7 @@ class WindowTests(WindowTest):
         web._working = False
         web._finished([])
         self.assertEqual(tracker.outcome, "done")
+        self.assertFalse(web.stop_note.winfo_manager())  # ended: the note goes
         self.assertNotEqual(str(web.status_label.cget("foreground")), progress.gold(self.root))
 
     def test_fetch_dois_shows_how_far_it_is(self):

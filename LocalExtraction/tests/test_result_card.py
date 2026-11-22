@@ -70,6 +70,7 @@ class OutcomeTests(Database):
 
     def test_durations(self):
         self.assertEqual((took(42), took(194), took(7300)), ("42 s", "3 min 14 s", "2 h 01 min"))
+        self.assertEqual((took(26 * 3600 + 300), took(3 * 86400)), ("1 day 2 h", "3 days"))  # many hours: days
 
 
 from LocalExtraction.tests.test_gui import has_screen  # noqa: E402  (one check, made safely)

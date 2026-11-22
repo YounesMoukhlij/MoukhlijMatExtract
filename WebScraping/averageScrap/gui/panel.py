@@ -23,7 +23,7 @@ from LocalExtraction.gui.result_card import BAD, FAILED as CARD_FAILED, GOOD, GR
 from LocalExtraction.gui.results import EnergiesView, pending_pdfs
 from LocalExtraction.gui.summary import final_summary, summarize_paper
 from LocalExtraction.gui import theme
-from LocalExtraction.gui.progress import Tracker, details_button, style_running
+from LocalExtraction.gui.progress import Tracker, details_button, show_stop_note, stop_note, style_running
 from LocalExtraction.gui.progress_text import Pace
 from LocalExtraction.gui.widgets import FolderRow, LogPane, Pausable, Row, Stopped, Table, WrapLabel, open_path
 from LocalExtraction.models import PaperData
@@ -257,6 +257,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.notice = tk.StringVar()
         self._notice_label = WrapLabel(host, textvariable=self.notice, foreground=WARNING_COLOUR)
         self._notice_after = progress
+        self.stop_note = stop_note(host)  # while a step runs: what stopping now keeps
 
         self.book = ttk.Notebook(self)
         self.card = ResultCard(host)  # what the last step did, above the tabs
@@ -647,6 +648,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
             self.tracker.finish("failed" if getattr(self, "_step_failed", False) else
                                 "stopped" if self.stop_event.is_set() else "done")
         style_running(self.status_label, False)
+        show_stop_note(self.stop_note, self.tracker, False)
         self.progress.stop()
         self.progress.configure(mode="determinate", value=0)
         for button in self._steps():
@@ -701,7 +703,8 @@ class WebPanel(Pausable, ttk.LabelFrame):
         phases.append(("screen", "Scoring the papers against the topic", "papers"))
         self._track("2 · Search", phases, {"keywords": len(s.queries) * len(s.sources)},
                     f"Searching with {saved:,} saved DOIs and {len(s.queries)} saved keywords" if saved else
-                    f"Searching with the {len(s.queries)} saved keywords only (no DOI saved)")
+                    f"Searching with the {len(s.queries)} saved keywords only (no DOI saved)",
+                    "the papers found so far are saved and scored, and the next search goes on from there")
         self._run(self._search_work, harvest, self.job_file.get())
 
     def _search_work(self, harvest: Harvest, job_path: str) -> None:
@@ -712,15 +715,17 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self._papers_read = harvest.ledger.all()  # read here, once: the card and the table use it
         self.app.post(self._searched, added, self._papers_read)
 
-    def _track(self, title: str, phases, totals, what: str) -> Tracker:
+    def _track(self, title: str, phases, totals, what: str, saved: str = "") -> Tracker:
         """A step followed from its start: its estimate in the line (dark yellow until it ends), and the details window
         on it."""
         self.tracker = Tracker("web", f"Web scraping · {title}", phases,
                                controls={"pause": self.toggle_pause, "stop": self.stop,
-                                         "paused": lambda: bool(getattr(self.stop_event, "paused", False))})
+                                         "paused": lambda: bool(getattr(self.stop_event, "paused", False))},
+                               saved_on_stop=saved)
         self.tracker.start(totals)
         self.status.set(self.tracker.start_text(what))
         style_running(self.status_label, True)
+        show_stop_note(self.stop_note, self.tracker, True, fill="x", pady=(0, 6), after=self._notice_after)
         from LocalExtraction.gui.single import existing  # an open details window follows the new step
         open_one = existing("progress:Web scraping")
         if open_one is not None:
@@ -926,7 +931,8 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.book.select(self.activity)
         self._current(self.fetch_dois_button)
         self._track("1 · Fetch DOIs", [("dois", "Fetch DOIs", "searches")], {"dois": searches},
-                    f"Fetching {count:,} new DOIs" if count else "Fetching DOIs with no limit — Stop ends it")
+                    f"Fetching {count:,} new DOIs" if count else "Fetching DOIs with no limit — Stop ends it",
+                    "every DOI found so far is saved in the DOI list")
         self._run(self._fetch_dois_work, harvest, count, self.job_file.get())
 
     def _fetch_dois_work(self, harvest: Harvest, count: Optional[int], job_path: str) -> None:
@@ -1026,7 +1032,9 @@ class WebPanel(Pausable, ttk.LabelFrame):
         phases = [("download", "Downloading the legal copies", "papers")]
         if then_extract:
             phases.append(("extract", "Extracting the PDFs", "PDFs"))
-        self._track("3 · Download", phases, {"download": self._total}, f"Downloading {what}")
+        self._track("3 · Download", phases, {"download": self._total}, f"Downloading {what}",
+                    "every PDF downloaded so far is saved, and the next download goes on with the rest"
+                    + (" (and what was already extracted stays in the database)" if then_extract else ""))
         self._run(self._download_work, harvest, limit, then_extract, self.output.get(), self.app.workers())
 
     def _download_work(self, harvest: Harvest, limit: Optional[int], then_extract: bool, output: str, workers: int) -> None:
@@ -1187,7 +1195,8 @@ class WebPanel(Pausable, ttk.LabelFrame):
             return
         self.book.select(self.activity)
         self._current(self.extract_button)
-        self._track("4 · Extract", [("extract", "Extracting the PDFs", "PDFs")], {}, "Extracting the downloaded PDFs")
+        self._track("4 · Extract", [("extract", "Extracting the PDFs", "PDFs")], {}, "Extracting the downloaded PDFs",
+                    "every PDF already extracted stays in the database, and the next extraction reads only the rest")
         self._run(self._extract_work, self._harvest(), self.output.get(), self.app.workers())
 
     def _extract_work(self, harvest: Harvest, output: str, workers: int) -> None:

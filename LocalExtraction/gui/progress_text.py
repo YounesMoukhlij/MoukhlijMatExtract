@@ -9,14 +9,24 @@ from typing import Optional
 
 
 def duration(seconds: float) -> str:
-    """45 s, 6 min, 1 h 20 min."""
+    """A time as a person says it: 45 s · 26 min · 1 h 20 min · 14 h · 2 days 3 h · 9 days. Many minutes are said in
+    hours, many hours in days."""
     seconds = max(0, int(round(seconds)))
     if seconds < 60:
-        return f"{max(seconds, 5) // 5 * 5} s"
+        return f"{seconds} s" if seconds < 5 else f"{seconds // 5 * 5} s"
     minutes = round(seconds / 60)
     if minutes < 60:
         return f"{minutes} min"
-    return f"{minutes // 60} h {minutes % 60:02d} min"
+    hours, rest = divmod(minutes, 60)
+    if hours < 10:
+        return f"{hours} h" if not rest else f"{hours} h {rest} min"
+    hours = round(minutes / 60)
+    if hours < 24:
+        return f"{hours} h"
+    days, rest = divmod(hours, 24)
+    if days < 7:
+        return f"{days} day{'s' if days > 1 else ''}" + (f" {rest} h" if rest else "")
+    return f"{round(hours / 24)} days"
 
 
 def time_left(started: float, done: int, total: int, since: int = 0, now: Optional[float] = None) -> str:
