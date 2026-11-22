@@ -80,6 +80,15 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
   - **Ranking**: a bar beside “Rank” and its steps; the Materials Project entries, composition by composition.
   - The progress never stops a step: a display that fails is ignored.
 
+### Changed
+
+- **README rewritten as an overview for users and reviewers**: the project in one minute, why it exists, one real
+  extracted value with its provenance, the pipeline and the extraction engine as diagrams, the 25 search and 17
+  copy sources, the ranking, classification and ML datasets, the measured accuracy with its limits, reproducibility,
+  the program's windows, install, quick start, the folders, the repository layout, platforms and tests, and an index
+  of the documents. The step-by-step guide and every option stay in `docs/MANUAL.md` and `docs/COMMANDS.md`. Links
+  to the documents are absolute, so they work on PyPI too.
+
 ### Fixed
 
 - **Linux, Windows and small screens** (found with the test runs of GitHub on Linux, Windows and macOS, failing since
