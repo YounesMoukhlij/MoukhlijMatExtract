@@ -104,6 +104,24 @@ class TrackerTests(unittest.TestCase):
         t.start({"keywords": 1})
         self.assertEqual(t.listeners, [])
 
+    def test_long_times_are_said_in_hours_then_days(self):
+        from LocalExtraction.gui.progress_text import duration
+        for seconds, said in ((3, "3 s"), (47, "45 s"), (26 * 60, "26 min"), (59 * 60 + 40, "1 h"), (80 * 60, "1 h 20 min"),
+                              (10 * 3600 + 20 * 60, "10 h"), (23 * 3600 + 40 * 60, "1 day"),
+                              (26 * 3600, "1 day 2 h"), (49 * 3600 + 10 * 60, "2 days 1 h"),
+                              (9 * 86400 + 5 * 3600, "9 days")):
+            self.assertEqual(duration(seconds), said, seconds)
+        t = self.tracker([("keywords", "Searching the keywords", "searches")])
+        t.timings.data["keywords"] = {"seconds_per_item": 60.0}  # a minute a search, 3,000 searches: two days
+        t.start({"keywords": 3000})
+        self.assertIn("estimated 2 days 2 h", t.start_text("Searching"))
+
+    def test_what_stopping_keeps_is_said_only_for_a_step_that_keeps_it(self):
+        t = Tracker("web", "Web scraping · 1 · Fetch DOIs", [("dois", "Fetch DOIs", "searches")],
+                    timings=self.timings, saved_on_stop="every DOI found so far is saved in the DOI list")
+        self.assertEqual(t.stop_text(), "✓ If you stop now, every DOI found so far is saved in the DOI list.")
+        self.assertEqual(self.tracker().stop_text(), "")  # a step that cannot be stopped half-way says nothing
+
     def test_one_of_a_unit(self):
         for many, one in (("searches", "search"), ("papers kept", "paper kept"), ("PDFs", "PDF"),
                           ("compositions", "composition"), ("boxes", "box"), ("", "")):
@@ -191,6 +209,23 @@ class DetailsWindowTests(unittest.TestCase):
         with mock.patch("tkinter.messagebox.showinfo") as said:
             button.invoke()
         self.assertIn("No step has run", said.call_args[0][1])
+
+    def test_the_stop_note_shows_while_the_step_runs(self):
+        import tkinter as tk
+        holder = tk.Frame(self.root)
+        holder.pack()
+        self.tracker.saved_on_stop = "every DOI found so far is saved"
+        note = progress.stop_note(holder)
+        progress.show_stop_note(note, self.tracker, True, fill="x")
+        self.assertTrue(note.winfo_manager())
+        self.assertIn("If you stop now, every DOI found so far is saved", note.cget("text"))
+        win = self.window()
+        self.assertIn("If you stop now", win.saved.cget("text"))  # in the details window too
+        progress.show_stop_note(note, self.tracker, False)
+        self.assertFalse(note.winfo_manager())
+        self.tracker.finish("stopped")
+        win.refresh()
+        self.assertEqual(win.saved.cget("text"), "")  # ended: nothing to stop any more
 
     def test_the_line_is_dark_yellow_while_it_runs(self):
         import tkinter as tk

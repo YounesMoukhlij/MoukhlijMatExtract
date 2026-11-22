@@ -64,7 +64,10 @@ def took(seconds: float) -> str:
     if minutes < 60:
         return f"{minutes} min {seconds:02d} s"
     hours, minutes = divmod(minutes, 60)
-    return f"{hours} h {minutes:02d} min"
+    if hours < 24:
+        return f"{hours} h {minutes:02d} min"
+    days, hours = divmod(hours, 24)  # many hours said in days
+    return f"{days} day{'s' if days > 1 else ''}" + (f" {hours} h" if hours else "")
 
 
 class ResultCard(ttk.Frame):

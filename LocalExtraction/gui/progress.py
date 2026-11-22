@@ -35,6 +35,7 @@ FIRST_GUESS: Dict[str, float] = {
     "mp": 1.0,
 }
 GOLD = {"light": "#8a6100", "dark": "#e0b23a"}  # dark yellow: readable on the light and the dark windows
+SAVED = {"light": "#1a7f37", "dark": "#3fb950"}  # the note that stopping keeps what was done: a calm green
 _MEAN_WEIGHT = 0.35  # how much the last run counts in the running mean
 
 
@@ -113,6 +114,9 @@ class Tracker:
     phases_spec: Sequence[Tuple[str, str, str]]
     timings: Optional[Timings] = None
     controls: Dict[str, Callable] = field(default_factory=dict)  # "pause", "stop", "paused" (→ bool)
+    # What stopping now keeps (“every DOI found so far is saved”): said while the step runs. Empty for a step that
+    # cannot be stopped half-way (it writes everything at once).
+    saved_on_stop: str = ""
 
     def __post_init__(self):
         self.timings = self.timings or Timings()
@@ -318,6 +322,10 @@ class Tracker:
             except Exception:
                 self.listeners.remove(listener)
 
+    def stop_text(self) -> str:
+        """“If you stop now, every DOI found so far is saved.” ("" when stopping keeps nothing to say)."""
+        return f"✓ If you stop now, {self.saved_on_stop}." if self.saved_on_stop else ""
+
     def rows(self) -> List[Dict[str, str]]:
         """The timeline, for the CSV file."""
         return [{"time": datetime.fromtimestamp(e.at).strftime("%Y-%m-%d %H:%M:%S"),
@@ -347,6 +355,27 @@ def style_running(label, running: bool, rest: str = "") -> None:
     """The line of a window in dark yellow while its step runs; back to its colour at the end."""
     try:
         label.configure(foreground=gold(label) if running else rest or "")
+    except Exception:
+        pass
+
+
+def stop_note(parent):
+    """The line under a window's progress that says what stopping now keeps (not packed: `show_stop_note` does)."""
+    from . import theme
+    from .widgets import WrapLabel
+    return WrapLabel(parent, text="", foreground=SAVED["dark" if theme.is_dark(parent) else "light"])
+
+
+def show_stop_note(note, tracker: Optional["Tracker"], running: bool, **pack) -> None:
+    """Shows the note of `tracker` while its step runs (packed with `pack`), hides it at the end."""
+    try:
+        text = tracker.stop_text() if (tracker is not None and running) else ""
+        if text:
+            note.configure(text=text)
+            if not note.winfo_manager():
+                note.pack(**pack)
+        elif note.winfo_manager():
+            note.pack_forget()
     except Exception:
         pass
 
@@ -445,6 +474,8 @@ def _details_class():
             words.bind("<Configure>", lambda event: self.now.configure(wraplength=max(event.width - 8, 160)))
             self.counters = WrapLabel(words, text="", wraplength=420)
             self.counters.pack(anchor="w", fill="x", pady=(6, 0))
+            self.saved = WrapLabel(words, text="", wraplength=420, foreground=SAVED["dark" if self.dark else "light"])
+            self.saved.pack(anchor="w", fill="x", pady=(6, 0))  # what stopping now keeps
             ttk.Label(words, text="The chart: items done per minute, minute by minute", style="Muted.TLabel").pack(
                 anchor="w", pady=(6, 0))
 
@@ -569,6 +600,7 @@ def _details_class():
             self.counters.configure(text="   ".join(
                 f"{name}: {value:,}" if isinstance(value, int) else f"{name}: {value}"
                 for name, value in t.counters.items()))
+            self.saved.configure(text=t.stop_text() if running else "")
             self.pause_button.configure(text="Resume" if paused else "Pause",
                                         state="normal" if running and t.controls else "disabled")
             self.stop_button.configure(state="normal" if running and t.controls else "disabled")

@@ -10,7 +10,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING, List, Optional
 
-from .progress import Tracker, details_button, style_running
+from .progress import Tracker, details_button, show_stop_note, stop_note, style_running
 from .progress_text import Pace
 from .. import outputs
 from .. import runcontrol
@@ -86,6 +86,8 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         self.status = tk.StringVar(value="Idle.")
         self.status_label = WrapLabel(buttons, textvariable=self.status, wraplength=220)  # dark yellow while it runs
         self.status_label.pack(side="left", fill="x", expand=True, padx=8)
+        self._buttons_row = buttons
+        self.stop_note = stop_note(host)  # while it extracts: what stopping now keeps
         ttk.Frame(host, height=6).pack(fill="x")
 
         self.book = ttk.Notebook(self)
@@ -133,11 +135,15 @@ class LocalPanel(Pausable, ttk.LabelFrame):
         self._step_failed = False
         self.tracker = Tracker("local", "Local extraction", [("extract", "Extracting the PDFs", "PDFs")],
                                controls={"pause": self.toggle_pause, "stop": self.stop,
-                                         "paused": lambda: bool(getattr(self.stop_event, "paused", False))})
+                                         "paused": lambda: bool(getattr(self.stop_event, "paused", False))},
+                               saved_on_stop="every PDF already extracted stays in the database, and the next "
+                                             "extraction reads only the rest")
         self.tracker.start({"extract": self._total})
         self.status.set(self.tracker.start_text(f"Reading {self._total} new PDF(s)") if self._total
                         else "Nothing new in this folder.")
         style_running(self.status_label, bool(self._total))
+        show_stop_note(self.stop_note, self.tracker, bool(self._total), fill="x", padx=8, pady=(2, 0),
+                       after=self._buttons_row)
         from .single import existing
         open_one = existing("progress:Local extraction")
         if open_one is not None:  # an open details window follows the new extraction
@@ -201,6 +207,7 @@ class LocalPanel(Pausable, ttk.LabelFrame):
             self.tracker.finish("failed" if getattr(self, "_step_failed", False) else
                                 "stopped" if self.stop_event.is_set() else "done")
         style_running(self.status_label, False)
+        show_stop_note(self.stop_note, self.tracker, False)
         theme.unmark(self.start_button)
         self.start_button.configure(state="normal")
         self.stop_button.configure(state="disabled")

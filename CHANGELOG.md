@@ -23,6 +23,14 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
     papers …); a chart of the pace (items per minute); the timeline of what was searched or fetched, and when; Pause /
     Resume and Stop; “Save the timeline (CSV)…”. It stays after the step ends, to look back at the last run, and
     follows the next step when one starts.
+  - **Long times read as a person says them:** 45 s · 26 min · 1 h 20 min · 14 h · 2 days 3 h · 9 days — many
+    minutes in hours, many hours in days (the progress lines, the estimates, the details window, and the time a step
+    took on its card).
+  - **“✓ If you stop now, … is saved”**, under the line while a step runs (and in the details window), said for each
+    step as it is: every DOI found so far (Fetch DOIs); the papers found so far, and the next search goes on from
+    there (Search); every PDF downloaded so far (Download); every PDF already extracted, and the next extraction
+    reads only the rest (Extract, Local extraction). Not said for the steps that cannot be stopped half-way: the
+    classification and the ranking (they write everything at once, in seconds), the re-screen (it finishes by itself).
 
 - **One copy of each window.** A window asked for while it is already open is not opened a second time: the open
   one comes to the front (shown again if it was minimised), and a message says *“… is already open. Only one can be
