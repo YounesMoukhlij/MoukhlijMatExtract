@@ -1,662 +1,590 @@
 # MoukhlijMatExtract (MME)
 
-> Extract · Rank · Classify — battery-materials data from the scientific literature: solid electrolytes,
-> cathodes and anodes.
+> Extract · Rank · Classify: battery-materials data from the scientific literature, for solid electrolytes,
+> cathodes and anodes, with the source of every value.
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/moukhlijmatextract/)
+[![tests](https://github.com/YounesMoukhlij/MoukhlijMatExtract/actions/workflows/tests.yml/badge.svg)](https://github.com/YounesMoukhlij/MoukhlijMatExtract/actions/workflows/tests.yml)
 [![PyPI](https://img.shields.io/pypi/v/moukhlijmatextract)](https://pypi.org/project/moukhlijmatextract/)
+[![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-blue)](https://pypi.org/project/moukhlijmatextract/)
+[![Platforms](https://img.shields.io/badge/platforms-macOS%20|%20Linux%20|%20Windows-lightgrey)](#platforms-and-tests)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
-**Website: [moukhlijmatextract.vercel.app](https://moukhlijmatextract.vercel.app)**: how to use the program, step
-by step, and an overview of the project. Every window of the program links to it at the bottom, and the main window
-announces it for a few seconds when it opens.
-
-## About the project
-
-**MoukhlijMatExtract (MME)** is an open-source research tool for mining the scientific literature on the
-three main parts of a battery:
-
-| Domain | What it covers | Job file | Ranking |
-|---|---|---|---|
-| **Electrolytes** | solid-state electrolytes: oxides, sulfides, halides, hydrides, … | `configs/sse.yaml` | `mme-rank --domain electrolyte` |
-| **Cathodes** | layered oxides, spinels, olivines and other polyanions, Prussian blues, … | `configs/cathode.yaml` | `mme-rank --domain cathode` |
-| **Anodes** | graphite and hard carbon, Si/Sn/Sb alloys, titanates and niobates, conversion oxides, metal anodes | `configs/anode.yaml` | `mme-rank --domain anode` |
-
-Thousands of papers report how fast ions move through these materials — but each in its own words, units and
-table layout, so comparing materials across the literature by hand takes weeks. MME does that work
-automatically and keeps it traceable.
-
-Each domain has its own search (job file), its own folders and its own database. The `domain` setting
-(`extract.domain` in a job file, `mme-local --domain` for your own PDFs) tells the extraction what the
-database is about. It then flags the values of materials of another kind — an electrode in an electrolyte
-database, a solid electrolyte in a cathode database — so that the ranking leaves them out.
-
-It reads papers — your own PDFs, or articles it finds and retrieves online from open sources — and
-extracts their **ion-transport data** into a structured database:
-
-- **activation energies**, **ionic and electronic conductivities** and **diffusion coefficients**,
-  converted to common units;
-- the **material** each value belongs to, the temperature, the measurement or simulation method, and
-  whether the value is the paper's own result or one it cites;
-- the **source of every value** — paper, page, table, figure or sentence — so any number can be checked.
-
-The materials are then **ranked by activation energy** and **classified** by crystal-structure type
-(NASICON, garnet, argyrodite, LGPS, perovskite, layered, spinel, olivine, …) and by structure family (oxide,
-sulfide, halide, …), to support data-driven screening.
-- **Electrolytes:** Superionic, Performant, Acceptable, Rejected.
-- **Cathodes and anodes:** low, moderate and high barrier. Their limits are starting points to set for your study.
-
-Every activation energy says what kind of energy it is: a measured or simulated Arrhenius slope, a static
-migration barrier (NEB), a bond-valence barrier, local NMR hops, a VTF pseudo-activation energy, or no ion
-migration at all. Rank one kind at a time (`mme-rank --kind arrhenius`).
-
-MME works from a window (no command line needed) or from the terminal, keeps all your files in one
-folder, never redoes work already done, and never deletes your input PDFs.
-
-### How it works
-
-MME has four parts. Parts 1 and 2 build the database; parts 3 and 4 read it.
-
-```mermaid
-flowchart LR
-    A(["Your PDFs"]) --> B["1 · Local extraction"]
-    C(["Open sources<br/>on the web"])  --> D["2 · Web scraping"]
-    B --> G["3 · Ranking"]
-    B --> H["4 · Classification"]
-    D --> G
-    D --> H
-    G --> I(["Ranked materials<br/>+ HTML report"])
-    H --> J(["One database<br/>per class"])
-```
-
-| # | Part | Reads | Writes |
-|---|------|-------|--------|
-| 1 | **Local extraction** (`mme-local`) | your PDFs | a database: one CSV per quantity, `database.xlsx`, `database.json` |
-| 2 | **Web scraping** (`mme-web`) | keywords of a job file | the legal open-access copies of the papers it finds, and a database of the same form as part 1 |
-| 3 | **Ranking** (`mme-rank`) | the databases of parts 1 and 2 | the materials ranked by activation energy, and an HTML report |
-| 4 | **Classification** (`mme-classify`) | the databases of parts 1 and 2 | one database per crystal-structure type and per structure family |
-| 5 | **ML datasets** (`mme-ml-export`) | the classes of part 4, or a database | a dataset for machine learning in `Ready for ML/`: one row per material, the values behind it, a datasheet |
-
-Each part has its own README with every detail: [LocalExtraction](LocalExtraction/README.md),
-[WebScraping](WebScraping/README.md), [SelectingTopMaterial](SelectingTopMaterial/README.md),
-[Classification](Classification/README.md).
+**Website:** [moukhlijmatextract.vercel.app](https://moukhlijmatextract.vercel.app) (how to use the program, step
+by step) · **Manual:** [docs/MANUAL.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/MANUAL.md)
+· **Every option:** [docs/COMMANDS.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/COMMANDS.md)
+· **Limitations:** [docs/LIMITATIONS.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/LIMITATIONS.md)
 
 ---
 
-## Installation
+## Contents
 
-**In short.** Install it once, then type `mme-gui` in any terminal, from any folder:
+1. [The project in one minute](#the-project-in-one-minute)
+2. [Why it exists](#why-it-exists)
+3. [What a value looks like](#what-a-value-looks-like)
+4. [How it works](#how-it-works)
+5. [Inside the extraction](#inside-the-extraction)
+6. [Where the papers come from](#where-the-papers-come-from)
+7. [Ranking, classification and ML datasets](#ranking-classification-and-ml-datasets)
+8. [How accurate it is](#how-accurate-it-is)
+9. [Reproducibility and open data](#reproducibility-and-open-data)
+10. [The program](#the-program)
+11. [Install](#install)
+12. [Quick start](#quick-start)
+13. [Where your files go](#where-your-files-go)
+14. [Repository layout](#repository-layout)
+15. [Platforms and tests](#platforms-and-tests)
+16. [Documentation](#documentation)
+17. [Author, citation and license](#author-citation-and-license)
 
-| | Install | Open the main window | Your results, job files and documents |
-|---|---|---|---|
-| **A user** | `pip install moukhlijmatextract` | `mme-gui` | `~/MoukhlijMatExtract/` |
-| **A developer** (this source) | `make install` | `make gui` or `mme-gui` | `~/MoukhlijMatExtract/` (the same) |
+---
 
-On its first start, the main window offers to create `~/MoukhlijMatExtract` with its `configs/` (the job files)
-and `docs/` (the manuals); a terminal command makes them by itself.
+## The project in one minute
 
-### What you need first
+**MoukhlijMatExtract (MME)** is an open-source research tool. It reads scientific papers about battery materials
+and builds a **structured, traceable database of their ion-transport data**. Then it **ranks** the materials,
+**classifies** them by structure, and **exports datasets** for machine learning.
 
-| Requirement | Why | How to get it |
-|-------------|-----|---------------|
-| **Python 3.11 or newer** | runs MME | [python.org](https://www.python.org/downloads/) |
-| **Tesseract OCR** | reads scanned or image-only PDFs | macOS: `brew install tesseract` · Ubuntu/Debian: `sudo apt install tesseract-ocr` · Windows: [installer](https://github.com/UB-Mannheim/tesseract/wiki) |
-| **Tk** | draws the windows (`mme-gui`); the terminal commands work without it | included with the python.org installers · macOS with Homebrew's Python: `brew install python-tk@3.13` (your Python version) · Ubuntu/Debian: `sudo apt install python3-tk` |
+| | |
+|---|---|
+| **Domains** | solid-state **electrolytes**, **cathodes**, **anodes**: each with its own search, database and ranking criteria |
+| **Quantities** | activation energy · ionic conductivity · electronic conductivity · diffusion coefficient, in common units. Electrode jobs also extract capacity, retention, voltage and rate capability |
+| **Context of each value** | material (formula and parsed composition), temperature, pressure, transport component (bulk / grain boundary / total / surface), measured or computed, the paper's own result or a cited one, mobile ion, kind of energy |
+| **Provenance** | paper, page, section, sentence, table row and column, or figure caption, for **every** value |
+| **Inputs** | your own PDFs, and/or papers found on the web from **25 search sources** and downloaded from **17 legal copy sources** |
+| **Outputs** | CSV, Excel and JSON databases; per-component rankings with an HTML report; one database per structure class; ML-ready datasets; a release folder ready for Zenodo |
+| **Quality control** | `needs_check` and `confidence` on every value, plausibility ranges, duplicate detection, a Verify tab for checking by hand, and a full evaluation suite (precision, recall, F1, benchmark, gold standard) |
+| **Interfaces** | a desktop application (Tkinter) with a window per part, and ten terminal commands with the same options |
+| **Platforms** | macOS, Linux and Windows, Python 3.11 to 3.13, tested on each by continuous integration |
+| **License** | GNU AGPL-3.0-or-later |
 
-### Option A — from PyPI
+---
 
-```bash
-python3 -m venv .venv                     # create a virtual environment
-source .venv/bin/activate                 # enter it (Windows: .venv\Scripts\activate)
-pip install moukhlijmatextract            # MME and everything it needs
-python -m spacy download en_core_web_sm   # the English language model, once
+## Why it exists
+
+Thousands of papers report how fast ions move through battery materials. Each paper does it in its own words, units
+and table layout:
+
+- *"E_a = 0.28 eV"* in a table;
+- *"an activation energy of 27 kJ mol⁻¹"* in a sentence;
+- *"σ_bulk of 1.38 × 10⁻³ S cm⁻¹ at 23.5 °C"* in a caption.
+
+Comparing materials across that literature by hand takes weeks. The result is rarely traceable to the sentence it
+came from.
+
+MME automates that work and keeps it checkable:
+
+- every number is converted to one unit and tied to its material;
+- every number is labelled with what it measures;
+- every number links back to where it was printed.
+
+It reads nothing it may not read: only your own PDFs and legally available copies.
+
+---
+
+## What a value looks like
+
+One row of `activation_energy.csv`, as MME extracts it from one of the two open-access papers of the worked example
+([examples/](examples/README.md); fields abridged):
+
+| Field | Value |
+|---|---|
+| `material_formula` | Li6.25La3Zr2Fe0.25O12 |
+| `activation_energy_eV` | 0.28 |
+| `energy_kind` | arrhenius |
+| `transport_component` | bulk |
+| `data_origin` / `attribution` | experimental / this work |
+| `mobile_ion` | Li+ |
+| `temperature` | 296.6 K |
+| `structure` | garnet |
+| `composition` | {"Li": 6.25, "La": 3.0, "Zr": 2.0, "Fe": 0.25, "O": 12.0} |
+| `source` | Table 3, row: 0.25 · column: E a (eV) |
+| `page` / `section` | 7 / Results |
+| `sentence` | *Table 3. Li-Ion Conductivity σbulk and Activation Energy Ea at 23.5 °C for Li7−3xFexLa3Zr2O12 (x = 0.18 and x = 0.25)* |
+| `material_link` | table_row: the formula was resolved from the series Li7−3xFexLa3Zr2O12 with x = 0.25 |
+| `basis` | for every answer, whether it was stated or assumed, and why (here: temperature from the table, pressure assumed) |
+| `confidence` / `needs_check` | 0.99 / no |
+
+Every column of every table is described in
+[docs/DATA_DICTIONARY.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/DATA_DICTIONARY.md).
+Each database also carries the dictionary as `data_dictionary.csv` and as a sheet of `database.xlsx`.
+
+---
+
+## How it works
+
+Two parts build the database; the others read it.
+
+```mermaid
+flowchart LR
+    subgraph IN["Build the database"]
+        A(["Your PDFs"]) --> L["1 · Local extraction<br/>mme-local"]
+        W(["25 open search sources"]) --> D["Fetch DOIs · Search · Screen<br/>mme-dois, mme-web"]
+        D --> F["Download legal copies<br/>(17 copy sources)"]
+        F --> E["2 · Web extraction"]
+    end
+    L --> DB[("Database<br/>CSV · XLSX · JSON")]
+    E --> DB
+    DB --> R["3 · Ranking<br/>mme-rank"]
+    DB --> C["4 · Classification<br/>mme-classify"]
+    C --> M["5 · ML datasets<br/>mme-ml-export"]
+    DB --> V["Evaluation<br/>mme-eval"]
+    DB --> P["Release · paper<br/>mme-release, make paper"]
+    R --> R2(["Ranked materials<br/>+ HTML report"])
+    C --> C2(["One database<br/>per class"])
+    M --> M2(["dataset.csv<br/>+ datasheet"])
+    V --> V2(["Precision · recall · F1<br/>benchmark · gold standard"])
+    P --> P2(["Zenodo-ready dataset<br/>every table and figure"])
 ```
 
-The language model decides how sentences are split and parsed, so it changes which values are found:
-- **Order of preference:** MME uses `en_core_sci_sm` (scispaCy) when it is installed, else `en_core_web_sm`, else a plain sentence splitter.
-- **Without any model:** the plain splitter ties fewer values to their material, and the extraction warns about it.
-- **Recorded:** every paper records the model it was read with (`extracted_with` in `papers.csv`).
-- **To reproduce a published result:** install the same model as that result.
+| # | Part | Command | Reads | Writes |
+|---|---|---|---|---|
+| 1 | **Local extraction** | `mme-local` | your PDFs | a database: one CSV per quantity, `database.xlsx`, `database.json` |
+| 2 | **Web scraping** | `mme-dois`, `mme-web` | the keywords of a job file | the legal copies of the papers it finds, and a database of the same form |
+| 3 | **Ranking** | `mme-rank` | one or more databases | materials ranked by activation energy, per transport component, and an HTML report |
+| 4 | **Classification** | `mme-classify` | one or more databases | one database per crystal-structure type, per structure family, and per property branch |
+| 5 | **ML datasets** | `mme-ml-export` | a class of part 4, or a database | `dataset.csv` (one row per material), every value behind it, a datasheet |
+| — | **Evaluation** | `mme-eval` | a database and a person's checks | precision, recall and F1 with intervals; recall against curated databases; benchmark; gold standard |
+| — | **Release** | `mme-release` | every result | one license-checked folder and `.zip`, with datasheet and checksums |
 
-### Option B — from the source code
+Every part runs from its own window or from the terminal. A part never redoes finished work: it skips a PDF already
+extracted, a search run in the last 30 days, or a ranking whose inputs did not change. Each part has a switch to redo
+it (`--rebuild`, `--refresh`, `--force`). MME never deletes your input PDFs.
+
+Each part also has its own README with every detail: [LocalExtraction](LocalExtraction/README.md),
+[WebScraping](WebScraping/README.md), [SelectingTopMaterial](SelectingTopMaterial/README.md),
+[Classification](Classification/README.md), [Evaluation](Evaluation/README.md).
+
+---
+
+## Inside the extraction
+
+The extraction (`LocalExtraction/`) is a rule-based pipeline: no language model is asked to guess. It is shared by
+parts 1 and 2:
+
+```mermaid
+flowchart LR
+    PDF(["PDF"]) --> T["Text, tables,<br/>captions<br/>(PyMuPDF · OCR)"]
+    T --> S["Sentences<br/>(spaCy)"]
+    S --> Q["Quantities<br/>and units"]
+    Q --> N["Normalise<br/>units"]
+    N --> MAT["Tie to<br/>a material"]
+    MAT --> CTX["Context: component,<br/>origin, attribution,<br/>ion, kind of energy"]
+    CTX --> CHK["Checks: plausibility,<br/>scope, duplicates,<br/>confidence"]
+    CHK --> DB[("Database")]
+```
+
+- **Reading the PDF.** Text, tables (ruled tables, and the unruled ones most journals print, found under their
+  "Table N" caption), captions and equations are read with PyMuPDF. Scanned pages are read with Tesseract OCR. A
+  damaged or non-PDF file is reported, never entered empty.
+- **Quantities and units.** The program recognises:
+  - energies in eV, meV, kJ/mol and kcal/mol;
+  - conductivities in S/cm, S/m and inverse ohms;
+  - diffusion coefficients in cm²/s and m²/s.
+
+  It also handles publisher symbol fonts, lost multiplication signs, and multi-line table headers.
+- **Materials.** Formulas are parsed into compositions, including:
+  - composition series (`Li6+xP1−xGexS5I` with the x the paper gives);
+  - mixtures (`(100−x)(0.75Li2S·0.25P2S5)·xLiBH4`);
+  - fractional subscripts.
+
+  A material named only in a role that is never the sample (an electrode, a reagent, a filler) takes no value.
+- **Context.** These come from the paper's words and table headers; when a field is assumed, the `basis` column says
+  so:
+  - the transport component, from headers like E_a,bulk or σ_gb;
+  - measured or computed, and the paper's own result or a cited one;
+  - the mobile ion (Li⁺, Na⁺, K⁺, Mg²⁺, …, Cs⁺, Rb⁺);
+  - the kind of energy: an Arrhenius slope, an NEB migration barrier, a bond-valence barrier, local NMR hops, a VTF
+    pseudo-activation energy, or no ion migration.
+- **Checks.**
+  - `plausibility` flags values outside the range known for ion conductors.
+  - `scope.py` flags materials of another domain (an electrode in an electrolyte database).
+  - An Arrhenius cross-check compares Ea with the conductivities.
+  - `duplicates.py` traces a value repeated or quoted by a later paper back to its original.
+  - `needs_check` says, with the reasons, which values a person should look at.
+
+Every run records the language model used (`extracted_with` in `papers.csv`). MME prefers scispaCy's
+`en_core_sci_sm`, then `en_core_web_sm`, then a plain sentence splitter.
+
+---
+
+## Where the papers come from
+
+**Legal sources only.** Every service is used through the interface it offers to programs. The web part:
+
+- respects `robots.txt` (RFC 9309) and `Crawl-delay`;
+- spaces requests per host and backs off on "too many requests";
+- never bypasses a paywall, a login, a bot check or a refusal;
+- does not use shadow libraries (Sci-Hub, LibGen …), and they cannot be added.
+
+Papers with no legal copy are listed, to get through your library or from the authors.
+
+| Stage | What happens |
+|---|---|
+| **1 · Fetch DOIs** | collects the DOIs of the topic from the job's keywords |
+| **2 · Search** | asks every source each keyword; merges the same paper found by several sources by its DOI; fills missing abstracts; optionally follows citations (snowballing) |
+| **Screen** | scores each paper on topic and property words. Learns from your keep / reject decisions. Leaves the candidates for you to review |
+| **3 · Download** | tries each copy source in turn and records where each PDF came from (`source_service`, `download_log.csv`) |
+| **4 · Extract** | the same extraction as part 1, into the web database |
+
+- **Search sources (25):**
+  - without a key (16): OpenAlex, arXiv, Crossref, Semantic Scholar, Europe PMC, OpenAIRE, DOAJ, J-STAGE, PLOS,
+    NASA NTRS, Zenodo, DataCite, Figshare, OSF Preprints, LA Referencia, theses.fr;
+  - with a key (9): CORE, Springer Nature, Scopus, NASA ADS, IEEE Xplore, Web of Science, The Lens, BASE,
+    Dimensions.
+- **Copy sources (17):**
+  - the publishers' interfaces for programs: Elsevier and Wiley (open access, and your institution's subscription
+    on its network), APS, and the text-mining links publishers register with Crossref;
+  - open-access links: OpenAlex, Unpaywall, and the open-access publisher's own page;
+  - repositories: arXiv, PubMed Central, OSTI, HAL, Zenodo, DataCite, Semantic Scholar, NASA ADS, OpenAIRE, CORE.
+
+Most API keys are free and all are optional: without any key the open sources still work. Each job file
+(`configs/*.yaml`) sets the domain, the searches, the sources, the years and the screening. One job ships per domain,
+plus one per family of solid electrolytes (garnet, NASICON, argyrodite, LGPS, halide, …).
+
+---
+
+## Ranking, classification and ML datasets
+
+**Ranking** (`SelectingTopMaterial/`). Bulk, grain-boundary and total activation energies are different quantities,
+so each component is ranked on its own and never mixed. Each material gets one activation energy per component: by
+default, the confidence-weighted median of its values. It also gets a class from
+[`criteria.toml`](SelectingTopMaterial/criteria.toml):
+
+| Electrolytes | Ea | | Cathodes and anodes | Ea |
+|---|---|---|---|---|
+| **Superionic** | < 0.25 eV | | **Low barrier** | < 0.30 eV |
+| **Performant** | 0.25 – 0.30 eV | | **Moderate barrier** | 0.30 – 0.50 eV |
+| **Acceptable** | 0.30 – 0.40 eV | | **High barrier** | > 0.50 eV |
+| **Rejected** | ≥ 0.40 eV | | | |
+
+You can filter the ranking:
+- by element, origin, attribution, kind of energy, confidence or phase;
+- by policy: the median, the lowest or the highest value of each material.
+
+Each rank says how sure it is: the number of values and papers, the spread, and how much of it was assumed.
+Materials Project entries can be shown beside each composition. The electrode limits are starting points to set for
+your study, not literature criteria.
+
+**Classification** (`Classification/`). Each material is classified twice:
+- by **crystal-structure type**: NASICON, LISICON, thio-LISICON, garnet, argyrodite, LGPS, perovskite,
+  antiperovskite, spinel, olivine, layered, …;
+- by **structure family**: oxide, sulfide, halide, oxyhalide, nitride, hydride, ….
+
+Each class is a database of the same form as the input, so one class can be ranked alone. **Classify everything**
+then splits each family into a tree of datasets: family → property → component → origin. Each branch gets a
+`dataset.csv` and a `values.csv`.
+
+**ML datasets** (`MLDataset/`). A family, a property, a component, an origin and your filters produce a folder with:
+- `dataset.csv`: one row per material, with the median, log10 for conductivities, the spread, the counts and a group
+  column for grouped splits;
+- `values.csv`: every value behind each row, with its sentence and page;
+- `excluded.csv`: every value left out, and why;
+- a datasheet, and the settings to make it again.
+
+Values marked wrong in the Verify tab are left out. Repeated measurements are counted once.
+
+---
+
+## How accurate it is
+
+MME is measured, and the measurements are published with their limits. Read
+[docs/LIMITATIONS.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/LIMITATIONS.md) before
+relying on the data.
+
+**Recall against curated databases** (`mme-eval reference`). The ionic conductivities of two curated lithium
+solid-electrolyte databases, looked for in the same papers (legal open copies only). Version 1.1.0, 2026-11-08:
+
+| Database | Papers | Entries | Material found | Material and value (0.1 decade) |
+|---|---:|---:|---:|---:|
+| OBELiX (Therrien et al., 2025) | 27 | 64 | 35.9 % | 12.5 % |
+| Liverpool Ionics Dataset (Hargreaves et al., 2023) | 11 | 48 | 50.0 % | 6.2 % |
+
+Recall is low for four reasons:
+- About 40 % of the curated entries exist only in figures. The curators read them off Arrhenius plots; MME reads text,
+  tables and captions.
+- Compositions are named otherwise (analysed versus nominal formula, "Al-doped LLZO").
+- Some PDF tables lose their layout.
+- The sample is small: only 38 papers had a legal open copy to read.
+
+**Precision on hand-annotated papers** (an independent audit, activation energies, two rounds of 40 random papers,
+95 % Wilson intervals):
+
+| Round | Values | Fully correct | Correct if the doubtful cases are right |
+|---|---:|---:|---:|
+| F | 76 | 37 % (27–48 %) | 62 % (51–72 %) |
+| G (after fixing what F showed) | 82 | 41 % (31–52 %) | 57 % (47–67 %) |
+
+"Fully correct" is strict. The number, the material, the origin, the attribution, the component, the kind of energy
+and the domain must all be right. **The number itself is read correctly about 95 % of the time** (an earlier round of 80 values). Most errors are in
+*what it is a value of*: a doped sample stored under its parent formula, a composite stored as its ceramic, or another
+member of a series. **The values behind a publication should therefore be checked by a person.** MME is built for
+that:
+- `needs_check` lists the values worth a look;
+- the **Verify tab** marks each value right, wrong or corrected, and those marks carry into the ML datasets;
+- `mme-eval` measures the result.
+
+**The evaluation suite** (`Evaluation/`, protocol in
+[docs/EVALUATION_PROTOCOL.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/EVALUATION_PROTOCOL.md)):
+
+| Command | Does |
+|---|---|
+| `mme-eval sheet` | draws papers at random into an annotation workbook, with a guide (correct / partly / wrong, values missed) |
+| `mme-eval score` | precision, recall and F1 per property and overall, with 95 % bootstrap intervals, at two levels (right value; right value *for the right material*), plus calibration of `confidence` and an error analysis |
+| `mme-eval agree` | agreement of two annotators (Cohen's κ) |
+| `mme-eval reference` | recall against OBELiX and the Liverpool Ionics Dataset |
+| `mme-eval benchmark` | MME against a keyword baseline and any other tool (ChemDataExtractor, an LLM prompt …), on the same papers, with paired differences |
+| `mme-eval gold` | the annotated papers as a public gold-standard dataset (CC BY 4.0), ready for Zenodo |
+
+---
+
+## Reproducibility and open data
+
+- **Exact environment.**
+  - `requirements.lock` pins every package version (`make install-locked`).
+  - A **Dockerfile** pins the same environment, with Tesseract.
+- **How each result was made.** Every run appends to `run_manifest.json` in its results folder:
+  - the command and settings;
+  - the version and git commit;
+  - the language model, Tesseract, Python and package versions;
+  - the counts, and the rows and SHA-256 of every file written.
+- **The article, made again from the data.** `make paper` (or `make paper-docker`) rebuilds every table and figure
+  into `~/MoukhlijMatExtract/paper/`, with fixed seeds:
+  - the database summary and the duplicates;
+  - the figures;
+  - the ranking and the classification;
+  - the scores and the benchmark.
+
+  `environment.json` records the commit, the package versions, the lock hash and the input checksums.
+- **The dataset, ready to deposit.** `mme-release` writes one folder and one `.zip`. It holds:
+  - every value and bibliographic field;
+  - the text quoted from papers, only where their license allows (CC BY, CC0, public domain);
+  - the data dictionary, the run manifests and the lock file;
+  - a datasheet and `SHA256SUMS`.
+
+  Papers without a record of a legal source are left out and listed in `excluded.csv`. Zenodo gives the archive a
+  DOI.
+- **A worked example.** `make demo` takes two CC BY papers through extraction, ranking and classification, offline,
+  in about a minute. A test checks that the values stay the same.
+
+---
+
+## The program
+
+`mme-gui` opens the main window: one card per part, each with **Open**, **Results…** and **Delete outputs…**. Every
+window shares the same design:
+
+- **Progress you can trust.** Each long step does the following:
+  - it says at the start how long it will take, from this computer's earlier runs;
+  - it shows a progress bar and a dark-yellow line with what it is doing, "N of M", and the time left;
+  - it says what is already saved if you stop now;
+  - **⏱ Progress details** follows the phases, the pace and a timeline of what was searched or fetched.
+- **Pause, Resume, Stop.** A stopped step goes on from where it stopped next time. It waits for the internet when the
+  connection drops, and keeps the computer awake during long runs.
+- **Results card.** Each step ends with ✓ / ⚠ / ✕ / ○, the time taken, the key numbers and findings, and buttons for
+  the next step.
+- **Verify tab.** Check values by hand next to their sentence and page, with filters for the values flagged.
+- **Results… / Browse the CSV files…** Every table of a part, sortable and searchable, even with hundreds of thousands
+  of rows. A row opens its paper at doi.org.
+- **Guides built in:**
+  - **⚠ Requirements**;
+  - **☰ Manual**: every command with every option;
+  - **⚙ Make commands**: every `make` target explained, with a diagram of the project flow;
+  - **⇄ Flow**: a floating button that shows the whole process from scratch, with "You are here";
+  - **About & methods**.
+- **Comfort.**
+  - Light and dark mode; windows that fit any screen, down to 1024 × 768.
+  - One copy of each window; "‹ Back to the main window".
+  - Delete outputs to the Trash.
+  - On macOS, an optional Dock icon.
+
+The terminal gives the same parts with the same options:
+
+| Command | Does |
+|---|---|
+| `mme` | every command in one: `mme help`, `mme commands`, `mme <part> …` |
+| `mme-gui` | the main window |
+| `mme-local` | 1 · extract your PDFs |
+| `mme-dois`, `mme-web` | 2 · fetch DOIs; search, download and extract |
+| `mme-rank` | 3 · rank by activation energy |
+| `mme-classify` | 4 · classify by structure and property |
+| `mme-ml-export` | 5 · a dataset for machine learning |
+| `mme-eval` | measure the accuracy |
+| `mme-release` | the dataset, ready to deposit |
+
+`mme-local`, `mme-web`, `mme-rank`, `mme-classify` and `mme-ml-export` open their own window with `gui` (for example
+`mme-rank gui`). Add `--help` to any command for its options. From the source code, `make help` lists every `make` shortcut.
+
+---
+
+## Install
+
+**What you need:**
+
+| | Why | How |
+|---|---|---|
+| **Python 3.11+** | runs MME | [python.org](https://www.python.org/downloads/) |
+| **Tesseract OCR** | reads scanned PDFs | macOS `brew install tesseract` · Ubuntu `sudo apt install tesseract-ocr` · Windows [installer](https://github.com/UB-Mannheim/tesseract/wiki) |
+| **Tk** | draws the windows; the terminal commands work without it | included with python.org · Homebrew `brew install python-tk@3.13` · Ubuntu `sudo apt install python3-tk` |
+
+**As a user, from PyPI:**
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install moukhlijmatextract
+python -m spacy download en_core_web_sm              # the English language model, once
+mme-gui
+```
+
+**As a developer, from the source:**
 
 ```bash
 git clone https://github.com/YounesMoukhlij/MoukhlijMatExtract.git
 cd MoukhlijMatExtract
-python3 -m venv .venv                     # one virtual environment for the whole project
-source .venv/bin/activate                 # enter it (Windows: .venv\Scripts\activate)
-pip install -r requirements.txt           # the packages, inside the venv
-pip install -e .                          # the mme-* commands, running this folder's code
-python -m spacy download en_core_web_sm   # the English language model, once
+make install          # venv, packages, the mme-* commands and the language model (macOS, Linux)
+make gui
 ```
 
-On macOS and Linux, `make install` does all of this in one step.
+On Windows, run the steps of `make install` by hand: `pip install -r requirements.txt`, then `pip install -e .`, then
+the spaCy model.
 
-Both give the same nine commands — `mme-gui`, `mme-local`, `mme-web`, `mme-dois`, `mme-rank`,
-`mme-classify`, `mme-eval`, `mme-release`, and `mme`, which holds them all — with every option.
-- `mme help` lists every command at a glance.
-- `mme commands` prints every option of every command (the same as [docs/COMMANDS.md](docs/COMMANDS.md)).
-- `mme <part> …` runs a part: `mme local`, `mme web run`, `mme rank --domain cathode`, `mme eval score` ….
-- **☰ Manual** in the main window shows the same.
-
-The `make` shortcuts come with the source code only; installed from PyPI, `mme` gives the same commands.
-**Reviewers:** [docs/MANUAL.md](docs/MANUAL.md) is the complete manual: installing, every step for
-electrolytes, cathodes and anodes, the outputs, measuring the accuracy and reproducing a result.
-
-Work **inside the virtual environment**: in each new terminal, enter it again with
-`source .venv/bin/activate` before running MME. Check the installation with:
-
-```bash
-mme-gui --version
-```
+**For an exact reproduction:** `make install-locked`, or the Docker image (`make paper-docker`).
 
 ---
 
-### Try it on two example papers
-
-The source code comes with two open-access papers (CC BY) and the values this version extracts from them
-([examples/](examples/README.md)). One command takes them through extraction, ranking and classification,
-with no network and no papers of your own:
+## Quick start
 
 ```bash
-make demo        # results in examples/output/ — about a minute
+make demo                 # two example papers → extraction, ranking, classification (examples/output/)
+mme-gui                   # or open the main window and follow the cards 1 → 5
 ```
 
-## User manual
-
-### Step 0 — Open MME
+From the terminal, a whole study:
 
 ```bash
-mme-gui
+mme-local                                   # 1 · your PDFs in ~/MoukhlijMatExtract/LocalExtraction/papers/
+mme-web run --check                         # 2 · test the network, keys and folders
+mme-web                                     #     search, download and extract (configs/sse.yaml)
+mme-rank --open                             # 3 · rank, and open the HTML report
+mme-classify                                # 4 · classify
+mme-ml-export --family garnet --target Ea --component bulk --origin experimental   # 5 · an ML dataset
+mme-eval sheet && mme-eval score            # measure the accuracy (after annotating the workbook)
+mme-release                                 # the dataset, ready for Zenodo
 ```
 
-This opens the main window. On a new computer, a small window first offers to create
-`~/MoukhlijMatExtract`, with every job file (`configs/`) and every document (`docs/`). Under the folder buttons, a
-line says whether the folder, its job files and documents are all there. If one is missing (deleted, say), the line
-turns orange, and **Restore the job files** makes it again; a job file you edited is kept. **Open the documents**
-opens `docs/`.
+Cathodes and anodes use their own job file and database, for example
+`mme-web run --job configs/cathode.yaml --output WebScraping/web_output_cathode`, then
+`mme-rank --domain cathode --source …`.
 
-The window shows one card per part, each with an **Open** button and a **Delete outputs…** button. The **⚠ Requirements** button at the top opens a short guide to what MME
-needs; it turns green (**✓ Requirements**) once you have read it. The **☰ Manual** button beside it lists
-every command with all of its options (`mme-local`, `mme-web`, `mme-dois`, `mme-rank`, `mme-classify`, their
-`python -m` forms and the `make` shortcuts), with typical runs and a search box. The options are each
-command's own `--help`, so the manual always matches the installed program. The bottom of the window
-describes the project and its author.
+Every step, every option and every output is in
+[docs/MANUAL.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/MANUAL.md).
 
-Every part can also be run from the terminal — each step below gives both ways.
+---
 
-#### Where your files go
+## Where your files go
 
-Every part works inside **`~/MoukhlijMatExtract`** (the folder `MoukhlijMatExtract` in your home
-folder), the **main results folder**, whatever folder you start it from. In the main window, press
-**Create the main results folder** to make it with every part's folders, its `configs/` (every job file) and its
-`docs/` (the documents), both installed with the package from the repository's [`configs/`](configs) and
-[`docs/`](docs); once it exists the button reads
-**Open the main results folder** and opens it. Opening a part also makes it when it is missing, so the
-parts always find each other's files:
+Every part works inside **`~/MoukhlijMatExtract`**, whatever folder it starts from. The main window offers to create
+it on first start; **Restore the job files** brings back a missing one without touching your edits.
 
 ```
 ~/MoukhlijMatExtract/
-├── configs/                              ← the job files of the web search (yours to edit; never written over):
-│   ├── sse.yaml, cathode.yaml, anode.yaml       electrolytes, cathodes, anodes
-│   └── garnet.yaml, nasicon.yaml, … halide.yaml one per family of solid electrolytes, and garnet_nasicon.yaml
-├── docs/                                 ← the manual, every command, the data dictionary, the limitations,
-│                                           the evaluation protocol (kept up to date with the installed version)
-├── LocalExtraction/papers/               ← put your own PDFs here
-├── LocalExtraction/local_output/         ← database of part 1
-├── WebScraping/papers/                   ← PDFs downloaded by part 2
-├── WebScraping/web_output/               ← database of part 2
-├── SelectingTopMaterial/results/         ← the ranking (part 3)
-├── Classification/                       ← the classes (part 4)
-│   ├── crystal_structure/
-│   └── structure_families/
-└── Ready for ML/                         ← the datasets for machine learning (part 5)
+├── configs/                      job files of the web search (yours to edit)
+├── docs/                         the manual, commands, data dictionary, limitations
+├── .env                          your API keys
+├── LocalExtraction/papers/       ← put your own PDFs here
+├── LocalExtraction/local_output/ database of part 1
+├── WebScraping/papers/           PDFs downloaded by part 2, with the record of their source
+├── WebScraping/web_output/       database of part 2
+├── SelectingTopMaterial/results/ the ranking: bulk/, grain_boundary/, total/, summary.csv
+├── Classification/               crystal_structure/, structure_families/, by_property/
+├── Ready for ML/                 the ML datasets
+├── Evaluation/                   annotation workbooks, scores, benchmark, gold standard
+├── Release/                      the datasets ready to deposit
+└── paper/                        every table and figure of the article (make paper)
 ```
-
-### Step 1 — Extract your own PDFs
-
-1. Copy your PDFs into `~/MoukhlijMatExtract/LocalExtraction/papers/`.
-2. In the main window, open **1 · Local extraction** and press **Start extraction**.
-3. Watch the values arrive in the **Activation energies** tab; the **Activity** tab shows the log.
-
-From the terminal:
-
-```bash
-mme-local                      # extract the new PDFs of LocalExtraction/papers/
-mme-local extract -i ~/Desktop/articles   # another folder of PDFs
-mme-local gui                  # the same, in a window
-```
-
-| Option | What it does |
-|--------|--------------|
-| `--input DIR`, `-i` | folder of PDFs (default `LocalExtraction/papers`) |
-| `--output DIR`, `-o` | where to write the database (default `LocalExtraction/local_output`) |
-| `--workers N`, `-w` | how many PDFs to read at once (default 4) |
-| `--offline` | do not complete titles, authors, DOIs and years from OpenAlex |
-| `--rebuild` | extract every PDF again (the old database is kept in `previous_<date>/`) |
-
-Only new PDFs are read: a PDF already in the database is reported as `Already extracted … — skipped`.
-
-### Step 2 — Find and extract papers from the web
-
-Open **2 · Web scraping** in the main window. Each time it opens, it asks for your **contact e-mail**
-(the open databases ask that callers give one) and points to the API keys. It searches the open sources,
-downloads the legal open-access copies into `WebScraping/papers/` and extracts them into
-`WebScraping/web_output/`.
-
-**API keys** are all optional — without any key the open sources still work; each key just opens more
-papers. They are free, except The Lens (through your institution's subscription, or a non-commercial
-trial); Dimensions is free for research on application, and BASE once it has registered your network. Press **API keys…** in the web window: each card has a link to the sign-up page and a
-field for the key.
-
-**Closed papers (Elsevier, Wiley).** Their keys download the closed papers your university subscribes to
-**only on the university's network** — on campus, or through a VPN that sends everything through it — or,
-for Elsevier, from anywhere with the institutional token (`ELSEVIER_INSTTOKEN`, from your library). From
-home without either, those papers are not downloaded (the open copies of every paper still are); the
-download says so, and tries them again next time. **Check setup** tells you whether the network you are
-on is entitled.
-
-#### Customize the search — Search settings…
-
-What the web search looks for is kept in `~/MoukhlijMatExtract/configs/sse.yaml`. Press
-**Search settings…** in the Web scraping window to change it in a form instead of editing the file:
-
-| Tab | What you can change |
-|-----|---------------------|
-| **1 · Searches** | the searches, one per line (`# lines` are headings that group them); a file of papers you already know |
-| **2 · Sources and years** | the years; how many results each source gives per search (1–1000); which sources are searched; preprints; where missing abstracts are looked up |
-| **3 · Which papers** | the topic, property and excluded words; the minimum score (0–20); whether papers without a free copy are kept |
-| **4 · Download** | where a legal copy is looked for; downloads at once (1–8); the largest PDF (1–500 MB) |
-| **5 · Data extracted** | which properties are kept (ion transport, every property, or your choice); whether a value must be tied to a material |
-
-Each number is held within its bounds, and nothing is saved while a setting is wrong — the form says
-what to fix. A source whose key or e-mail is missing is marked so. The comments and headings of the
-file are kept. **Reset to defaults** puts back the settings MME comes with (saved only when you press
-**Save**). Some settings are not offered because changing them would break MME: the folder of the PDFs
-(always `WebScraping/papers/`) and the job's name. The contact e-mail and the keys are set in
-**API keys…**. A window whose step is running lets you open the form once the step is done; a step
-already running keeps the settings it started with, and the next one uses the new ones.
-
-#### Search, download, extract
-
-Searches OpenAlex, arXiv, Crossref, Semantic Scholar, Europe PMC and twenty more services by keyword, keeps
-the papers on topic, downloads the legal open-access copies and extracts them.
-
-1. Press **2 · Search**. The keywords, years and sources come from the job file
-   `~/MoukhlijMatExtract/configs/sse.yaml` — press **Search settings…** to change them.
-2. Look through the papers found in the **Candidates** tab.
-3. Press **3 · Download** (optionally limit the number of papers; tick *then extract them*).
-4. Press **4 · Extract** if you did not let the download extract them.
-
-**Check setup** tests the network, the API keys and the folders. **Pause** holds the running step (what is
-under way finishes first) and **Resume** goes on; **Stop** ends it, and the next run goes on where it
-stopped. When the internet goes, the step says *No internet connection — waiting for it to come back* and
-goes on by itself once it is back.
-
-From the terminal:
-
-```bash
-mme-web                        # search, download and extract, as the job file says
-mme-web run --check            # test the network, the API keys and the folders
-mme-web run --limit 50         # download at most 50 papers in this run
-mme-web run --stage extract    # only extract the PDFs already downloaded
-mme-web gui                    # the same, in a window
-```
-
-| Option | What it does |
-|--------|--------------|
-| `--job FILE` | another job file (default `configs/sse.yaml`) |
-| `--stage discover\|fetch\|extract` | the first stage to run |
-| `--yes` | approve every paper found, without a review |
-| `--limit N` | download at most N papers in this run |
-| `--refresh` | search again the keywords already searched in the last 30 days |
-| `--rebuild` | extract every downloaded PDF again |
-
-#### Electrolytes, cathodes or anodes
-
-Choose the job file of the domain, in the window (**Job file:**) or with `--job`, and give each domain its own
-database folder:
-
-```bash
-mme-web run --job configs/sse.yaml                                                   # electrolytes
-mme-web run --job configs/cathode.yaml --output WebScraping/web_output_cathode       # cathodes
-mme-web run --job configs/anode.yaml   --output WebScraping/web_output_anode         # anodes
-mme-local --domain cathode --input /path/to/cathode/pdfs --output LocalExtraction/output_cathode   # your own PDFs
-```
-
-**What each job sets:**
-- its own search, its own download folder (`WebScraping/papers_cathode`, `…_anode`) and its own DOI list;
-- `extract.domain`, which flags the values of materials of another kind. An electrolyte database flags electrodes,
-  alloys, interphase salts and composites. A cathode database flags solid electrolytes, interphase salts, alloys
-  and lithiated carbon. An anode database flags solid electrolytes and interphase salts.
-
-**What the electrode jobs extract:** the transport quantities, plus capacity, capacity retention, voltage and rate
-capability, which go to `properties.csv`. The extraction rules were written and measured on electrolyte papers
-(see `docs/LIMITATIONS.md` § 2). Check a sample of an electrode database before relying on it.
-
-### Step 3 — Rank the materials
-
-Open **3 · Ranking** and press **Rank**, or from the terminal:
-
-```bash
-mme-rank                       # rank everything, write the files
-mme-rank --open                # … and open the report in the browser
-mme-rank --element Na          # only the sodium conductors
-mme-rank --origin experimental --top 20
-mme-rank --kind arrhenius      # one kind of energy only (arrhenius, migration_barrier, bvse, local_hop, vtf)
-mme-rank --domain cathode --source ~/MoukhlijMatExtract/WebScraping/web_output_cathode   # a cathode database
-mme-rank gui                   # the window
-```
-
-**Each transport component is ranked on its own — bulk, grain boundary and total.** A bulk Ea and a
-total Ea are different quantities, so they are never mixed: each component has its own ranking, its own
-ranks and its own classes. In each, a material gets one activation energy (by default the
-confidence-weighted median of its values of that component) and a class from
-[`criteria.toml`](SelectingTopMaterial/criteria.toml):
-
-| Class | Activation energy |
-|-------|-------------------|
-| **Superionic** | below 0.25 eV |
-| **Performant** | 0.25 – 0.30 eV |
-| **Acceptable** | 0.30 – 0.40 eV |
-| **Rejected** | 0.40 eV and above |
-
-Cathodes and anodes (`--domain cathode`, `--domain anode`) are ranked with
-[`criteria_cathode.toml`](SelectingTopMaterial/criteria_cathode.toml) and
-[`criteria_anode.toml`](SelectingTopMaterial/criteria_anode.toml):
-- **Low barrier:** below 0.30 eV.
-- **Moderate barrier:** 0.30–0.50 eV.
-- **High barrier:** above 0.50 eV.
-
-These limits are starting points, not literature criteria: set them for your study. A low barrier means fast ion
-diffusion in the electrode; it says nothing of its capacity, voltage or stability.
-
-| Option | What it does |
-|--------|--------------|
-| `--policy consensus\|optimistic\|conservative` | which value stands for a material: the median, the lowest or the highest |
-| `--origin experimental\|simulation` | only measured, or only computed values |
-| `--attribution this-work\|cited` | only the papers' own results, or only the values they cite |
-| `--element Li Na …` | only materials containing these elements |
-| `--component bulk\|grain_boundary\|total` | rank one component only (by default each is ranked) |
-| `--min-confidence 0.5` | only values extracted with at least this confidence |
-| `--by-phase` | rank the phases of a composition apart (cubic / tetragonal, …) |
-| `--top N` | keep the first N materials |
-| `--format csv xlsx json html` | which files to write |
-| `--source DIR …` | read other databases (for example one class from step 4) |
-| `--force` | rank again even if nothing changed |
-
-Each ranking is written into its own folder — `SelectingTopMaterial/results/bulk/`, `grain_boundary/`
-and `total/` — each with `top_materials.csv`, `all_materials.csv`, `values.csv`, `selection.xlsx`,
-`selection.json` and `report.html`; `results/summary.csv` puts the components side by side. The window
-has a tab per component.
-
-### Step 4 — Classify the materials
-
-Open **4 · Classification** and press **Classify**, or from the terminal:
-
-```bash
-mme-classify                   # classify, write one database per class
-mme-classify gui               # the window
-```
-
-Each material is classified twice:
-
-- by **crystal-structure type** — NASICON, LISICON, thio-LISICON, garnet, argyrodite, LGPS, perovskite,
-  antiperovskite, spinel, olivine, … → `Classification/crystal_structure/<class>/`
-- by **structure family** — oxide, sulfide, halide, oxyhalide, nitride, hydride, … →
-  `Classification/structure_families/<class>/`
-
-`Classification/all_materials.csv` lists every material with its two classes. Each class folder is a
-database of the same form as parts 1 and 2, so you can rank one class alone:
-
-```bash
-mme-rank --source ~/MoukhlijMatExtract/Classification/crystal_structure/garnet
-```
-
-### Measuring the accuracy — Evaluate… and mme-eval
-
-How accurate is the extracted data? It is measured against values checked by a person, as a publication
-needs. In a window: press **Evaluate…** next to **Start extraction** (Local extraction) or **4 · Extract**
-(Web scraping). It takes three steps on that window's results — **1 · Make the workbook** (papers drawn at
-random: 10 for a quick idea, 50–60 for an article), **2 · Check the values** (yours: open the workbook and
-mark each value), **3 · Compute the scores** (precision, recall and F1) — and keeps its own workbook and report
-(`Evaluation/annotation_local.xlsx`, `Evaluation/scores_local/`; `_web` for the web window). After the program
-changed and the papers were extracted again, tick *Score the values now in the results folder* and compute
-again: your checks are reused. In a terminal:
-
-```bash
-mme-eval sheet            # 60 papers drawn at random -> Evaluation/annotation.xlsx
-#   annotate it: its Guide sheet says how (correct / partly / wrong, and the values missed)
-mme-eval score            # -> Evaluation/scores/report.md, metrics.json, errors.csv
-mme-eval agree a.xlsx b.xlsx   # two annotators: Cohen's kappa and F1 between them
-```
-
-The report gives precision, recall and F1 for each property and overall, with 95 % intervals from
-resampling the papers, at two levels: the right value, and the right value for the right material. It
-also gives the accuracy of the component and origin, how well the confidence column predicts correctness
-(calibration), precision by text and table, and the errors the annotators named. After a change to the
-program and a new extraction, `mme-eval score --source LocalExtraction/local_output WebScraping/web_output`
-measures the new version against the same reference. Two comparisons complete it: `mme-eval reference`
-(recall against the curated OBELiX and Liverpool databases, on their own papers) and other tools scored on
-the same annotated papers: any tool's values, as a CSV, go to `mme-eval score --predictions`. See [Evaluation/README.md](Evaluation/README.md); what the program does not
-do well, with the numbers, is in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
-
-### Seeing every result — Results…
-
-Each part in the main window has a **Results…** button (the extraction windows have it too: **Results →
-Browse every table…**, or **Browse every table** on the results card). It opens every table of that part
-in one window: the list of tables on the left with their number of rows, the chosen table on the right
-with every column — sorted by a click on a heading, searched with one box over all its columns — and
-every cell of the selected row below, with a button to open the paper at doi.org.
-
-| Part | Its tables |
-|------|-----------|
-| 1 · Local extraction | papers, activation energies, ionic and electronic conductivities, diffusion coefficients, all properties, materials, methods, values without a material, the papers' tables, figures, equations, workflow, material ↔ value links, summary per paper |
-| 2 · Web scraping | the same for the web database, plus the candidates of the search |
-| 3 · Ranking | the summary of the components, then for bulk, grain boundary and total: top materials, all materials, values |
-| 4 · Classification | every material and its classes, the crystal families and the structure families, each with its Ea by component |
-
-The files are only read: nothing in the window changes them.
-
-### Which values to check — needs_check and confidence
-
-Every value of the four quantity tables (activation energy, ionic and electronic conductivity, diffusion
-coefficient — CSV, and a sheet of `database.xlsx`) carries:
-
-- `needs_check` — **no**, or **yes:** and why a person should look at it: *out of range*, *unusual formula*
-  (a formula cut short, or a fragment of a name), *doped sample* (given its parent's formula), *material from
-  another sentence*, *table text*, *low confidence*. In Excel, filter the column on "yes" to see them.
-- `plausibility` — *in range*, or *check:* for a number outside what ion conductors show.
-- `confidence` — a 0–1 score of the extraction; sort on it to see the least sure first.
-
-A flag points at a value worth a look; it removes nothing, and an unflagged value can still be wrong
-([docs/LIMITATIONS.md](docs/LIMITATIONS.md)). How often the values are right is measured with **Evaluate…**.
-
-### When a step ends — the results card
-
-Every step of every window ends with a **results card** above its tables: ✓ done, ⚠ done with problems
-or stopped, ✕ failed, ○ nothing new — with the time it took, big numbers for what it did, the main
-findings, and buttons for what comes next.
-
-| Step | The numbers | The findings | Next |
-|------|-------------|--------------|------|
-| 1 · Local extraction, 2 · Extract (both web methods) | articles read, activation energies, ionic conductivities, materials, PDFs not read | the lowest activation energies and the highest conductivity found, each with its article | show the values, open the workbook or the folder |
-| 2 · Search | new papers, proposed, no open copy known | the best matches | review them, download them |
-| 3 · Download | downloaded, failed, no copy to be had | the sources the PDFs came from | extract them |
-| 3 · Ranking | the materials of each component (bulk, grain boundary, total), how many superionic, the best of each | the best two materials of each component, with their article | show each component, open the report, the folder |
-| 4 · Classification | materials, crystal families, structure families, activation energies | the largest crystal families, their lowest Ea and its article | show the classes, open the class folders |
-
-**Every table names its articles.** Each CSV of the databases has the article's `title` right after
-`paper_id` (the file name stands for a paper that states no title, and says so); the ranking's and the
-classification's tables of materials have `articles`, the titles of the papers their values come from.
-A database written before gets the column added the next time
-it is opened — nothing is extracted again.
-
-### Long runs keep the computer awake
-
-While MME downloads or extracts, it keeps the computer from going to sleep (the screen may still turn
-off), and lets it sleep again when the step ends. A laptop should stay plugged in for a long download.
-
-### Running a part again never redoes finished work
-
-Each part says what it skips and moves on to the next item:
-
-| Part | Already done | Message | To redo it |
-|------|--------------|---------|------------|
-| 1 · Local extraction | a PDF already in the database | `Already extracted: <file> — skipped.` | `--rebuild` |
-| 2 · `mme-web` | a search run in the last 30 days, a paper already downloaded | `already searched …` / `Already fetched: <doi> …` | `--refresh` / `--rebuild` |
-| 3 · Ranking | the same databases, criteria and options as the last ranking | `Already ranked … — skipped.` | `--force` |
-| 4 · Classification | the same databases as the last classification | `Already classified … — skipped.` | `--force` |
-
-### Keeping the results up to date
-
-| After… | Run |
-|--------|-----|
-| adding PDFs to `LocalExtraction/papers/` | parts 1 → 3 → 4 |
-| wanting more papers from the web | parts 2 → 3 → 4 |
-| changing the limits in `criteria.toml` | part 3 |
-| updating MME | parts 1 and 2 — choose **Add the new articles to it** to keep the data as it is, or **Start a new database** (`--rebuild`) for every PDF read again by the new version — then 3 and 4 |
-
-### Starting a part over — Delete outputs
-
-Press **Delete outputs…** next to a part in the main window, or in the part's own window. It lists what
-the part wrote, with the number of files and their size; tick what to delete (for web scraping: the DOI
-list, the downloaded PDFs and their ledger, the web database). The files go to the **Trash**, so they can
-be got back. Your own PDFs, the job file and the API keys are never offered, and a part that is running
-cannot be emptied until it is done.
-
-### All commands
-
-`mme help` lists them, `mme commands` (or [docs/COMMANDS.md](docs/COMMANDS.md)) gives every option of each.
-
-| Command | Does |
-|---------|------|
-| `mme` | every command in one: `mme help`, `mme commands`, `mme <part> …` |
-| `mme-gui` | the main window: every part, one button each |
-| `mme-local` | 1 · extract your PDFs (`mme-local gui`: in a window) |
-| `mme-web` | 2 · search, download and extract (`mme-web gui`: in a window) |
-| `mme-rank` | 3 · rank by activation energy (`mme-rank gui`: in a window) |
-| `mme-classify` | 4 · classify by structure (`mme-classify gui`: in a window) |
-| `mme-ml-export` | 5 · a dataset for machine learning (`mme-ml-export gui`: step by step in a window) |
-| `mme-dois` | 2 · 1 · Fetch DOIs: collect the DOIs of the topic |
-| `mme-eval` | how accurate is the extraction: `sheet`, `score`, `agree` |
-| `mme-release` | the dataset, ready to deposit (Zenodo): license-checked, with datasheet and checksums |
-
-Add `--help` to any command for all its options.
-
-### Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| `no database to classify` / `no results folder` | run part 1 or 2 first, or name a database with `--source DIR` |
-| scanned PDFs give no values | install Tesseract (see *What you need first*) |
-| `Can't find model 'en_core_web_sm'` | `python -m spacy download en_core_web_sm` inside the venv |
-| `mme-…: command not found` | enter the venv: `source .venv/bin/activate` |
-| `No module named …` after updating the source code | run the program with `make` (it registers the new code by itself), or `pip install -e .` once |
-| the main window says job files are missing | press **Restore the job files** (your edited job files are kept) |
-| `mme-gui needs Tk` / `No module named '_tkinter'` | install Tk (see *What you need first*), then create the venv again |
-| the web search finds few papers | add free API keys (**API keys…**), or run `mme-web run --check` |
-| few papers have a free copy | the download's message says why. *Your e-mail was refused*: set your own academic or professional address in **API keys…** (Unpaywall refuses made-up ones such as `@example.com`). Otherwise add the Elsevier and Wiley keys, or download from your university's network or VPN |
 
 ---
 
-## Your results, from every window
+## Repository layout
 
-Each part's window has **Open the results folder** (the folder, in Finder / Explorer) and **Browse the
-CSV files…**: every CSV file of the part's results, listed with its size and date. Pick one to read it —
-a page at a time, so even a file of hundreds of thousands of rows opens quickly — search in every
-column, click a column heading to sort, and select a row to see every cell of it in full.
-
-## Every command with make
-
-From the project folder, `make help` lists every command of the project with every option, and
-`make <part>-help` (`local-help`, `web-help`, `doi-help`, `rank-help`, `classify-help`, …) prints the
-command's own help. An option is written `NAME=value` after the target, named after the option; a
-switch is on with `NAME=1`:
-
-```bash
-make gui                                   # the one window
-make local WORKERS=8 OFFLINE=1             # 1 · Local extraction   (local-gui, local-rebuild)
-make doi COUNT=500                         # 2 · Fetch DOIs         (JOB= MAX= OUT= REFRESH=1 NO_EXPAND=1 KEYWORDS=)
-make web LIMIT=50 YES=1                    # 2 · Web scraping       (web-check, web-fetch, web-extract, web-dois, web-gui)
-make rank COMPONENT="grain boundary" TOP=20 FORMAT="csv html"   # 3 · Ranking   (rank-gui)
-make classify FORCE=1                      # 4 · Classification     (classify-gui NO_WRITE=1)
-make test K="stop" FAST=1                  # the tests              (TESTS= VERBOSE=1 ARGS=)
-make web-cathode LIMIT=50                  # cathodes: configs/cathode.yaml -> WebScraping/web_output_cathode (web-anode)
-make rank-cathode KIND=arrhenius           # rank them with the cathode criteria     (rank-anode, local-cathode, local-anode)
-make rank DOMAIN=anode SOURCE=WebScraping/web_output_anode KIND=migration_barrier
-make commands                              # rewrite docs/COMMANDS.md (every option of every command); make manual
+```
+MoukhlijMatExtract/
+├── LocalExtraction/      part 1 and the shared extraction engine: PDF reading, OCR, tables, quantities, units,
+│                         materials, context, plausibility, duplicates, provenance; the shared GUI toolkit (gui/)
+├── WebScraping/          part 2: Fetch_DOIs/, and averageScrap/ (search sources, screening, legal download,
+│                         ledger, watcher, coverage, its window)
+├── SelectingTopMaterial/ part 3: criteria (*.toml), selection, HTML report, Materials Project, window
+├── Classification/       part 4: structure types and families, property branches, window
+├── MLDataset/            part 5: ML dataset export and its step-by-step window
+├── Evaluation/           sheet, score, agree, reference, benchmark, gold
+├── Release/              the Zenodo-ready dataset
+├── mme_gui/              the main window, manual, make guide, process flow, macOS app
+├── configs/              the shipped job files (one per domain and per electrolyte family)
+├── docs/                 manual, commands, data dictionary, limitations, evaluation protocol, families
+├── examples/             two CC BY papers and their expected values
+├── scripts/              reproduce_paper.py, audit tools, icon
+├── Dockerfile · Makefile · requirements.lock · pyproject.toml · CITATION.cff · .zenodo.json
+└── .github/workflows/    tests on every push; publishing to PyPI
 ```
 
-Only what is written on the make command line counts: a shell variable of the same name is not taken
-by mistake. The commands run in the project's venv (`.venv/`) when it exists.
+---
 
-## Reproducibility and the dataset
+## Platforms and tests
 
-- **The exact environment.** `requirements.lock` holds every package version the published results were
-  made with (`make lock` writes it; `make install-locked` installs it). `requirements.txt` keeps the ranges
-  the program works with.
-- **How each result was made.** Every run of a part appends to `run_manifest.json` in its results folder:
-  the command and settings, the software version and git commit, the spaCy language model, Tesseract,
-  Python and the package versions, the counts, and the rows and SHA-256 of every file it left.
-  `papers.csv` also says, for each paper, which version and language model read it (`extracted_with`):
-  another model splits and parses sentences differently.
-- **What each column holds.** [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md) describes every table and
-  column; each database carries the same as `data_dictionary.csv` and as a sheet of `database.xlsx`.
-- **The dataset, ready to deposit.** `mme-release` (`make release`) gathers the databases, the ranking and
-  the classification into one folder and one `.zip` under `Release/`: every value and bibliographic
-  field of every paper, the text copied from a paper (sentences, captions, table contents) only where
-  its license lets anyone share it (CC BY, CC0, public domain), the data dictionary, the run manifests,
-  `requirements.lock`, a datasheet (`README.md`, with the parts only you can write marked TO COMPLETE)
-  and `SHA256SUMS`. Complete the README, run `mme-release --finish <folder>`, and upload the `.zip`
-  (Zenodo gives it a DOI). The software itself is described for Zenodo in `.zenodo.json`.
-- **Only legally obtained papers are released.** A web paper is released when the record of the legal
-  source it was downloaded from is kept with it; your own PDFs (part 1) are released as yours. A paper
-  the log of an earlier downloader records as coming from a shadow library (Sci-Hub, LibGen …), or a
-  downloaded PDF with no record of its source, is left out — of the databases, and of the ranking and the
-  classification, which are made again without it — and listed by DOI in `excluded.csv`. To replace such
-  copies, run **3 · Download**: a PDF already in the folder without a legal record is no longer taken as
-  fetched; a legal copy is looked for and replaces it. (`--keep-unrecorded` keeps everything, for a
-  private copy only.)
-- **Limitations.** [docs/LIMITATIONS.md](docs/LIMITATIONS.md): recall against curated databases, values
-  only in figures, compositions, units, components — with the measurements.
+The test suite has about 940 tests. They cover:
+- the extraction rules, on real sentences and tables;
+- every source adapter and every shipped job file;
+- the ranking, the classification, the ML export, the evaluation and the release;
+- every window, which a harness opens, clicks through, and checks for cut-off text and contrast in light and dark
+  mode.
 
-## For developers
+GitHub Actions runs the suite on every push:
+
+| System | Python |
+|---|---|
+| Ubuntu 24.04 | 3.11 · 3.12 · 3.13 (window tests skipped: no screen) |
+| Windows | 3.13 |
+| macOS | 3.13 |
+| A clean environment | the built wheel installed as from PyPI, every command started once |
 
 ```bash
-make test        # every test of the four parts (python -m pytest)
-make help        # every make command, with every option
+make test                 # the whole suite
+make test K="stop" FAST=1 # a selection, quickly
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and the [CHANGELOG](CHANGELOG.md).
+---
 
-## About the author
+## Documentation
 
-**Younes Moukhlij** is a PhD researcher working on solid-state electrolytes at the Faculté
-Polydisciplinaire de Khouribga (FPK), Université Sultan Moulay Slimane (USMS), and a software-engineering
-student at 1337 Coding School. MME brings the two together: software engineering put to work for
-materials research.
+| Document | For |
+|---|---|
+| [docs/MANUAL.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/MANUAL.md) | the complete manual: install, every step for each domain, the outputs, accuracy, reproducing a result |
+| [docs/COMMANDS.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/COMMANDS.md) | every option of every command (generated from the commands) |
+| [docs/DATA_DICTIONARY.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/DATA_DICTIONARY.md) | every table and column |
+| [docs/LIMITATIONS.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/LIMITATIONS.md) | what MME does not do well, with the measurements |
+| [docs/EVALUATION_PROTOCOL.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/EVALUATION_PROTOCOL.md) | the held-out evaluation, written before the draw |
+| [docs/FAMILIES.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/FAMILIES.md) | the families of solid electrolytes and their job files |
+| [docs/PUBLISHING.md](https://github.com/YounesMoukhlij/MoukhlijMatExtract/blob/main/docs/PUBLISHING.md) | publishing a release |
+| [CHANGELOG.md](CHANGELOG.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | history, how to contribute, community rules |
 
-Contact: [younes.moukhlij@usms.ac.ma](mailto:younes.moukhlij@usms.ac.ma)
+---
 
-## Cite
+## Author, citation and license
 
-If you use MME in your research, please cite it — see [`CITATION.cff`](CITATION.cff). GitHub shows a
-**Cite this repository** button on the repository page.
+**Younes Moukhlij** is a PhD researcher working on solid-state electrolytes at the Faculté Polydisciplinaire de
+Khouribga (FPK), Université Sultan Moulay Slimane (USMS), and a software-engineering student at 1337 Coding School. MME brings the two together: software engineering put to work for materials research. Contact:
+[younes.moukhlij@usms.ac.ma](mailto:younes.moukhlij@usms.ac.ma).
 
-## License
+**Cite.** If you use MME in your research, please cite it: see [`CITATION.cff`](CITATION.cff), or the **Cite this
+repository** button on GitHub.
 
-Copyright © 2026 Younes Moukhlij.
+**License.** Copyright © 2026 Younes Moukhlij.
 
 MoukhlijMatExtract is free software: you can redistribute it and/or modify it under the terms of the
-[GNU Affero General Public License](LICENSE) as published by the Free Software Foundation, either version 3
-of the License, or (at your option) any later version. It is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
-PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+[GNU Affero General Public License](LICENSE), version 3 or (at your option) any later version. It comes WITHOUT ANY
+WARRANTY.
 
-Why the AGPL: MoukhlijMatExtract reads PDFs with [PyMuPDF](https://pymupdf.readthedocs.io), which is
-licensed under the AGPL-3.0 (or a commercial license from Artifex); a program built on it and shared must
-be shared under the same terms. Every other dependency is under a permissive license (MIT, BSD, Apache-2.0).
+The AGPL is required because MME reads PDFs with [PyMuPDF](https://pymupdf.readthedocs.io), which is AGPL-3.0. Every
+other dependency is permissive (MIT, BSD, Apache-2.0).
 
-The license covers the software. The data it extracts from papers are not covered by it: what a released
-dataset may hold, and under which terms, is set out in its own README (see `mme-release`).
+The license covers the software, not the data it extracts. What a released dataset may hold, and under which terms,
+is set out in its own README (see `mme-release`).
