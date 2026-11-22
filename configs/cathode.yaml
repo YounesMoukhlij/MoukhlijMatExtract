@@ -99,6 +99,16 @@ search:
   max_per_query: 200
   include_preprints: true
 
+  # Full-text searches on OpenAlex: every paper whose FULL TEXT holds all the quoted phrases of a line — the
+  # papers that report the data even when their abstract does not say so (needs the free OPENALEX_API_KEY
+  # for more than one page). The screening counts the phrases as the property words found.
+  fulltext_queries:
+    - "\"activation energy\" \"cathode\" \"diffusion coefficient\""
+    - "\"migration barrier\" \"cathode\""
+    - "\"activation energy\" \"cathode material\""
+  fulltext_max: 100000
+  fulltext_open_only: false
+
   abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
 
   # The DOI list Fetch DOIs (mme-dois) collects for this job: its own, apart from the electrolyte job's.

@@ -122,6 +122,7 @@ help:
 	@echo "                      REFRESH=1 (search again) REBUILD=1 (extract again) RESCREEN=1 (decide the papers again)"
 	@echo "                      SNOWBALL=1 (also follow the citations of the papers kept) UPDATE=1 (only what is new)"
 	@echo "  make update         every job run before, searched for what was published since    YES=1 WORKERS=<n>"
+	@echo "                     ALL=1: every job never run too (the whole literature, every family and domain)"
 	@echo "  make web-check      test the setup: network, API keys, folders       JOB= PROBE_DOI=<an Elsevier DOI>"
 	@echo "  make coverage       how far each job's papers went, and by publisher -> WebScraping/coverage/"
 	@echo "  make web-fetch      after the review: download what is approved, then extract   (STAGE=fetch; LIMIT= YES=1 ...)"
@@ -276,7 +277,7 @@ web-gui:
 	$(PYTHON) -m WebScraping gui $(WEB_COMMON)
 
 update:
-	$(PYTHON) -m WebScraping update $(call switch,YES,--yes) $(call opt,WORKERS,--workers) $(call switch,VERBOSE,--verbose)
+	$(PYTHON) -m WebScraping update $(call switch,YES,--yes) $(call switch,ALL,--all) $(call opt,WORKERS,--workers) $(call switch,VERBOSE,--verbose)
 
 coverage:
 	$(PYTHON) -m WebScraping coverage $(call opt,OUTPUT,--output) $(call switch,VERBOSE,--verbose)

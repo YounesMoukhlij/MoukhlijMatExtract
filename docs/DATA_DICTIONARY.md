@@ -64,7 +64,7 @@ Every value of a material, of any property (the four transport quantities too), 
 | `paper_id` | text | The paper: its PDF file name (the key that joins every table). |
 | `title` | text | The article's title, as the paper (else OpenAlex) states it; the file name marked “no title found in the paper” otherwise. |
 | `material_id` | text | The material within its paper (MAT_1, MAT_2, …). |
-| `material_formula` | text | The material the value belongs to, in its normalized spelling. |
+| `material_formula` | text | The material the value belongs to, in its normalized spelling. A doped sample the paper names after its parent ("Ta-LLZO", "Ga-doped LLZO") is its own material: "Ta-doped Li7La3Zr2O12", with the parent's composition (the dopant's share is not stated). |
 | `composition` | JSON | Element amounts of the material, elements in alphabetical order. |
 | `structure` | text | Crystal system, structure family, polymorph, space group (cubic \| garnet \| Ia-3d); else the kind of compound (thiophosphate, oxide, …). |
 | `ionic_radii` | JSON | Shannon ionic radius (Å) of each ion, from the composition (charge-balanced, six-fold coordination): {"Li+": 0.76, …}. |
@@ -95,7 +95,7 @@ The activation energies (migration barriers, Ea, …), one numeric column in eV.
 |---|---|---|
 | `paper_id` | text | The paper: its PDF file name (the key that joins every table). |
 | `title` | text | The article's title, as the paper (else OpenAlex) states it; the file name marked “no title found in the paper” otherwise. |
-| `material_formula` | text | The material the value belongs to, in its normalized spelling. |
+| `material_formula` | text | The material the value belongs to, in its normalized spelling. A doped sample the paper names after its parent ("Ta-LLZO", "Ga-doped LLZO") is its own material: "Ta-doped Li7La3Zr2O12", with the parent's composition (the dopant's share is not stated). |
 | `activation_energy_eV` | number, eV | The activation energy in eV, whatever the paper's unit. |
 | `reported_as` | text | The paper's own word for the quantity (activation energy, Ea, migration barrier, …). |
 | `extracted_from` | Text | Table | Figure | The part of the paper the value was read from (a figure: its caption; plotted points are not read). |
@@ -130,7 +130,7 @@ The ionic conductivities, one numeric column in S/cm.
 |---|---|---|
 | `paper_id` | text | The paper: its PDF file name (the key that joins every table). |
 | `title` | text | The article's title, as the paper (else OpenAlex) states it; the file name marked “no title found in the paper” otherwise. |
-| `material_formula` | text | The material the value belongs to, in its normalized spelling. |
+| `material_formula` | text | The material the value belongs to, in its normalized spelling. A doped sample the paper names after its parent ("Ta-LLZO", "Ga-doped LLZO") is its own material: "Ta-doped Li7La3Zr2O12", with the parent's composition (the dopant's share is not stated). |
 | `ionic_conductivity_S_cm` | number, S/cm | The ionic conductivity in S/cm, whatever the paper's unit. |
 | `reported_as` | text | The paper's own word for the quantity (activation energy, Ea, migration barrier, …). |
 | `extracted_from` | Text | Table | Figure | The part of the paper the value was read from (a figure: its caption; plotted points are not read). |
@@ -164,7 +164,7 @@ The electronic conductivities, one numeric column in S/cm.
 |---|---|---|
 | `paper_id` | text | The paper: its PDF file name (the key that joins every table). |
 | `title` | text | The article's title, as the paper (else OpenAlex) states it; the file name marked “no title found in the paper” otherwise. |
-| `material_formula` | text | The material the value belongs to, in its normalized spelling. |
+| `material_formula` | text | The material the value belongs to, in its normalized spelling. A doped sample the paper names after its parent ("Ta-LLZO", "Ga-doped LLZO") is its own material: "Ta-doped Li7La3Zr2O12", with the parent's composition (the dopant's share is not stated). |
 | `electronic_conductivity_S_cm` | number, S/cm | The electronic conductivity in S/cm, whatever the paper's unit. |
 | `reported_as` | text | The paper's own word for the quantity (activation energy, Ea, migration barrier, …). |
 | `extracted_from` | Text | Table | Figure | The part of the paper the value was read from (a figure: its caption; plotted points are not read). |
@@ -198,7 +198,7 @@ The diffusion coefficients, one numeric column in cm²/s.
 |---|---|---|
 | `paper_id` | text | The paper: its PDF file name (the key that joins every table). |
 | `title` | text | The article's title, as the paper (else OpenAlex) states it; the file name marked “no title found in the paper” otherwise. |
-| `material_formula` | text | The material the value belongs to, in its normalized spelling. |
+| `material_formula` | text | The material the value belongs to, in its normalized spelling. A doped sample the paper names after its parent ("Ta-LLZO", "Ga-doped LLZO") is its own material: "Ta-doped Li7La3Zr2O12", with the parent's composition (the dopant's share is not stated). |
 | `diffusion_coefficient_cm2_s` | number, cm²/s | The diffusion coefficient in cm²/s, whatever the paper's unit. |
 | `reported_as` | text | The paper's own word for the quantity (activation energy, Ea, migration barrier, …). |
 | `extracted_from` | Text | Table | Figure | The part of the paper the value was read from (a figure: its caption; plotted points are not read). |
@@ -279,7 +279,7 @@ Every material ↔ value link, with the method that made it.
 | `paper_id` | text | The paper: its PDF file name (the key that joins every table). |
 | `title` | text | The article's title, as the paper (else OpenAlex) states it; the file name marked “no title found in the paper” otherwise. |
 | `material_id` | text | The material within its paper (MAT_1, MAT_2, …). |
-| `material_formula` | text | The material the value belongs to, in its normalized spelling. |
+| `material_formula` | text | The material the value belongs to, in its normalized spelling. A doped sample the paper names after its parent ("Ta-LLZO", "Ga-doped LLZO") is its own material: "Ta-doped Li7La3Zr2O12", with the parent's composition (the dopant's share is not stated). |
 | `category` | text | The kind of property: ELECTROCHEMICAL, STRUCTURAL, DFT, AIMD, ML, SYNTHESIS, … |
 | `property_name` | text | The property: Activation_Energy, Ionic_Conductivity, Lattice_Parameter, … |
 | `value` | text | The value, in the unit of the unit column. |

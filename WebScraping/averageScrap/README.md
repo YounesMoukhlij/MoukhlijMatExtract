@@ -259,6 +259,18 @@ source that needs a key is skipped — with a line saying so — until the key i
 | `base` | BASE (Bielefeld): 400 million documents from 11,000 repositories | `BASE_ACCESS=yes`, once BASE has registered your network's IP address (free for non-commercial research): https://www.base-search.net/about/en/contact.php |
 | `dimensions` | Dimensions: 140 million publications with their abstracts | `DIMENSIONS_API_KEY`: free for non-commercial scientometric research, on application — https://www.dimensions.ai/scientometric-research/ |
 
+### Full-text searches (OpenAlex)
+
+`search.fulltext_queries` asks OpenAlex for every work whose **full text** holds each quoted phrase of a line —
+`"activation energy" "ionic conductivity"` finds about 22,000 works, `"activation energy" "garnet" "ionic
+conductivity"` about 2,200. These are the papers that report the data, whether or not their abstract says so.
+Each phrase is searched exactly; up to `search.fulltext_max` works (100,000) are taken from each line, 200 to a
+request; `search.fulltext_open_only: true` keeps those with a known free copy. A paper found this way counts as
+having the property words (worth as much as in a title); its title or abstract must still have a topic word. A
+paper turned down before only for lacking the property words is scored again. Without `OPENALEX_API_KEY` (free)
+OpenAlex gives the first page only. A full-text search answered in full is not asked again for 30 days (or with
+`--refresh`).
+
 ### Missing abstracts
 
 Screening reads the title and the abstract, and many records come without the abstract: OpenAlex
@@ -346,7 +358,7 @@ nothing that could be kept.
 | `openalex` | The links the search records carry: the open-access files OpenAlex and the other search sources found (Zenodo, NTRS, OSF, Figshare, PLOS, …), then the repository pages that hold a copy (LA Referencia, theses.fr, BASE, DataCite — shown as `repository` in `source_service`), then the paper's own page when it is open | — |
 | `unpaywall` | The open-access links Unpaywall knows, often more repository copies | a contact email |
 | `publisher` | The article's own page at an open-access journal (MDPI, Frontiers, PLOS, Copernicus, BMC, Nature Communications, RSC Advances, …) or one an index says is open there: the PDF the page declares. Where the DOI points is asked of the DOI system first, so that the publisher's own robots.txt is the one consulted | — |
-| `arxiv` | The paper's arXiv version | — |
+| `arxiv` | The paper's arXiv version: first from arXiv's public bulk copy on Google Cloud (the one the arXiv dataset on Kaggle points to, kept current), with no pause between files; else from arxiv.org (15 s between PDFs, as its robots.txt asks). Every arXiv link another source gives is taken from the bulk copy first too | — |
 | `pmc` | PubMed Central's open-access set, read from the copy NCBI keeps in the cloud for programs | — |
 | `osti` | OSTI.GOV: the accepted manuscript of work funded by the US Department of Energy | — |
 | `hal` | HAL, the French open archive: the file deposited by the authors | — |

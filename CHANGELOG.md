@@ -8,6 +8,39 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **Full-text search on OpenAlex: the papers that report the data, even when their abstract does not say so.**
+  - **What:** a job's `search.fulltext_queries` (one per line, its phrases in quotes, e.g.
+    `"activation energy" "ionic conductivity"`) finds every work whose full text holds each phrase exactly, from
+    OpenAlex's index of the full texts it can read, up to `search.fulltext_max` (100,000) each, 200 to a request.
+    `search.fulltext_open_only` keeps the works with a known free copy only. Needs the free `OPENALEX_API_KEY` for
+    more than the first page.
+  - **The screening:** the phrases count as the property words found (in the full text, worth as much as in a
+    title); the topic words must still be in the title or abstract. A paper turned down before only because its
+    abstract lacked the property words is scored again (not one a person turned down).
+  - **How much:** "activation energy" with "ionic conductivity" is in the full text of 21,951 works;
+    "activation energy" "garnet" "ionic conductivity" proposed 714 papers in a test, 229 of them turned down by
+    the abstract screening of the garnet/NASICON job.
+  - **Every shipped job file** has its full-text searches (domain jobs: three to five; family jobs: the family's
+    names with "activation energy" or "Arrhenius" and "ionic conductivity"). Job files already in
+    `~/MoukhlijMatExtract/configs` are yours and kept: add the lines in **Search settings… → Full-text searches**.
+  - **The window:** a box in Search settings (tab 1), and a phase of its own in the progress of 2 · Search.
+- **arXiv's bulk copy:** an arXiv PDF is first taken from arXiv's public bulk copy on Google Cloud (the one the arXiv
+  dataset on Kaggle points to, kept current), the newest version, with no pause between two files; arxiv.org (15 s
+  between PDFs, as its robots.txt asks) is tried when a paper is not there yet. Old identifiers
+  (`cond-mat/0101001`) too.
+- **`mme-web update --all`** (`make update ALL=1`): every job file, the ones never run included (searched in full),
+  one after the other — the whole literature of every family and domain in one command; with `--yes` nothing waits
+  for a review.
+- **A doped sample named after its parent is its own material.** "Ta-LLZO", "Ga–LLZO", "Al,Ga-LLZO", "Ta-doped
+  LLZO", "Ga and Al co-doped LLZO", "Al-substituted Li7La3Zr2O12" are read as "Ta-doped Li7La3Zr2O12" (and so on),
+  with the parent's composition, in the value's own sentence. Before, such a value fell back on the paragraph's
+  parent compound (wrong material), or was flagged and left out of the ranking. In the two web databases, 52 of 915
+  and 61 of 1,041 activation energies go to their doped sample (68 of them had been left out). A single capital is
+  taken for a dopant only with the word ("S-doped LLZO"; "S-LLZO" is a tag). The worked example's cited
+  conductivity of "Fe-stabilized LLZO" is now `Fe-doped Li7La3Zr2O12`.
+- **`paper/paper.md` and `paper/paper.bib`**: the article for the Journal of Open Source Software (883 words), every
+  reference checked against Crossref and DataCite.
+
 - **How long a step will take, said when it starts, and “⏱ Progress details”** in every window that runs a long
   step (Web scraping: Fetch DOIs, Search, Download, Extract, Re-screen; Local extraction; Classification; Ranking).
   - **The estimate:** a step starts with *“Fetch DOIs — 532 searches · estimated about 26 min (from your earlier

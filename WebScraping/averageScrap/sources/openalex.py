@@ -4,6 +4,7 @@ work whether (and where) a legal open-access copy exists, and flags retracted pa
 
 import logging
 import os
+import re
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 from urllib.parse import urlsplit
 
@@ -16,6 +17,17 @@ _SELECT = ("id,doi,title,publication_year,type,abstract_inverted_index,is_retrac
            "open_access,best_oa_location,primary_location,locations,authorships")
 _OPEN = {"gold", "green", "hybrid", "bronze", "diamond"}
 _BATCH = 50  # DOIs asked about in one request
+# `found_by` of a paper the full-text search found: the words searched for are in its full text, which the
+# screening takes as the property words found (the title and abstract often do not say them).
+FULLTEXT = "openalex fulltext"
+
+
+def fulltext_phrases(query: str) -> List[str]:
+    """The phrases of a full-text search, each to be found in the full text: the quoted ones
+    ('"activation energy" "ionic conductivity"' → two), or the whole query when nothing is quoted. A comma
+    (which OpenAlex reads as the end of a filter) is a space."""
+    phrases = [p.strip() for p in re.findall(r'"([^"]+)"', query)] or [query.strip()]
+    return [" ".join(p.replace(",", " ").split()) for p in phrases if p.strip()]
 
 
 def abstract_from_index(index: Optional[Dict[str, List[int]]]) -> str:
@@ -113,6 +125,44 @@ class OpenAlex:
 
     def available(self) -> bool:
         return True
+
+    def fulltext_search(self, query: str, years: Optional[Tuple[int, int]] = None, limit: int = 100_000,
+                        include_preprints: bool = True, open_only: bool = False,
+                        on_total=None) -> Iterator[Candidate]:
+        """Every work whose FULL TEXT holds each phrase of `query` (fulltext_phrases), up to `limit`, 200 to a
+        request. OpenAlex indexes the full text of millions of works (n-grams of the PDFs it can read), so this finds
+        the papers that report an activation energy in their results even when the abstract does not say so — the
+        papers worth downloading. `on_total(n)` is told how many works match, once the first page says it. Without
+        OPENALEX_API_KEY OpenAlex gives the first page only."""
+        types = "article|review" + ("|preprint" if include_preprints else "")
+        # Each phrase quoted: OpenAlex then finds that exact phrase, not its words anywhere in the text.
+        filters = [f"type:{types}", "language:en", *(f'fulltext.search:"{p}"' for p in fulltext_phrases(query))]
+        if open_only:
+            filters.append("is_oa:true")
+        if years:
+            filters += [f"from_publication_date:{years[0]}-01-01", f"to_publication_date:{years[1]}-12-31"]
+        cursor, seen, told = "*", 0, False
+        while cursor and seen < limit:
+            data = self.client.get_json(f"{BASE}/works", params={
+                "filter": ",".join(filters), "per-page": min(200, limit - seen), "cursor": cursor,
+                "select": _SELECT, **self.auth})
+            if not told and on_total is not None:
+                on_total(min(int((data.get("meta") or {}).get("count") or 0), limit))
+                told = True
+            for work in data.get("results", []):
+                candidate = candidate_from_work(work, f"{FULLTEXT}: {query}")
+                if candidate:
+                    yield candidate
+                    seen += 1
+                    if seen >= limit:
+                        return
+            cursor = (data.get("meta") or {}).get("next_cursor")
+            if not data.get("results"):
+                return
+            if "api_key" not in self.auth:
+                logging.info("OpenAlex full-text search: without OPENALEX_API_KEY only the first page is given; a free "
+                             "key gives every match: https://openalex.org/settings/api")
+                return
 
     def lookup_many(self, dois: List[str]) -> Iterator[Candidate]:
         """The records of many papers, found by their DOIs, fifty to a request. They say nothing about

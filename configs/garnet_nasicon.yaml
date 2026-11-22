@@ -723,6 +723,17 @@ search:
   max_per_query: 200
   include_preprints: true
 
+  # Full-text searches on OpenAlex: every paper whose FULL TEXT holds all the quoted phrases of a line — the
+  # papers that report the data even when their abstract does not say so (needs the free OPENALEX_API_KEY
+  # for more than one page). The screening counts the phrases as the property words found.
+  fulltext_queries:
+    - "\"activation energy\" \"garnet\" \"ionic conductivity\""
+    - "\"Arrhenius\" \"garnet\" \"ionic conductivity\""
+    - "\"activation energy\" \"NASICON\" \"ionic conductivity\""
+    - "\"Arrhenius\" \"NASICON\" \"ionic conductivity\""
+  fulltext_max: 100000
+  fulltext_open_only: false
+
   abstract_sources: [openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos]
 
   # DOI list collected for this job only.

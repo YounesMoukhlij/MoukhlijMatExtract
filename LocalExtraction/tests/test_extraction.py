@@ -375,7 +375,27 @@ class FormulaTests(unittest.TestCase):
     def test_sample_labels(self):
         names = Abbreviations.from_texts(["Li3YCl6 (LYC) and Na3Zr2Si2PO12 (NZSP) and NaLaCl4 (NLC-HT) were made."])
         self.assertEqual(materials("BM-LYC, LYC32 and NLC", names), ["Li3YCl6", "Li3YCl6", "NaLaCl4"])
-        self.assertEqual(materials("XYZ-NZSP and NZSP-Mg0.1 and Ta-LLZO", names), [])
+        self.assertEqual(materials("XYZ-NZSP and NZSP-Mg0.1", names), [])
+
+    def test_a_doped_sample_named_after_its_parent_is_its_own_material(self):
+        # The dopants before the name make another sample: never the parent compound, whose values it would take.
+        for text, formula in (("Ta-LLZO", "Ta-doped Li7La3Zr2O12"), ("the Ga–LLZO pellet", "Ga-doped Li7La3Zr2O12"),
+                              ("Al,Ga-LLZO", "Al-Ga-doped Li7La3Zr2O12"), ("Ta-doped LLZO", "Ta-doped Li7La3Zr2O12"),
+                              ("Ga and Al co-doped LLZO", "Ga-Al-doped Li7La3Zr2O12"),
+                              ("Al-substituted Li7La3Zr2O12", "Al-doped Li7La3Zr2O12"),
+                              ("Nb-doped LATP", "Nb-doped Li1.3Ti1.7Al0.3(PO4)3")):
+            with self.subTest(text):
+                found, = ChemistryEngine.find_materials(text)
+                self.assertEqual(found["formula"], formula)
+                self.assertTrue(found["dopants"])
+                self.assertEqual(found["elements"], ChemistryEngine.find_materials(found["parent"])[0]["elements"])
+        # A prefix that is no dopant: the compound itself, a polymorph, a way of making it, or no sample at all.
+        self.assertEqual(materials("Ta-LLZTO and c-LLZO"), ["Li7La3Zr2O12"])  # Ta is in LLZTO already: a label
+        self.assertEqual(materials("the Ta-doped Li6.4La3Zr1.4Ta0.6O12"), ["Li6.4La3Zr1.4Ta0.6O12"])
+        self.assertEqual(materials("Li-LLZO, In-situ LLZO and PEO-LLZO"), ["Li7La3Zr2O12"])
+        from LocalExtraction.scope import material_scope  # its own material is not flagged as under its parent
+        sentence = "The Ta-doped LLZO shows 0.35 eV."
+        self.assertEqual(material_scope("Ta-doped Li7La3Zr2O12", None, sentence, sentence.find("0.35")), "")
         self.assertEqual(materials("c-LLZO and LLZO-based films"), ["Li7La3Zr2O12", "Li7La3Zr2O12"])
         self.assertEqual(materials("LLZO@PEO and PEO@LLZO membranes"), [])  # one thing on or in another
 

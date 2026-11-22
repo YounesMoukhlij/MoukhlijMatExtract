@@ -257,6 +257,17 @@ class JobDialog(Dialog):
         ttk.Label(tab, textvariable=self.query_count, foreground=_GREY).pack(anchor="w")
         self.queries.bind("<KeyRelease>", lambda e: self._count(), add="+")
 
+        _heading(tab, "Full-text searches (OpenAlex)")
+        _note(tab, "One per line, with its phrases in quotes: every paper whose FULL TEXT holds all of them is found — "
+                   "the papers that report the data even when their abstract does not say so. For example "
+                   "\"activation energy\" \"ionic conductivity\". Needs the free OPENALEX_API_KEY for more than one "
+                   "page.")
+        self.fulltext_queries = _words_box(tab, 4)
+        self.fulltext_max = _spin(tab, "Papers taken from each full-text search", "fulltext_max", increment=1000)
+        self.fulltext_open_only = tk.BooleanVar()
+        ttk.Checkbutton(tab, text="Only the papers OpenAlex knows a free copy of",
+                        variable=self.fulltext_open_only).pack(anchor="w", pady=(4, 0))
+
         _heading(tab, "Papers you already know")
         _note(tab, "Optional: a text file with one DOI, DOI link or arXiv id per line. They are added to what the "
                    "searches find.")
@@ -371,6 +382,9 @@ class JobDialog(Dialog):
         s, c, f, e = job.search, job.screen, job.fetch, job.extract
         words(self.queries, "search.queries", s.queries)
         self._count()
+        words(self.fulltext_queries, "search.fulltext_queries", s.fulltext_queries)
+        self.fulltext_max.set(f"{s.fulltext_max:g}")
+        self.fulltext_open_only.set(s.fulltext_open_only)
         self.ids_file.set(s.ids_file)
         self.year_from.set(str(s.years[0]) if s.years else "")
         self.year_to.set(str(s.years[1]) if s.years else "")
@@ -465,8 +479,10 @@ class JobDialog(Dialog):
                 raise ValueError("Years: the first year comes after the last one")
         queries = _words(_layout(self.queries))
         ids_file = self.ids_file.get().strip()
-        if not queries and not ids_file:
-            raise ValueError("Searches: give at least one search (or a file of papers you already know)")
+        fulltext = _words(_layout(self.fulltext_queries))
+        if not queries and not ids_file and not fulltext:
+            raise ValueError("Searches: give at least one search (or a full-text search, or a file of papers you "
+                             "already know)")
         search_sources = [n for n, v in self.search_sources.items() if v.get()]
         if not search_sources:
             raise ValueError("Where to search: tick at least one source")
@@ -493,6 +509,9 @@ class JobDialog(Dialog):
                 max_per_query=number(self.max_per_query, "max_per_query", "Results per source"),
                 include_preprints=self.include_preprints.get(), snowball=self.snowball.get(),
                 snowball_citing=number(self.snowball_citing, "snowball_citing", "Papers citing each kept paper"),
+                fulltext_queries=fulltext,
+                fulltext_max=number(self.fulltext_max, "fulltext_max", "Papers from each full-text search"),
+                fulltext_open_only=self.fulltext_open_only.get(),
                 abstract_sources=[n for n, v in self.abstract_sources.items() if v.get()]),
             screen=dataclasses.replace(
                 job.screen, topic_words=topic, property_words=prop, exclude_words=_words(_layout(self.exclude_words)),
@@ -505,7 +524,8 @@ class JobDialog(Dialog):
                                         require_material=self.require_material.get()))
 
     def _layouts(self) -> Dict[str, List[str]]:
-        return {"search.queries": _layout(self.queries), "screen.topic_words": _layout(self.topic_words),
+        return {"search.queries": _layout(self.queries), "search.fulltext_queries": _layout(self.fulltext_queries),
+                "screen.topic_words": _layout(self.topic_words),
                 "screen.property_words": _layout(self.property_words),
                 "screen.exclude_words": _layout(self.exclude_words)}
 

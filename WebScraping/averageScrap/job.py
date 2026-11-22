@@ -154,6 +154,7 @@ NEEDS = {
 LIMITS = {
     "max_per_query": (1, 1000),   # results asked of each source for each query
     "snowball_citing": (1, 1000),  # papers citing a kept paper asked of OpenAlex
+    "fulltext_max": (1, 1_000_000),  # works taken from each full-text search
     "min_score": (0, 20),         # the screening score a paper needs
     "workers": (1, 8),            # downloads at once: more is impolite to the servers
     "max_pdf_mb": (1, 500),       # the largest PDF accepted
@@ -184,6 +185,12 @@ class SearchConfig:
     # "yes") give the papers they cite and the papers citing them, which are then screened like the others.
     snowball: bool = False
     snowball_citing: int = 100  # papers citing a kept paper asked for, the most cited first
+    # Full-text searches on OpenAlex: each one finds every work whose full text holds all its quoted phrases
+    # ('"activation energy" "ionic conductivity"'), up to fulltext_max — the papers that report the data, even when
+    # their abstract does not say so. The screening counts the phrases as the property words found.
+    fulltext_queries: List[str] = field(default_factory=list)
+    fulltext_max: int = 100_000  # works taken from each full-text search
+    fulltext_open_only: bool = False  # only the works OpenAlex knows an open copy of
 
 
 @dataclass
@@ -321,7 +328,8 @@ def save_env(values: Dict[str, str], path: Optional[str] = None) -> None:
 
 HEADER = "# Job file of MoukhlijMatExtract's web project (see the README for every setting)."
 # The lists of words a person groups under "# headings" (kept when the job is saved again).
-WORD_LISTS = ("search.queries", "screen.topic_words", "screen.property_words", "screen.exclude_words")
+WORD_LISTS = ("search.queries", "search.fulltext_queries", "screen.topic_words", "screen.property_words",
+              "screen.exclude_words")
 
 
 def _scalar(key: str, value: Any, indent: str) -> List[str]:
@@ -481,6 +489,7 @@ def load_job(path: str) -> Job:
     s.sources = _words(s.sources, "search.sources")
     s.arxiv_categories = _words(s.arxiv_categories, "search.arxiv_categories")
     s.abstract_sources = _words(s.abstract_sources, "search.abstract_sources")
+    s.fulltext_queries = _words(s.fulltext_queries, "search.fulltext_queries")
     bad = [name for name in s.sources if name not in SOURCES]
     if bad:
         raise ValueError(f"search.sources: unknown {bad}; known: {list(SOURCES)}")
@@ -494,8 +503,8 @@ def load_job(path: str) -> Job:
         if not all(LIMITS["years"][0] <= y <= LIMITS["years"][1] for y in s.years):
             raise ValueError(f"search.years: years from {LIMITS['years'][0]} to {LIMITS['years'][1]}")
         s.years = (s.years[0], s.years[1])
-    if not s.queries and not s.ids_file and not s.doi_list:
-        raise ValueError("search: give at least one query, an ids_file or a doi_list")
+    if not s.queries and not s.ids_file and not s.doi_list and not s.fulltext_queries:
+        raise ValueError("search: give at least one query, a full-text query, an ids_file or a doi_list")
 
     c = job.screen
     c.topic_words, c.property_words, c.exclude_words = (
@@ -509,6 +518,7 @@ def load_job(path: str) -> Job:
         raise ValueError(f"fetch.sources: unknown {bad}; known: {list(RESOLVERS)}")
     for where, value, limit in (("search.max_per_query", s.max_per_query, "max_per_query"),
                                 ("search.snowball_citing", s.snowball_citing, "snowball_citing"),
+                                ("search.fulltext_max", s.fulltext_max, "fulltext_max"),
                                 ("screen.min_score", c.min_score, "min_score"),
                                 ("fetch.workers", f.workers, "workers"), ("fetch.max_pdf_mb", f.max_pdf_mb, "max_pdf_mb")):
         low, high = LIMITS[limit]

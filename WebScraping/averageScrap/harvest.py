@@ -25,7 +25,8 @@ from WebScraping.averageScrap.fetch import HAND_LIST, NOT_ENTITLED_MARK, Downloa
 from WebScraping.averageScrap.http import HttpError, PoliteClient
 from WebScraping.averageScrap.ids import arxiv_id, candidate_key, normalize_doi
 from WebScraping.averageScrap.job import KEY_SIGNUP, Job
-from WebScraping.averageScrap.ledger import (DOI_LIST, APPROVED, CLOSED, DOWNLOADED, EXTRACTED, FAILED, SCREENED, SEARCH_KEPT_DAYS, YES,
+from WebScraping.averageScrap.ledger import (DOI_LIST, APPROVED, CLOSED, DOWNLOADED, EXTRACTED, FAILED, NEW, REJECTED,
+                                             SCREENED, SEARCH_KEPT_DAYS, YES,
                                              Candidate, Ledger)
 from WebScraping.averageScrap.resolve import NOT_FOUND_ADVICE, Resolver, email_advice
 from WebScraping.averageScrap.sidecar import read_provenance
@@ -281,6 +282,8 @@ class Harvest:
                 runcontrol.check()  # stopped during Fetch DOIs: the search ends here
             self.on_step("keywords")
             added = self._search_all(refresh)
+            if s.fulltext_queries:  # the papers whose full text holds the data, from OpenAlex's full-text index
+                added += self._search_fulltext(refresh)
             listed = new = 0
             for candidate in self._ids():
                 runcontrol.check()
@@ -362,6 +365,56 @@ class Harvest:
         finally:
             self._keyword_tally = None
         return added + self._recheck_searches(refresh)
+
+    def _search_fulltext(self, refresh: bool) -> int:
+        """Each full-text search of the job asked of OpenAlex, every match taken (up to search.fulltext_max). A paper
+        the ledger knew already, turned down only because its title and abstract lacked the property words, is scored
+        again: its full text holds them. Returns how many papers were new."""
+        from .sources.openalex import FULLTEXT
+        s = self.job.search
+        source = OpenAlex(self.client, self.job.email())
+        added = 0
+        for number, query in enumerate(s.fulltext_queries, 1):
+            search = f"openalex_fulltext|{query.strip().lower()}|{s.years}|{s.include_preprints}|{s.fulltext_open_only}"
+            when = None if refresh else self.ledger.searched(search, s.fulltext_max)
+            if when:
+                logging.info(f"OpenAlex full text: {query!r} already searched on {when} — skipped (searched again "
+                             f"after {SEARCH_KEPT_DAYS} days, or with --refresh).")
+                continue
+            runcontrol.check()
+            total = [0]
+            found = new = again = 0
+            label = f"{number} of {len(s.fulltext_queries)}: {query}"
+
+            def told(count: int) -> None:
+                total[0] = count
+                logging.info(f"OpenAlex full text: {query!r} matches {count:,} work(s).")
+
+            try:
+                for candidate in source.fulltext_search(query, s.years, s.fulltext_max, s.include_preprints,
+                                                        s.fulltext_open_only, on_total=told):
+                    found += 1
+                    if self.ledger.add(candidate):
+                        new += 1
+                    else:
+                        known = self.ledger.get(candidate.key)
+                        if (known is not None and known.status in (SCREENED, REJECTED) and known.decision == "no"
+                                and known.decided_by != "hand"
+                                and not any(f.startswith("duplicate-of") for f in known.flags)):
+                            self.ledger.update(candidate.key, status=NEW)  # scored again, with its full text known
+                            again += 1
+                    if found % 200 == 0:
+                        runcontrol.check()  # Pause holds here, Stop ends it
+                        self._progress("fulltext", found, max(total[0], found), label, added + new)
+                self.ledger.mark_searched(search, s.fulltext_max)
+            except (HttpError, requests.RequestException, ValueError) as error:
+                logging.warning(f"OpenAlex full text: the search for {query!r} stopped early: {error}. What it found "
+                                "is kept; it is asked again next time.")
+            self._progress("fulltext", found, max(total[0], found), label, added + new)
+            added += new
+            logging.info(f"OpenAlex full text: {query!r} -> {found:,} found, {new:,} new"
+                         + (f", {again:,} known paper(s) scored again with their full text" if again else ""))
+        return added
 
     def _source(self, name: str):
         """The search source of that name, or None (said why) when its key is missing."""
