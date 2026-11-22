@@ -37,8 +37,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+for _group in ("app", "export", "core"):  # the packages are in core/, export/ and app/
+    if str(ROOT / _group) not in sys.path:
+        sys.path.insert(0, str(ROOT / _group))
 
 SEED = 7
 PROPERTIES = {"activation_energy": ("activation_energy_eV", "eV"),
@@ -206,7 +207,9 @@ def figures(marked_by: Dict[str, List[Dict]], out: Path) -> List[str]:
 def run_step(name: str, args: List[str], logs: Path) -> Dict[str, object]:
     """Runs a command of the program with this Python; its output goes to logs/<name>.log."""
     logs.mkdir(parents=True, exist_ok=True)
-    env = {**os.environ, "PYTHONHASHSEED": "0", "MPLBACKEND": "Agg"}
+    packages = os.pathsep.join(str(ROOT / group) for group in ("core", "export", "app"))  # also without an install
+    env = {**os.environ, "PYTHONHASHSEED": "0", "MPLBACKEND": "Agg",
+           "PYTHONPATH": os.pathsep.join(p for p in (packages, os.environ.get("PYTHONPATH", "")) if p)}
     started = time.time()
     with open(logs / f"{name}.log", "w", encoding="utf-8") as log:
         log.write("$ python " + " ".join(args) + "\n\n")  # (the log keeps the full paths)

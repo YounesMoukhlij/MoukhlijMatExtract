@@ -8,21 +8,21 @@ venv/
 # Articles: someone else's copyright, not for a repository (and this one is public).
 # Every PDF anywhere in the project, and the folders papers are put or downloaded into.
 *.pdf
-LocalExtraction/papers/*
-!LocalExtraction/papers/.gitkeep
-WebScraping/papers/
+core/LocalExtraction/papers/*
+!core/LocalExtraction/papers/.gitkeep
+core/WebScraping/papers/
 
 # Everything the programs write: run them to make it again
-LocalExtraction/local_output/
-WebScraping/web_output/
-SelectingTopMaterial/results/
-Classification/crystal_structure/
-Classification/structure_families/
-Classification/all_materials.csv
-Classification/.*.writing/
-WebScraping/Fetch_DOIs/dois.csv
-WebScraping/Fetch_DOIs/dois.txt
-WebScraping/Fetch_DOIs/dois.searched.json
+core/LocalExtraction/local_output/
+core/WebScraping/web_output/
+core/SelectingTopMaterial/results/
+core/Classification/crystal_structure/
+core/Classification/structure_families/
+core/Classification/all_materials.csv
+core/Classification/.*.writing/
+core/WebScraping/Fetch_DOIs/dois.csv
+core/WebScraping/Fetch_DOIs/dois.txt
+core/WebScraping/Fetch_DOIs/dois.searched.json
 
 # Build artifacts (upload these with twine, never commit them)
 dist/
@@ -39,6 +39,6 @@ __pycache__/
 ~$*
 
 # The worked example's results (make demo)
-examples/output/
-# ... except the worked example's two CC BY papers (examples/README.md)
-!examples/papers/*.pdf
+resources/examples/output/
+# ... except the worked example's two CC BY papers (resources/examples/README.md)
+!resources/examples/papers/*.pdf

@@ -29,7 +29,7 @@ All tests must pass before you open a pull request. They run offline (network ca
 ## Making changes
 
 - Keep each part self-contained: parts 1–2 build the databases, parts 3–4 read them.
-- If you change extraction, add or update a test in `LocalExtraction/tests/` — especially keep
+- If you change extraction, add or update a test in `core/LocalExtraction/tests/` — especially keep
   `PipelineTests.test_no_table_has_an_open_cell` (asserts every output table is complete) and the
   no-open-answer tests passing.
 - Match the existing style (clear names, short comments that explain *why*). Update the relevant

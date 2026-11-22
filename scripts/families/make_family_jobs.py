@@ -2,7 +2,7 @@
 of the article, from one description of each family. What every family shares — the sources, the property words,
 the download and extraction settings — is read from configs/garnet_nasicon.yaml, the job the others grew from.
 
-    python scripts/families/make_family_jobs.py            # writes configs/*.yaml
+    python scripts/families/make_family_jobs.py            # writes resources/configs/*.yaml
 
 Each family's job has:
   - its queries: the hand-written ones about its chemistry, then every main name of the family with every
@@ -23,9 +23,9 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT))
-BASE = ROOT / "configs" / "garnet_nasicon.yaml"
-OUT = ROOT / "configs"
+sys.path[0:0] = [str(ROOT / group) for group in ("core", "export", "app")]  # where the packages are
+BASE = ROOT / "resources" / "configs" / "garnet_nasicon.yaml"
+OUT = ROOT / "resources" / "configs"
 
 # Every measurement and method, asked with every main name of a family. {ion}: each mobile ion of the family.
 TRANSPORT = (
@@ -819,7 +819,7 @@ def write_taxonomy(every: Dict[str, dict]) -> None:
         kind, prototype = TAXONOMY.get(key, ("", ""))
         formulas = [w for _, words in family["topic"] for w in words if re.search(r"\d", w) and " " not in w][:5]
         n_queries, n_topic = family.get("counts", (0, 0))
-        rows.append(f"| [`{key}.yaml`](../configs/{key}.yaml) | {family['title']} | {kind} | {prototype} | "
+        rows.append(f"| [`{key}.yaml`](../resources/configs/{key}.yaml) | {family['title']} | {kind} | {prototype} | "
                     f"{', '.join(family['ions'])} | {', '.join(formulas) or '—'} | {n_queries} | {n_topic} |")
     text = "\n".join([
         "# The families of solid electrolytes",

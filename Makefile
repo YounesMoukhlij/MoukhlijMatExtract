@@ -92,8 +92,8 @@ help:
 	@echo "  make install        create .venv/, install requirements.txt, the project and the language model"
 	@echo "  make install-locked the same, with the exact versions of requirements.lock (to reproduce published results)"
 	@echo "  make lock           write requirements.lock: the exact versions of this venv"
-	@echo "  make dictionary     rewrite docs/DATA_DICTIONARY.md (every column of the database) from LocalExtraction/schema.py"
-	@echo "  make demo           the worked example: two open-access papers through every step -> examples/output/"
+	@echo "  make dictionary     rewrite docs/DATA_DICTIONARY.md (every column of the database) from core/LocalExtraction/schema.py"
+	@echo "  make demo           the worked example: two open-access papers through every step -> resources/examples/output/"
 	@echo "  make test          every test        K=<words> (-k)  TESTS=<files or folders>  VERBOSE=1  FAST=1 (-x)  ARGS=<more pytest options>"
 	@echo "  make clean          remove every __pycache__ folder"
 	@echo "  make version        the version of MoukhlijMatExtract"
@@ -208,10 +208,10 @@ dictionary:
 	@$(PYTHON) -m LocalExtraction.schema
 
 demo:
-	@echo "The worked example: two CC BY papers (examples/README.md) -> examples/output/"
-	$(PYTHON) -m LocalExtraction extract -i "$(CURDIR)/examples/papers" -o "$(CURDIR)/examples/output/database" --offline
-	$(PYTHON) -m SelectingTopMaterial --source "$(CURDIR)/examples/output/database" --out "$(CURDIR)/examples/output/ranking"
-	$(PYTHON) -m Classification --source "$(CURDIR)/examples/output/database" --out "$(CURDIR)/examples/output/classes"
+	@echo "The worked example: two CC BY papers (resources/examples/README.md) -> resources/examples/output/"
+	$(PYTHON) -m LocalExtraction extract -i "$(CURDIR)/resources/examples/papers" -o "$(CURDIR)/resources/examples/output/database" --offline
+	$(PYTHON) -m SelectingTopMaterial --source "$(CURDIR)/resources/examples/output/database" --out "$(CURDIR)/resources/examples/output/ranking"
+	$(PYTHON) -m Classification --source "$(CURDIR)/resources/examples/output/database" --out "$(CURDIR)/resources/examples/output/classes"
 
 test:
 	$(PYTHON) -m pytest $(TEST_OPTS)
