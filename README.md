@@ -185,7 +185,9 @@ flowchart LR
 - **Materials.** Formulas are parsed into compositions, including:
   - composition series (`Li6+xP1−xGexS5I` with the x the paper gives);
   - mixtures (`(100−x)(0.75Li2S·0.25P2S5)·xLiBH4`);
-  - fractional subscripts.
+  - fractional subscripts;
+  - doped samples named after their parent ("Ta-LLZO", "Ga-doped LLZO" → `Ta-doped Li7La3Zr2O12`), kept as their
+    own material rather than given to the parent compound.
 
   A material named only in a role that is never the sample (an electrode, a reagent, a filler) takes no value.
 - **Context.** These come from the paper's words and table headers; when a field is assumed, the `basis` column says
@@ -218,12 +220,15 @@ Every run records the language model used (`extracted_with` in `papers.csv`). MM
 
 Papers with no legal copy are listed, to get through your library or from the authors.
 
+**The whole literature in one command.** `mme-web update --all --yes` (`make update ALL=1 YES=1`) runs every job file
+in turn, the ones never run included: one per domain and one per family of solid electrolytes.
+
 | Stage | What happens |
 |---|---|
 | **1 · Fetch DOIs** | collects the DOIs of the topic from the job's keywords |
-| **2 · Search** | asks every source each keyword; merges the same paper found by several sources by its DOI; fills missing abstracts; optionally follows citations (snowballing) |
-| **Screen** | scores each paper on topic and property words. Learns from your keep / reject decisions. Leaves the candidates for you to review |
-| **3 · Download** | tries each copy source in turn and records where each PDF came from (`source_service`, `download_log.csv`) |
+| **2 · Search** | asks every source each keyword, and OpenAlex's **full-text index** for every paper whose full text holds the data words (`"activation energy" "ionic conductivity"`: about 22,000 works); merges the same paper found by several sources by its DOI; fills missing abstracts; optionally follows citations (snowballing) |
+| **Screen** | scores each paper on topic and property words (a full-text match counts as the property words). Learns from your keep / reject decisions. Leaves the candidates for you to review |
+| **3 · Download** | tries each copy source in turn and records where each PDF came from (`source_service`, `download_log.csv`). arXiv PDFs come first from arXiv's public bulk copy, with no pause between files |
 | **4 · Extract** | the same extraction as part 1, into the web database |
 
 - **Search sources (25):**

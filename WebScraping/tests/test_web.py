@@ -1129,7 +1129,8 @@ class ResolverTests(unittest.TestCase):
         c = candidate(key="arxiv:2001.00001", doi="", arxiv_id="2001.00001")
         self.assertEqual(self.options(c, ["aps", "wiley", "pmc", "osti", "hal", "semanticscholar", "openaire", "arxiv"], session=session),
                          [("arxiv", "https://arxiv.org/pdf/2001.00001")])
-        self.assertEqual(session.calls, [])
+        # Only arXiv's bulk copy is asked (where its PDF is); no service is asked about a DOI.
+        self.assertEqual({call[0] for call in session.calls}, {"https://storage.googleapis.com/storage/v1/b/arxiv-dataset/o"})
 
     def test_the_setup_check_tries_every_source_of_the_job(self):
         session = FakeSession([("osti.gov", FakeResponse(200, json_data=[])), ("archives-ouvertes", FakeResponse(503)),

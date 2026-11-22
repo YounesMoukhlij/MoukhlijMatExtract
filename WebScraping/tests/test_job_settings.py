@@ -134,7 +134,8 @@ class FormTests(Folder):
                 (lambda: form.max_per_query.set("abc"), "Results per source: a number from 1 to 1000 is expected"),
                 (lambda: [v.set(False) for v in form.search_sources.values()], "Where to search: tick at least one source"),
                 (lambda: form._tick(()), "Data to extract: tick at least one property"),
-                (lambda: form.queries.delete("1.0", "end"), "Searches: give at least one search"),
+                (lambda: [box.delete("1.0", "end") for box in (form.queries, form.fulltext_queries)],
+                 "Searches: give at least one search"),
                 (lambda: form.year_to.set(""), "Years: give both the first and the last year, or neither")):
             form._fill(load_job(self.path), read_comments(self.path)[0])
             change()

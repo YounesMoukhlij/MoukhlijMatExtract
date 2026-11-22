@@ -127,8 +127,10 @@ COMMANDS: Tuple[MakeCommand, ...] = (
                 "A cathode database from the literature, apart from the electrolytes.", "make web-cathode"),
     MakeCommand("web-anode", "build", "The whole web run for anodes (configs/anode.yaml → web_output_anode).",
                 "An anode database from the literature.", "make web-anode"),
-    MakeCommand("update", "build", "Every job run before, searched again for what was published since.",
-                "To keep a database up to date: run it every month or so; only the new papers are downloaded.",
+    MakeCommand("update", "build", "Every job run before, searched again for what was published since. With ALL=1, "
+                "every job never run too: the whole literature of every family and domain in one command.",
+                "To keep a database up to date: run it every month or so; only the new papers are downloaded. "
+                "ALL=1 YES=1 builds the largest corpus the program can.",
                 "make update YES=1"),
     MakeCommand("coverage", "build", "How far each job's papers went — found, downloaded, extracted — by publisher, "
                 "into WebScraping/coverage/.",

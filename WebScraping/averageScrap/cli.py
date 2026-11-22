@@ -90,9 +90,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     _add_common(window, None)
 
     update = commands.add_parser("update", help="Every job searched before, brought up to date in turn: run "
-                                                 "--update for each (the jobs never run are left alone)")
+                                                 "--update for each (with --all, every job never run too)")
     update.add_argument("--yes", action="store_true",
                         help="Approve every paper proposed without a review, for jobs that ask for one")
+    update.add_argument("--all", action="store_true",
+                        help="Also every job never run: searched in full, the whole literature of every family and "
+                             "domain in one command (best with --yes, so that nothing waits for a review)")
     update.add_argument("--workers", "-w", type=int, default=4, help="PDFs read at once while extracting")
     update.add_argument("--verbose", "-v", action="store_true", help="Enable debug-level logging")
 
@@ -238,11 +241,12 @@ def _update_all(args: argparse.Namespace) -> int:
         except (OSError, ValueError) as error:
             print(f"  {name}: cannot be read — {error}")
             continue
-        if not os.path.exists(os.path.join(folder, "ledger.sqlite")):
-            print(f"  {name}: never run — left alone")
+        never_run = not os.path.exists(os.path.join(folder, "ledger.sqlite"))
+        if never_run and not args.all:
+            print(f"  {name}: never run — left alone (--all runs it too)")
             continue
-        print(f"\n=== {name} ===")
-        run = parse_args(["run", "--job", path, "--update", "--workers", str(args.workers),
+        print(f"\n=== {name}{' (first run: searched in full)' if never_run else ''} ===")
+        run = parse_args(["run", "--job", path, *([] if never_run else ["--update"]), "--workers", str(args.workers),
                           *(["--yes"] if args.yes else []), *(["--verbose"] if args.verbose else [])])
         run.output = output_of(path)
         code = run_web(run)

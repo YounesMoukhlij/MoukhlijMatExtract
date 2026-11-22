@@ -136,6 +136,27 @@ _MAX_COPIES = 5   # repository pages tried for one paper
 _PATIENCE = 3     # lookups in a row a service may fail (too many requests, an error, no answer) before it is left alone
 
 
+# arXiv's own bulk copy of every PDF, kept current in a public Google Cloud bucket (the one the arXiv dataset on
+# Kaggle points to, for bulk access): the same files as arxiv.org/pdf, without the 15 s arxiv.org asks between two.
+ARXIV_BULK_LIST = "https://storage.googleapis.com/storage/v1/b/arxiv-dataset/o"
+ARXIV_BULK_FILES = "https://storage.googleapis.com/arxiv-dataset/"
+_ARXIV_LINK = re.compile(r"^https?://(?:www\.|export\.)?arxiv\.org/(?:pdf|abs)/(.+?)(?:v\d+)?(?:\.pdf)?$", re.IGNORECASE)
+
+
+def arxiv_bulk_prefix(identifier: str) -> str:
+    """Where the PDFs of an arXiv paper are in the bulk copy, without the version: "2401.00001" →
+    "arxiv/arxiv/pdf/2401/2401.00001v"; "cond-mat/0101001" → "arxiv/cond-mat/pdf/0101/0101001v". "" when the
+    identifier is neither form."""
+    identifier = re.sub(r"v\d+$", "", (identifier or "").strip())
+    new = re.fullmatch(r"(\d{4})\.\d{4,5}", identifier)
+    if new:
+        return f"arxiv/arxiv/pdf/{new.group(1)}/{identifier}v"
+    old = re.fullmatch(r"([a-z-]+)(?:\.[A-Za-z-]+)?/((\d{4})\d{3})", identifier)
+    if old:
+        return f"arxiv/{old.group(1)}/pdf/{old.group(3)}/{old.group(2)}v"
+    return ""
+
+
 @dataclass
 class FetchOption:
     service: str                 # which source offered it: openalex | arxiv | pmc | osti | hal | elsevier | ...
@@ -174,9 +195,26 @@ class Resolver:
         seen = set()
         for service in self.sources:
             for option in getattr(self, f"_{service}")(candidate):
+                link = _ARXIV_LINK.match(option.url)
+                if link:  # an arXiv PDF: first from arXiv's bulk copy, which asks for no pause between two files
+                    bulk = self._arxiv_bulk(link.group(1))
+                    if bulk and bulk not in seen:
+                        seen.add(bulk)
+                        yield FetchOption(option.service, bulk, license="arxiv")
                 if option.url not in seen:
                     seen.add(option.url)
                     yield option
+
+    def _arxiv_bulk(self, identifier: str) -> str:
+        """The newest version of an arXiv paper's PDF in arXiv's bulk copy; "" when it is not there (yet)."""
+        prefix = arxiv_bulk_prefix(identifier)
+        if not prefix:
+            return ""
+        data = self._ask("arXiv bulk copy", ARXIV_BULK_LIST, {"prefix": prefix, "fields": "items(name)"})
+        names = [item.get("name") or "" for item in (data or {}).get("items") or []]
+        versions = [(int(m.group(1)), name) for name in names
+                    for m in [re.fullmatch(re.escape(prefix) + r"(\d+)\.pdf", name)] if m]
+        return ARXIV_BULK_FILES + max(versions)[1] if versions else ""
 
     def refused(self) -> List[str]:
         """The services that refused (too many requests, busy, no answer) or were left alone while the

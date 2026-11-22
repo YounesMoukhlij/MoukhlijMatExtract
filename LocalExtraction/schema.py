@@ -62,7 +62,10 @@ COLUMN: Dict[str, Tuple[str, str]] = {
     "raw_formula": ("text", "The material as the paper writes it."),
     "normalized_formula": ("text", "One spelling per composition: elements from the least to the most "
                                    "electronegative (Li6PS5Cl, Li10GeP2S12)."),
-    "material_formula": ("text", "The material the value belongs to, in its normalized spelling."),
+    "material_formula": ("text", "The material the value belongs to, in its normalized spelling. A doped sample the "
+                                 "paper names after its parent (\"Ta-LLZO\", \"Ga-doped LLZO\") is its own material: "
+                                 "\"Ta-doped Li7La3Zr2O12\", with the parent's composition (the dopant's share is not "
+                                 "stated)."),
     "elements": ("JSON", "Element amounts of the material, e.g. {\"Li\": 6.0, \"P\": 1.0, \"S\": 5.0, \"Cl\": 1.0}."),
     "elements_basis": ("text", "How the composition is known (the formula, a known alias, a series member)."),
     "composition": ("JSON", "Element amounts of the material, elements in alphabetical order."),

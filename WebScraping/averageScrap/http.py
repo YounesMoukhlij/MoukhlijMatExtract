@@ -25,7 +25,7 @@ _MIN_INTERVAL = {
     "api.elsevier.com": 0.5, "api.crossref.org": 0.25,
     # Wiley allows 60 requests in 10 minutes; Semantic Scholar one a second, shared by everyone without a key.
     "api.wiley.com": 10.0, "api.semanticscholar.org": 1.1,
-    "www.ebi.ac.uk": 0.3, "pmc-oa-opendata.s3.amazonaws.com": 0.2, "api.archives-ouvertes.fr": 0.3,
+    "www.ebi.ac.uk": 0.3, "pmc-oa-opendata.s3.amazonaws.com": 0.2, "storage.googleapis.com": 0.2, "api.archives-ouvertes.fr": 0.3,
     "api.openaire.eu": 0.6,
     # The search services added to OpenAlex and arXiv: their own stated limits, or a polite pace.
     "doaj.org": 0.5, "api.jstage.jst.go.jp": 1.0, "api.core.ac.uk": 1.0, "api.springernature.com": 1.0,

@@ -10,11 +10,16 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from WebScraping.averageScrap.elsevier import Elsevier
 from WebScraping.averageScrap.ids import normalize_title
+from WebScraping.averageScrap.sources.openalex import FULLTEXT
 from WebScraping.averageScrap.wiley import Wiley
 from WebScraping.averageScrap.job import ScreenConfig
 from WebScraping.averageScrap.ledger import DOI_LIST, APPROVED, DOWNLOADED, EXTRACTED, NEW, NO, REJECTED, SCREENED, YES, Candidate, Ledger
 
 _TITLE_POINTS, _ABSTRACT_POINTS, _EXCLUDE_POINTS = 2, 1, -3
+# A paper OpenAlex's full-text search found holds the searched phrases in its full text: the property words, found
+# there rather than in its title or abstract, are worth as much as in a title.
+_FULLTEXT_POINTS = _TITLE_POINTS
+_FULLTEXT = FULLTEXT + ":"
 _OPEN = {"gold", "green", "hybrid", "bronze", "diamond"}
 _MIN_TITLE_LENGTH = 20  # shorter normalized titles are too generic to call two papers one
 
@@ -163,6 +168,10 @@ def _judge(candidate: Candidate, cfg: ScreenConfig, words, elsevier_ok: bool, wi
     topic, prop, exclude = words
     topic_points, topic_found = _hits(candidate, topic)
     prop_points, prop_found = _hits(candidate, prop)
+    in_fulltext = [f.split(":", 1)[1].strip() for f in candidate.found_by if f.startswith(_FULLTEXT)]
+    if in_fulltext and not prop_found:  # the data words are in its full text, which the title and abstract do not show
+        prop_points += _FULLTEXT_POINTS
+        prop_found = [f"{in_fulltext[0]} (full text)"]
     _, exclude_found = _hits(candidate, exclude)
     score = topic_points + prop_points + _EXCLUDE_POINTS * len(exclude_found)
     access = access_of(candidate, elsevier_ok, wiley_ok)

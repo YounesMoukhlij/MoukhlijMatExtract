@@ -96,6 +96,7 @@ def _shown(c: Candidate, wanted: str, text: str) -> bool:
 
 # The phases of a search, as the progress line names them: (what is done, the things counted).
 _SEARCH_PHASES = {"keywords": ("Searching the keywords", "searches (each keyword in each source)"),
+                  "fulltext": ("Searching the full texts (OpenAlex)", "papers"),
                   "records": ("Completing the new papers' records on OpenAlex", "papers"),
                   "abstracts": ("Looking for the abstracts the records lack", "papers"),
                   "snowball": ("Snowballing", "papers kept"),
@@ -363,7 +364,8 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.job_summary.set(f"{len(search.queries)} keywords{years} in {len(search.sources)} sources · "
                              f"{len(self.job.fetch.sources)} sources of copies · PDFs go to {self.job.fetch.folder}"
                              f" · extracted into {self.output.get()}")
-        self._step_texts = {"keywords": f"① Keywords in {len(search.sources)} sources",
+        self._step_texts = {"keywords": f"① Keywords in {len(search.sources)} sources"
+                                        + (" + full texts" if search.fulltext_queries else ""),
                             "check": "② Check the new papers and the saved DOIs",
                             "snowball": "③ Citations of the papers kept" if search.snowball
                             else "③ Citations: off (job settings)",
@@ -697,8 +699,10 @@ class WebPanel(Pausable, ttk.LabelFrame):
         if self._chain_download:
             self.activity.write("--- Then the papers proposed are downloaded"
                                 + (", then extracted." if self.then_extract.get() else "."))
-        phases = [("keywords", "Searching the keywords", "searches"),
-                  ("records", "Completing the new papers' records (OpenAlex)", "papers"),
+        phases = [("keywords", "Searching the keywords", "searches")]
+        if s.fulltext_queries:
+            phases.append(("fulltext", "Searching the full texts (OpenAlex)", "papers"))
+        phases += [("records", "Completing the new papers' records (OpenAlex)", "papers"),
                   ("abstracts", "Looking for the missing abstracts", "papers")]
         if s.snowball:
             phases.append(("snowball", "Snowballing", "papers kept"))
@@ -744,13 +748,14 @@ class WebPanel(Pausable, ttk.LabelFrame):
         title, things = _SEARCH_PHASES[phase]
         tracker = self.tracker
         if tracker is not None and phase in tracker.phases:
-            tracker.update(phase, done, total, detail, {"new papers": new} if phase in ("keywords", "snowball") else None)
+            tracker.update(phase, done, total, detail,
+                           {"new papers": new} if phase in ("keywords", "fulltext", "snowball") else None)
             self.show_status(tracker.line())  # (a pause or a lost network stays said)
             return
         text = f"{title} — {done:,} of {total:,} {things}"
         if detail:
             text += f" · {detail}"
-        if phase in ("keywords", "snowball"):
+        if phase in ("keywords", "fulltext", "snowball"):
             text += f" · {new:,} new paper{'' if new == 1 else 's'} so far"
         self.show_status(text + self._pace.left(phase, done, total))
 

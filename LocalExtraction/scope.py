@@ -151,7 +151,7 @@ def material_scope(formula: str, composition: Union[str, Composition, None] = No
             return "an electrode material (a layered, spinel or olivine compound), not an electrolyte"
         if elements <= {"Li", "Na", "K", "C"} and "C" in elements:
             return "a lithiated carbon (an electrode, LiC6), not an electrolyte"
-        dopant = _missing_dopant(amounts, sentence, at) if sentence else ""
+        dopant = _missing_dopant(amounts, sentence, at) if sentence and "-doped " not in formula else ""
         if dopant:
             # "an Al-doped", "a Ga-doped": the article goes by how the symbol is read out
             article = "an" if dopant[0] in "AEFHILMNORSX" else "a"
@@ -187,7 +187,7 @@ def _electrode_scope(formula: str, composition: Union[str, Composition, None], s
             return "a lithiated carbon (an anode), not a cathode material"
     if _redox_share(amounts) < _REDOX_SHARE and ChemistryEngine.structure_family(amounts) in _ELECTROLYTE_FAMILIES[domain]:
         return f"a solid electrolyte, not {what}"
-    dopant = _missing_dopant(amounts, sentence, at) if sentence else ""
+    dopant = _missing_dopant(amounts, sentence, at) if sentence and "-doped " not in formula else ""
     if dopant:
         article = "an" if dopant[0] in "AEFHILMNORSX" else "a"
         return f"{article} {dopant}-doped sample stored under a formula without {dopant}"

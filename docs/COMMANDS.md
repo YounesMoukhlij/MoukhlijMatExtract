@@ -239,11 +239,14 @@ options:
 *2 · Web scraping* — every job run before, searched for the papers published since. Same as `python -m WebScraping update`; with make: `make update`.
 
 ```text
-usage: mme-web update [-h] [--yes] [--workers WORKERS] [--verbose]
+usage: mme-web update [-h] [--yes] [--all] [--workers WORKERS] [--verbose]
 
 options:
   -h, --help            show this help message and exit
   --yes                 Approve every paper proposed without a review, for jobs that ask for one
+  --all                 Also every job never run: searched in full, the whole literature of every
+                        family and domain in one command (best with --yes, so that nothing waits
+                        for a review)
   --workers, -w WORKERS
                         PDFs read at once while extracting
   --verbose, -v         Enable debug-level logging

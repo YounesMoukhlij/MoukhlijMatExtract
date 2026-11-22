@@ -129,6 +129,51 @@ _LABEL_AFTER_FORMULA = re.compile(r'[-–][A-Z]{2,}[A-Za-z0-9]*(?![a-z]*[-–]?(
 # "BM-LYC" (ball-milled), "SS-LYC" (solid-state), "c-LLZO" (cubic), "β-Li3PS4".
 _SAME_COMPOUND_TAG = r'(?:BM|SS|HT|LT|HP|SPS|WM|DM|MQ|MM|am|gc|[cthmorg]|[αβγδ])'
 _POLYMORPH_PREFIX = re.compile(rf'(?:^|[^A-Za-z0-9-]){_SAME_COMPOUND_TAG}[-–]$')
+# A doped sample named after its parent: "Ta-LLZO", "Ga–LLZO", "Al,Ga-LLZO", "Ta-doped LLZO", "Al-substituted
+# Li7La3Zr2O12". The element symbols before the name are the dopants; the sample is its own material
+# ("Ta-doped Li7La3Zr2O12"), not the parent compound. Each part of the prefix must be an element symbol.
+_DOPANT_PREFIX = re.compile(r'(?<![A-Za-z0-9])((?:[A-Z][a-z]?)(?:(?:\s?[,/─–-]\s?|,?\sand\s)[A-Z][a-z]?)*)'
+                            r'(?:\s?[-‐─–]\s?(?:(?:co-?)?(?:doped|substituted|stabili[sz]ed)[\s-]+)?'
+                            r'|\s(?:co-?)?(?:doped|substituted|stabili[sz]ed)[\s-]+)$')
+_DOPANT_WORD = re.compile(r'(?:co-?)?(?:doped|substituted|stabili[sz]ed)[\s-]+$')
+_ELEMENT_SYMBOLS = frozenset(
+    "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr Rb Sr Y Zr "
+    "Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu Hf Ta W Re Os Ir Pt "
+    "Au Hg Tl Pb Bi".split())
+
+
+def _dopants_before(before: str) -> List[str]:
+    """The dopants a sample's name is prefixed with ("Ta" of "Ta-LLZO", "Al", "Ga" of "Al,Ga-doped LLZO"); [] when
+    the text before it is no such prefix."""
+    m = _DOPANT_PREFIX.search(before)
+    if not m:
+        return []
+    parts = re.split(r',?\sand\s|\s?[,/─–-]\s?', m.group(1))
+    if not all(part in _ELEMENT_SYMBOLS for part in parts):
+        return []
+    # A single capital glued to a name is as often a tag ("S-LLZO" sintered, "P-" pristine, "C-" coated) as an element:
+    # it is a dopant only when the word says so ("S-doped LLZO", "W-doped LLZO").
+    if all(len(part) == 1 for part in parts) and not _DOPANT_WORD.search(before):
+        return []
+    return parts
+
+
+def _with_dopants(text: str, results: List[Dict[str, Any]]) -> None:
+    """Each material named with dopants before it becomes that doped sample: "Ta-LLZO" → "Ta-doped Li7La3Zr2O12",
+    with the parent's composition (the dopant's share is not stated) and `dopants`. A prefix whose elements are all
+    in the compound already ("Ta-LLZTO") names the compound itself."""
+    for r in results:
+        elements = r.get("elements")
+        if r.get("dopants") or r.get("open_series") or not isinstance(elements, dict) or not elements:
+            continue
+        before = text[:r["start"]]
+        named = _dopants_before(before)
+        missing = [e for e in named if e not in elements]
+        if not missing:
+            continue
+        start = _DOPANT_PREFIX.search(before).start(1)
+        r.update(formula=f"{'-'.join(missing)}-doped {r['formula']}", dopants=missing, parent=r["formula"],
+                 raw=text[start:r["end"]], start=start)
 
 # Valid-looking element-symbol strings that are actually acronyms/units/methods, not materials.
 ACRONYM_BLACKLIST = {
@@ -726,12 +771,13 @@ class ChemistryEngine:
         for m in _ALIAS_REGEX.finditer(text):
             if any(s <= m.start() < e for s, e in claimed_spans):
                 continue
-            if _SAMPLE_PREFIX.search(text[:m.start()]) and not _POLYMORPH_PREFIX.search(text[:m.start()]):
-                continue
             if _SAMPLE_SUFFIX.match(text, m.end()):
                 continue
             canonical = ALIASES[m.group(1).lower()]
             amounts = _amounts(canonical, {}) or {}
+            if _SAMPLE_PREFIX.search(text[:m.start()]) and not _POLYMORPH_PREFIX.search(text[:m.start()]) \
+                    and not [e for e in _dopants_before(text[:m.start()]) if e not in amounts]:
+                continue  # a sample label ("ME1-NZSP"); a dopant prefix ("Ta-LLZO") is read below (_with_dopants)
             results.append({
                 "raw": m.group(1),
                 "formula": _canonical(amounts) if len(amounts) > 1 else canonical,
@@ -770,6 +816,8 @@ class ChemistryEngine:
         if named:
             results = [r for r in results
                        if not any(n["start"] < r["end"] and r["start"] < n["end"] for n in named)] + named
+        named_glued = [r for r in results if r.get("is_known_alias") or _DOPANT_WORD.search(text[:r["start"]])]
+        _with_dopants(text, named_glued)  # "Ta-LLZO", "Ta-doped Li7La3Zr2O12": the doped sample, not its parent
 
         return sorted(results, key=lambda r: r["start"])
 
