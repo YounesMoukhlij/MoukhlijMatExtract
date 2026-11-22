@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Set
-from urllib.parse import unquote, urlsplit
 
 import pandas as pd
 
@@ -181,9 +180,10 @@ class NaLiXPipeline:
         if row.get("filename") and os.path.isfile(here):
             return here
         url = row.get("source_url", "")
-        if url.startswith("file://"):
-            path = unquote(urlsplit(url).path)
-            return path if os.path.isfile(path) else ""
+        if url.startswith("file:"):
+            from .fileurls import path_from_url  # right on Windows too, and for the links of older versions
+            path = path_from_url(url)
+            return path if path and os.path.isfile(path) else ""
         return ""
 
     @staticmethod
@@ -331,7 +331,8 @@ class NaLiXPipeline:
         if not from_source:
             stat = os.stat(filepath)
             extra.setdefault("source_service", "a file of this computer")
-            extra.setdefault("source_url", "file://" + os.path.abspath(filepath))
+            from .fileurls import file_url  # file:///C:/… on Windows, not file://C:\…
+            extra.setdefault("source_url", file_url(filepath))
             extra.setdefault("retrieved_at", datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(timespec="seconds"))
             extra.setdefault("file_sha256", digest)
         extra.setdefault("license", "not stated (a copy on this computer)" if not from_source else "not stated by the source")

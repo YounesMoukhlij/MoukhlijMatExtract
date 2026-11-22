@@ -15,9 +15,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
-from urllib.parse import unquote, urlparse
 
 import pandas as pd
+
+from LocalExtraction.fileurls import path_from_url
 
 from .compare import to_database_unit
 from .score import Annotation, Item
@@ -79,7 +80,7 @@ def pdf_paths(workbook: Path) -> Dict[str, Path]:
             cell = row[head.index("pdf")]
             link = (cell.hyperlink.target if cell.hyperlink is not None else "") or str(cell.value or "")
         if link.startswith("file:"):
-            path = Path(unquote(urlparse(link).path))
+            path = Path(path_from_url(link))  # right on Windows too (file:///C:/…)
             if path.is_file():
                 found[paper] = path
                 continue

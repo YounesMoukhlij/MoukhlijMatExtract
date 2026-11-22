@@ -46,13 +46,13 @@ class ManualTests(unittest.TestCase):
             self.assertIn(needed, hub.MANUAL, needed)
 
 
-@unittest.skipUnless(has_screen(), "the window needs a screen")
 def _widgets(widget):
     for child in widget.winfo_children():
         yield child
         yield from _widgets(child)
 
 
+@unittest.skipUnless(has_screen(), "the window needs a screen")
 class WindowTests(unittest.TestCase):
     def setUp(self):
         import tkinter as tk

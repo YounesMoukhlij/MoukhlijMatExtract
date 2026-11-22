@@ -379,11 +379,15 @@ class Scrolled(ttk.Frame):
         window Tk makes itself, with no Python widget behind it (the open list of a combobox, “….popdown”), which
         winfo_containing cannot name (KeyError). An open list is not this area: the wheel scrolls the list."""
         try:
-            path = self.tk.call("winfo", "containing", "-displayof", self._w, x_root, y_root)
+            path = self._path_at(x_root, y_root)
         except tk.TclError:  # the window is closing
             return False
-        path = str(path)
         return bool(path) and path.startswith(str(self)) and ".popdown" not in path
+
+    def _path_at(self, x_root: int, y_root: int) -> str:
+        """The path of the window under a point of the screen ("" for none): the window system's answer (the one
+        place it is asked, which a test without a screen gives instead)."""
+        return str(self.tk.call("winfo", "containing", "-displayof", self._w, x_root, y_root))
 
     def _leave(self, event: "tk.Event") -> None:
         if not self._inside(event.x_root, event.y_root):

@@ -68,8 +68,10 @@ class WindowTests(unittest.TestCase):
 
     def test_the_footer_of_every_window_has_the_switch_and_all_follow_one_click(self):
         from LocalExtraction.gui import design
-        first = design.footer(self.root)
-        second = design.footer(tk.Toplevel(self.root))
+        # As on a Mac with caffeinate, wherever the test runs: the switches are made enabled (they ask when made).
+        with mock.patch.object(keep_awake.shutil, "which", return_value="/usr/bin/caffeinate"):
+            first = design.footer(self.root)
+            second = design.footer(tk.Toplevel(self.root))
         switches = [w for bar in (first, second) for w in _descendants(bar) if hasattr(w, "var")]
         self.assertEqual(len(switches), 2)
         self.assertEqual(switches[0].cget("text"), design.KEEP_AWAKE_TEXT)

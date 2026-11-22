@@ -319,7 +319,8 @@ class Downloader:
             if check.ok:
                 logging.info(f"Already fetched: {candidate.key} ({os.path.basename(existing)} is in the folder) "
                              "— download skipped.")
-                return self._save(candidate, FetchOption("already in the folder", f"file://{existing}"), data,
+                from LocalExtraction.fileurls import file_url  # a link right on every system
+                return self._save(candidate, FetchOption("already in the folder", file_url(existing)), data,
                                   check, path=existing)
         tried, offered, skipped = [], False, 0
         for option in self.resolver.options(candidate):

@@ -133,7 +133,7 @@ def outputs(folder: Path, names: Optional[Iterable[str]] = None) -> Dict[str, Di
                 entry["rows"] = len(pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8-sig"))
             except Exception:
                 pass
-        result[str(path.relative_to(folder))] = entry
+        result[path.relative_to(folder).as_posix()] = entry  # “total/values.csv” on every system: portable records
     return result
 
 

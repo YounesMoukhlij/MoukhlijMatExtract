@@ -152,9 +152,9 @@ class StartTests(unittest.TestCase):
         # Which widget is under a point of the screen is the window system's answer, and a machine without a
         # screen (continuous integration) has none: it is given here, so that what is tested is how the cards
         # take it — a point over one of their cards is inside them, one over another window is not.
-        with mock.patch.object(cards, "winfo_containing", return_value=card):
+        with mock.patch.object(cards, "_path_at", return_value=str(card)):
             self.assertTrue(cards._inside(card.winfo_rootx() + 20, card.winfo_rooty() + 10))
-        with mock.patch.object(cards, "winfo_containing", return_value=question):
+        with mock.patch.object(cards, "_path_at", return_value=str(question)):
             self.assertFalse(cards._inside(0, 0))
         keys._vars["CORE_API_KEY"].set("core-456")
         save, = [b for b in keys.body.winfo_children()[-1].winfo_children()

@@ -148,6 +148,14 @@ HERE: Dict[str, Tuple[str, ...]] = {
 }
 
 
+def fitted_font(text: str, width: int, size: int, smallest: int = 9) -> tuple:
+    """A bold font for `text` no wider than `width`: `size`, or smaller where this system's font is wider."""
+    from tkinter import font as tkfont
+    while size > smallest and tkfont.Font(font=("TkDefaultFont", size, "bold")).measure(text) > width:
+        size -= 1
+    return ("TkDefaultFont", size, "bold")
+
+
 def here_of(title: str) -> Tuple[str, ...]:
     return HERE.get(title, ())
 
@@ -186,7 +194,8 @@ class FlowDiagram:
         outline = _rounded(cv, x, y, x + BOX_W, y + BOX_H, 12, fill=c["selected"] if here else c["card"],
                            outline=c["accent"] if here else c["line"], width=2 if here else 1, tags=tag)
         cv.create_rectangle(x + 1, y + 10, x + 6, y + BOX_H - 10, fill=self.colour(step.stage), outline="", tags=tag)
-        self.text(x + 16, y + 18, step.title, anchor="w", fill=c["ink"], font=("TkDefaultFont", 12, "bold"), tags=tag)
+        self.text(x + 16, y + 18, step.title, anchor="w", fill=c["ink"], tags=tag,
+                  font=fitted_font(step.title, BOX_W - 26, 12))  # smaller where the system's font is wider (Windows)
         self.text(x + 16, y + 46, step.where, anchor="w", fill=c["muted"], font=("TkDefaultFont", 10),
                   width=BOX_W - 24, tags=tag)
         if here:

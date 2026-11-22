@@ -143,7 +143,9 @@ class WebPanel(Pausable, ttk.LabelFrame):
         super().__init__(parent, text=" Web articles — search, download and extract ", padding=10)
         # The controls above (they scroll when short), the tabs below, a line to drag between them.
         from LocalExtraction.gui.layout import Stack
-        self.stack = Stack(self)
+        # The tabs (the papers, the values to check) keep half of the height at the least: on a short screen
+        # (1024 × 768, a laptop at 150 %) the many controls above scroll instead of crushing the lists.
+        self.stack = Stack(self, keep=0.5)
         host = self.stack.host
         self.app = app
         self.job: Optional[Job] = None

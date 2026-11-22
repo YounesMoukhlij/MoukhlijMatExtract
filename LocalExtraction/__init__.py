@@ -27,3 +27,20 @@ def _no_csv_cell_limit() -> None:
 
 
 _no_csv_cell_limit()
+
+
+def _console_never_fails() -> None:
+    """A console that cannot show a character (Windows when the output goes to a file or a pipe: cp1252 has no ✓,
+    ≥, −, →, ⚠) shows “?” for it, instead of the program stopping with UnicodeEncodeError — as `mme-eval --help >
+    help.txt` did on Windows. A UTF-8 console (macOS, Linux, Windows Terminal) is left as it is."""
+    import sys
+    for stream in (sys.stdout, sys.stderr):
+        encoding = (getattr(stream, "encoding", "") or "").lower().replace("-", "").replace("_", "")
+        if encoding and encoding != "utf8" and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(errors="replace")
+            except Exception:  # a stream that cannot be changed: left as it is
+                pass
+
+
+_console_never_fails()

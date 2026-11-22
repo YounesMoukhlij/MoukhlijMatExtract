@@ -278,7 +278,7 @@ class DomainJobTests(unittest.TestCase):
         for family in FAMILY_JOBS:
             job = load_job(os.path.join(shipped, f"{family}.yaml"))
             self.assertEqual(job.name, family)
-            self.assertEqual(job.fetch.folder, os.path.join("WebScraping", f"papers_{family}"))
+            self.assertEqual(os.path.normpath(job.fetch.folder), os.path.join("WebScraping", f"papers_{family}"))
             self.assertEqual(output_for(job), os.path.join("WebScraping", f"web_output_{family}"))
             self.assertTrue(job.search.doi_list.endswith(f"dois_{family}.csv"))
             self.assertTrue(job.screen.propose_closed)

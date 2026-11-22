@@ -101,7 +101,7 @@ def _list() -> int:
     if not every:
         print("No family yet: run 4 · Classification (mme-classify) for the crystal structures and structure families.")
         return 1
-    print(f"{"family":52} {'Ea':>6} {'sigma':>7} {'sigma_e':>8} {'D':>5}")
+    print(f"{'family':52} {'Ea':>6} {'sigma':>7} {'sigma_e':>8} {'D':>5}")
     for family in every:
         n = export.counts(family)
         print(f"{family.label[:52]:52} {n['Ea']:>6} {n['sigma']:>7} {n['sigma_e']:>8} {n['D']:>5}")
