@@ -868,6 +868,8 @@ class WindowTests(WindowTest):
         self.assertIn(("1", "newly proposed"), [(s.value, s.label) for s in card.stats])
         self.assertTrue(any(label.startswith("Download the") for label, _ in card.actions))
 
+    @unittest.skipIf(os.name == "nt", "Windows does not let a folder be deleted while a file in it is open "
+                                       "(the ledger): the case cannot happen there")
     def test_a_folder_deleted_while_the_window_is_open_is_said_and_made_again(self):
         """~/MoukhlijMatExtract deleted while the Web scraping window is open: the next step says so, makes it again
         (with its job files) and goes on in it — not a failure deep in the step, nor a ledger written into a deleted file."""

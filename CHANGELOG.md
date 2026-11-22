@@ -82,6 +82,27 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Fixed
 
+- **Linux, Windows and small screens** (found with the test runs of GitHub on Linux, Windows and macOS, failing since
+  18 November, and checked here as a screenless Linux machine and as a 1024 × 768 screen):
+  - **Python 3.11** could not load the ML export, the classification by property or the duplicate detection: one
+    f-string used quotes that only Python 3.12 allows (`mme-ml-export --list`).
+  - **Windows:** the links to the files of this computer were made as `file://C:\…` (not a link a program reads):
+    the extraction did not find an archived paper's PDF where papers.csv said it was, and the benchmark's keyword
+    baseline found no PDF. They are made as `file:///C:/…` now, and the old ones are still read
+    (`LocalExtraction/fileurls.py`).
+  - **Windows:** a command whose output went to a file or a pipe stopped on its first ✓, ≥ or → (cp1252 has none of
+    them) — even `mme-eval --help > help.txt`. What such a console cannot show is now shown as “?”.
+  - **Windows:** the records of what a run wrote (run_manifest.json, the “done” stamps) held `total\values.csv`; they
+    hold `total/values.csv` on every system, so a results folder moved to another computer keeps its records.
+  - **Windows:** a title of the Process flow ran past its box (the system's font is wider); it is made smaller to
+    fit.
+  - **Small screens** (1024 × 768, or a laptop at 150 %: 1280 × 720): the tables were crushed by the settings above
+    them — the ranking's table got 3 rows, the web window's values to check 1. The ranking's tables keep half of the
+    window, the Local / Web / Classification tabs 62 % of a short window, and the settings scroll; the buttons of the
+    Verify tab always stay whole.
+  - The tests: the main window's ran without a screen and failed (their “skip without a screen” sat on a helper);
+    Windows does not hit-test a fully transparent window, so the tests' hidden windows are 2 % opaque there; a test
+    no longer deletes a folder whose file is open on Windows, which Windows forbids.
 - **Ranking window**: a ranking that failed left the line under the buttons saying “Reading the databases and ranking
   the materials …” after the error message. It now says the ranking failed, and to press Rank to try again.
 - **“⇄ Flow” button**: it chose a free corner when a window opened or was resized, but not when another tab was

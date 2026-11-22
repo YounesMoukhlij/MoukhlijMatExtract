@@ -305,7 +305,9 @@ class App:
 
     def _fit_split(self) -> None:
         """The divider below the settings and the card, but never so low that the tables keep less than half of the
-        window (they are what a ranking is for), nor above the settings and their buttons (Rank)."""
+        window (they are what a ranking is for), nor above the settings and their buttons (Rank) — unless the screen
+        is so short (1024 × 768, a laptop at 150 %) that the settings would leave the tables a few rows: then the
+        tables keep their share and the settings scroll."""
         try:
             self._upper.update_idletasks()
             total = self._split.winfo_height()
@@ -313,6 +315,7 @@ class App:
                 settings = (self._settings.winfo_reqheight() + self._actions.winfo_reqheight()
                             + self._files_row.winfo_reqheight() + self._mp_row.winfo_reqheight())
                 wanted = max(settings, min(self._upper.winfo_reqheight(), int(total * 0.5)))
+                wanted = min(wanted, max(total - total // 2, 120))  # the tables keep half, at the least
                 if abs(self._split.sashpos(0) - wanted) > 1:  # moved only when its place changed
                     self._split.sashpos(0, wanted)
         except tk.TclError:  # the window is closing

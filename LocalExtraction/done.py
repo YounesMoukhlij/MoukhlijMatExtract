@@ -71,7 +71,7 @@ def mark_done(folder: Path, step: str, print_: str, written: Iterable[Path]) -> 
     names = []
     for file in written:
         try:
-            names.append(str(Path(file).resolve().relative_to(folder.resolve())))
+            names.append(Path(file).resolve().relative_to(folder.resolve()).as_posix())  # “/” on every system
         except ValueError:
             continue  # written elsewhere: not this folder's to check
     stamps[step] = {"fingerprint": print_, "written": names,

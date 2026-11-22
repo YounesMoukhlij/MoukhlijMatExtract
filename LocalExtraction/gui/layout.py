@@ -77,6 +77,9 @@ class Stack:
     The upper part is as tall as what it holds while the tabs keep `keep` of the height at least; dragged by hand,
     the line stays where it was put. Cards (built in `host`, shown later) move the line as they are shown and closed."""
 
+    # A short area (a window on a 1024 × 768 screen, a laptop at 150 %): the tabs keep more of it, the controls scroll.
+    SHORT, SHORT_KEEP = 480, 0.62
+
     def __init__(self, parent: tk.Misc, keep: float = 0.4):
         from .widgets import Scrolled
         self.keep = keep
@@ -106,7 +109,8 @@ class Stack:
             if total <= 1:
                 return
             self._state.update(need=need, total=total)
-            wanted = max(min(need, int(total * (1 - self.keep))), 40)
+            keep = max(self.keep, self.SHORT_KEEP) if total < self.SHORT else self.keep
+            wanted = max(min(need, int(total * (1 - keep))), 40)
             if abs(self.split.sashpos(0) - wanted) > 1:
                 self.split.sashpos(0, wanted)
         except tk.TclError:  # the window is closing

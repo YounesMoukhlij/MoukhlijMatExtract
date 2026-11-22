@@ -99,3 +99,25 @@ def _no_real_dialog(monkeypatch):
     for name in ("askopenfilename", "asksaveasfilename", "askdirectory", "askopenfilenames"):
         monkeypatch.setattr(filedialog, name, refused(f"file dialog ({name})"))
     yield
+
+
+if os.name == "nt":  # Windows: a window drawn fully transparent is skipped by “what is under this point?”
+    try:
+        import tkinter as _tk
+
+        _attributes = _tk.Wm.wm_attributes
+
+        def _seen_by_windows(self, *args, **kwargs):
+            """The tests draw their windows unseen (-alpha 0.0); Windows does not hit-test a window that transparent,
+            so the checks of what is in view would find nothing. 2 % opaque: still not seen, but hit-tested."""
+            args = list(args)
+            for index in range(len(args) - 1):
+                if args[index] == "-alpha" and float(args[index + 1]) == 0.0:
+                    args[index + 1] = 0.02
+            if kwargs.get("alpha") == 0.0:
+                kwargs["alpha"] = 0.02
+            return _attributes(self, *args, **kwargs)
+
+        _tk.Wm.wm_attributes = _tk.Wm.attributes = _seen_by_windows
+    except ImportError:
+        pass

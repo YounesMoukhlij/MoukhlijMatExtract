@@ -144,8 +144,10 @@ class VerifyView(ttk.Frame):
             height = stack.winfo_height()
             if dragged["by_hand"] or height <= 1:
                 return
-            room_below = buttons.winfo_reqheight() + more.winfo_reqheight() + 12 + 80
-            wanted = max(60, min(about.winfo_reqheight(), height - room_below))
+            # the buttons, always whole: their two rows, the rows' padding (6 + 6, then 6) and the divider's thickness
+            rows = buttons.winfo_reqheight() + more.winfo_reqheight() + 18 + 10
+            page_room = 80 if height - rows - 60 >= 80 else 0  # some of the page under them, when there is room
+            wanted = max(40, min(about.winfo_reqheight(), height - rows - page_room))
             if abs(stack.sashpos(0) - wanted) > 1:
                 stack.sashpos(0, wanted)
         stack.bind("<Configure>", place_line, add="+")
