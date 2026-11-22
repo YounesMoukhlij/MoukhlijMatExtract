@@ -4,15 +4,22 @@ real ~/MoukhlijMatExtract; and every test gets back the working folder a command
 import gc
 import os
 import shutil
+import sys
 import tempfile
 
 import pytest
 
+# The packages live in core/, export/ and app/: importable even before `pip install -e .` has run again.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+for _group in ("app", "export", "core"):
+    if os.path.join(_HERE, _group) not in sys.path:
+        sys.path.insert(0, os.path.join(_HERE, _group))
+
 try:
     import tkinter
 except ImportError:  # a Python built without Tk: the tests of the windows cannot run, the others do
-    collect_ignore = ["LocalExtraction/tests/test_browser.py", "LocalExtraction/tests/test_result_card.py",
-                      "SelectingTopMaterial/tests/test_gui.py", "Classification/tests/test_window.py"]
+    collect_ignore = ["core/LocalExtraction/tests/test_browser.py", "core/LocalExtraction/tests/test_result_card.py",
+                      "core/SelectingTopMaterial/tests/test_gui.py", "core/Classification/tests/test_window.py"]
 
 
 def _destroyed_once_settled():

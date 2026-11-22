@@ -10,7 +10,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 SIZE, SCALE = 512, 4                 # drawn 4 times larger, then reduced: smooth edges
-OUT = Path(__file__).resolve().parents[1] / "LocalExtraction" / "gui" / "assets" / "mme_icon.png"
+OUT = Path(__file__).resolve().parents[1] / "core" / "LocalExtraction" / "gui" / "assets" / "mme_icon.png"
 NAVY_TOP, NAVY_BOTTOM = (0x1b, 0x3f, 0x72), (0x0e, 0x22, 0x3f)   # theme.palette: band (light → dark)
 LINE, WHITE, GARNET = (0x9f, 0xb3, 0xcf), (255, 255, 255), (0x8c, 0x1d, 0x40)
 

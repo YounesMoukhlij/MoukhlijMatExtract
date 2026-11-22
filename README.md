@@ -84,7 +84,7 @@ It reads nothing it may not read: only your own PDFs and legally available copie
 ## What a value looks like
 
 One row of `activation_energy.csv`, as MME extracts it from one of the two open-access papers of the worked example
-([examples/](examples/README.md); fields abridged):
+([resources/examples/](resources/examples/README.md); fields abridged):
 
 | Field | Value |
 |---|---|
@@ -150,9 +150,9 @@ Every part runs from its own window or from the terminal. A part never redoes fi
 extracted, a search run in the last 30 days, or a ranking whose inputs did not change. Each part has a switch to redo
 it (`--rebuild`, `--refresh`, `--force`). MME never deletes your input PDFs.
 
-Each part also has its own README with every detail: [LocalExtraction](LocalExtraction/README.md),
-[WebScraping](WebScraping/README.md), [SelectingTopMaterial](SelectingTopMaterial/README.md),
-[Classification](Classification/README.md), [Evaluation](Evaluation/README.md).
+Each part also has its own README with every detail: [LocalExtraction](core/LocalExtraction/README.md),
+[WebScraping](core/WebScraping/README.md), [SelectingTopMaterial](core/SelectingTopMaterial/README.md),
+[Classification](core/Classification/README.md), [Evaluation](core/Evaluation/README.md).
 
 ---
 
@@ -243,7 +243,7 @@ in turn, the ones never run included: one per domain and one per family of solid
   - repositories: arXiv, PubMed Central, OSTI, HAL, Zenodo, DataCite, Semantic Scholar, NASA ADS, OpenAIRE, CORE.
 
 Most API keys are free and all are optional: without any key the open sources still work. Each job file
-(`configs/*.yaml`) sets the domain, the searches, the sources, the years and the screening. One job ships per domain,
+(`resources/configs/*.yaml`, copied to `~/MoukhlijMatExtract/configs/`) sets the domain, the searches, the sources, the years and the screening. One job ships per domain,
 plus one per family of solid electrolytes (garnet, NASICON, argyrodite, LGPS, halide, …).
 
 ---
@@ -253,7 +253,7 @@ plus one per family of solid electrolytes (garnet, NASICON, argyrodite, LGPS, ha
 **Ranking** (`SelectingTopMaterial/`). Bulk, grain-boundary and total activation energies are different quantities,
 so each component is ranked on its own and never mixed. Each material gets one activation energy per component: by
 default, the confidence-weighted median of its values. It also gets a class from
-[`criteria.toml`](SelectingTopMaterial/criteria.toml):
+[`criteria.toml`](core/SelectingTopMaterial/criteria.toml):
 
 | Electrolytes | Ea | | Cathodes and anodes | Ea |
 |---|---|---|---|---|
@@ -459,7 +459,7 @@ the spaCy model.
 ## Quick start
 
 ```bash
-make demo                 # two example papers → extraction, ranking, classification (examples/output/)
+make demo                 # two example papers → extraction, ranking, classification (resources/examples/output/)
 mme-gui                   # or open the main window and follow the cards 1 → 5
 ```
 
@@ -513,23 +513,33 @@ it on first start; **Restore the job files** brings back a missing one without t
 
 ```
 MoukhlijMatExtract/
-├── LocalExtraction/      part 1 and the shared extraction engine: PDF reading, OCR, tables, quantities, units,
-│                         materials, context, plausibility, duplicates, provenance; the shared GUI toolkit (gui/)
-├── WebScraping/          part 2: Fetch_DOIs/, and averageScrap/ (search sources, screening, legal download,
-│                         ledger, watcher, coverage, its window)
-├── SelectingTopMaterial/ part 3: criteria (*.toml), selection, HTML report, Materials Project, window
-├── Classification/       part 4: structure types and families, property branches, window
-├── MLDataset/            part 5: ML dataset export and its step-by-step window
-├── Evaluation/           sheet, score, agree, reference, benchmark, gold
-├── Release/              the Zenodo-ready dataset
-├── mme_gui/              the main window, manual, make guide, process flow, macOS app
-├── configs/              the shipped job files (one per domain and per electrolyte family)
-├── docs/                 manual, commands, data dictionary, limitations, evaluation protocol, families
-├── examples/             two CC BY papers and their expected values
-├── scripts/              reproduce_paper.py, audit tools, icon
+├── core/                       the pipeline: the five parts that build and judge the database
+│   ├── LocalExtraction/        1 · the shared extraction engine: PDF reading, OCR, tables, quantities, units,
+│   │                           materials, context, plausibility, duplicates, provenance; the window toolkit (gui/)
+│   ├── WebScraping/            2 · Fetch_DOIs/, and averageScrap/ (search sources, screening, legal download,
+│   │                           ledger, watcher, coverage, its window)
+│   ├── SelectingTopMaterial/   3 · ranking: criteria (*.toml), selection, HTML report, Materials Project, window
+│   ├── Classification/         4 · structure types and families, property branches, window
+│   └── Evaluation/             accuracy: sheet, score, agree, reference, benchmark, gold
+├── export/                     turns the database into things to share
+│   ├── MLDataset/              5 · datasets for machine learning, and their step-by-step window
+│   └── Release/                the Zenodo-ready dataset
+├── app/                        the desktop application around the parts
+│   ├── mme_gui/                the main window, manual, make guide, process flow, macOS app
+│   └── mme_home/               sets up ~/MoukhlijMatExtract on first start
+├── resources/                  files the program ships with
+│   ├── configs/                the job files (one per domain and per electrolyte family)
+│   └── examples/               two CC BY papers and their expected values
+├── docs/                       manual, commands, data dictionary, limitations, evaluation protocol, families
+│   └── paper/                  the JOSS paper, the methodology and the data descriptor
+├── scripts/                    reproduce_paper.py, audit tools, icon
 ├── Dockerfile · Makefile · requirements.lock · pyproject.toml · CITATION.cff · .zenodo.json
-└── .github/workflows/    tests on every push; publishing to PyPI
+└── .github/workflows/          tests on every push; publishing to PyPI
 ```
+
+The folder names inside `core/`, `export/` and `app/` are the Python packages (`import LocalExtraction`,
+`python -m WebScraping`); the groups around them are only folders. Your own data lives apart, in
+`~/MoukhlijMatExtract`.
 
 ---
 

@@ -72,6 +72,8 @@ mme-eval = "Evaluation.cli:main"
 mme-release = "Release.cli:main"
 
 [tool.setuptools.packages.find]
+# The packages live in three folders of the repository: core/ (the pipeline), export/ and app/.
+where = ["core", "export", "app"]
 include = ["LocalExtraction*", "WebScraping*", "SelectingTopMaterial*", "Classification*", "Evaluation*", "Release*", "MLDataset*", "mme_gui*",
            "mme_home*"]
 exclude = ["*.tests", "*.tests.*", "tests", "tests.*"]

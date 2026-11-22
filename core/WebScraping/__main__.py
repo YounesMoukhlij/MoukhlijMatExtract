@@ -1,0 +1,23 @@
+"""python -m WebScraping            search the open sources, download, extract — from the terminal
+   python -m WebScraping gui        the same, in a window
+
+`gui` opens the Web scraping window; everything else is the command line (WebScraping.averageScrap.cli)."""
+
+import sys
+from pathlib import Path
+
+if not __package__:  # started as "python WebScraping": make the project root importable
+    _root = Path(__file__).resolve().parents[2]  # the repository: its packages are in core/, export/, app/
+    sys.path[0:1] = [str(_root / group) for group in ("core", "export", "app")]
+
+argv = sys.argv[1:]
+if argv and argv[0] == "gui":  # the window, with its options (--job, --output, --workers, --verbose)
+    from LocalExtraction.about import require_tk
+    require_tk("mme-web gui")
+    from WebScraping.webgui import main as gui_main
+    gui_main(argv[1:])
+    sys.exit(0)
+
+from WebScraping.averageScrap.cli import main
+
+sys.exit(main(argv))

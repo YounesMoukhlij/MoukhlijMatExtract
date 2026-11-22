@@ -96,11 +96,11 @@ make install-locked     # instead: the exact versions of requirements.lock, to r
 mme --version           # MoukhlijMatExtract <version> (mme)
 mme help                # every command at a glance
 make test               # source code only: the whole test suite (about 3 minutes)
-make demo               # two open-access example papers through every part -> examples/output/
+make demo               # two open-access example papers through every part -> resources/examples/output/
 ```
 
-`make demo` should end with a database, a ranking and a classification in `examples/output/`. Its values are
-listed in `examples/expected_values.csv`.
+`make demo` should end with a database, a ranking and a classification in `resources/examples/output/`. Its values are
+listed in `resources/examples/expected_values.csv`.
 
 ---
 
@@ -601,7 +601,7 @@ Every option of each: [COMMANDS.md](COMMANDS.md).
 | No language model | `python -m spacy download en_core_web_sm` |
 | Scanned PDFs give nothing | install Tesseract (§ 2) |
 | A window does not open | install Tk (§ 2); every part also runs in the terminal |
-| The web search finds few papers | `mme-web run --check`; add API keys where you have them (see `WebScraping/averageScrap/README.md`) |
+| The web search finds few papers | `mme-web run --check`; add API keys where you have them (see `core/WebScraping/averageScrap/README.md`) |
 | "The database … was written by an earlier version" | answer the question it asks: bring it up to date, or `--rebuild` |
 | A value looks wrong | its `sentence` and `page` show where it was read; `basis` shows what was assumed |
 | Stop a long run | Ctrl-C or the window's Stop: what is done is kept, and the next run goes on from there |

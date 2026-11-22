@@ -115,6 +115,17 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Changed
 
+- **The repository in six folders** (from seventeen at its root):
+  - `core/`: the pipeline (LocalExtraction, WebScraping, SelectingTopMaterial, Classification, Evaluation);
+  - `export/`: MLDataset and Release;
+  - `app/`: mme_gui and mme_home;
+  - `resources/`: `configs/` (the job files) and `examples/` (the worked example);
+  - `docs/`, with the article drafts in `docs/paper/`;
+  - `scripts/`.
+
+  The package names, the commands, the installed wheel and the folders of `~/MoukhlijMatExtract` are unchanged.
+  From a checkout, run `make install` (or `pip install -e .`) once after updating; a part started from its folder
+  is now `python core/LocalExtraction`.
 - **README rewritten as an overview for users and reviewers**: the project in one minute, why it exists, one real
   extracted value with its provenance, the pipeline and the extraction engine as diagrams, the 25 search and 17
   copy sources, the ranking, classification and ML datasets, the measured accuracy with its limits, reproducibility,
@@ -124,6 +135,15 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Fixed
 
+- **A search started again showed 15 % where it had stopped at 78 %.** Nothing was searched twice (every finished
+  search is in the ledger and is skipped), but the bar counted the searches source by source, so it began again at 0
+  and reached the first source with searches left (one that had refused them) at 15 %.
+  - **Now:** the search counts the searches already finished before it starts, and its bar, its line ("8,820 of
+    11,704 searches") and its details window start there. Only the searches asked move it.
+  - **The time left:** it is measured on the searches this run asks. Skipped searches no longer make it look fast,
+    nor shorten the estimates of the next runs.
+- **⏱ Progress details stopped adding to its timeline after 2,000 events** (the number it keeps), which a long or
+  resumed search reaches in minutes. The newest events now keep arriving at the top; the oldest go after 2,000.
 - **Linux, Windows and small screens** (found with the test runs of GitHub on Linux, Windows and macOS, failing since
   18 November, and checked here as a screenless Linux machine and as a 1024 × 768 screen):
   - **Python 3.11** could not load the ML export, the classification by property or the duplicate detection: one

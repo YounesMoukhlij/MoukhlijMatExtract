@@ -8,7 +8,7 @@ root of the repository, inside its virtual environment. Nothing here runs by its
 | Check | Command | Must give |
 |---|---|---|
 | The tests | `python -m pytest -q` | every test passes |
-| The worked example | `make demo` | the values of `examples/expected_values.csv` (the demo test checks it) |
+| The worked example | `make demo` | the values of `resources/examples/expected_values.csv` (the demo test checks it) |
 | A clean tree | `git status --short` | nothing: a release is built from a commit, never from uncommitted files |
 | The version | `pyproject.toml` `version`, `CITATION.cff` `version` and `date-released` | the same new version; today's date |
 | The changelog | `CHANGELOG.md` | "Unreleased" renamed to `[x.y.z] — YYYY-MM-DD` |
@@ -49,11 +49,11 @@ tar tzf dist/*.tar.gz | grep -Ei '\.env|ledger|sqlite|output/' && echo "STOP: a 
 ```bash
 python3.11 -m venv /tmp/mme-check && /tmp/mme-check/bin/pip install dist/*.whl
 /tmp/mme-check/bin/python -m spacy download en_core_web_sm
-HOME=/tmp/mme-home /tmp/mme-check/bin/mme-local extract -i "$PWD/examples/papers" -o /tmp/mme-out --offline
+HOME=/tmp/mme-home /tmp/mme-check/bin/mme-local extract -i "$PWD/resources/examples/papers" -o /tmp/mme-out --offline
 ```
 
 `HOME=/tmp/mme-home` keeps the check away from your own `~/MoukhlijMatExtract`. The extraction must give the 11
-values of `examples/expected_values.csv`. `scripts/audit/clean_install.sh` in the audit folder does all of this for
+values of `resources/examples/expected_values.csv`. `scripts/audit/clean_install.sh` in the audit folder does all of this for
 several Python versions.
 
 ## 3 · TestPyPI
