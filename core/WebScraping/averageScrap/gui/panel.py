@@ -245,6 +245,17 @@ class WebPanel(Pausable, ttk.LabelFrame):
         ttk.Checkbutton(options, text="then extract them (4 · Extract)", variable=self.then_extract).pack(
             side="left", padx=(6, 0))
         self._chain_download = False  # the search under way goes on into the download (the box above)
+        # The articles filter (screen.articles_filter): the box starts as the job file says, then the window's choice
+        # holds for the job until another job file is chosen.
+        filters = ttk.Frame(host)
+        filters.pack(fill="x", pady=(4, 0))
+        self.articles_filter = tk.BooleanVar(value=True)
+        self._filter_job_path: Optional[str] = None
+        ttk.Checkbutton(filters, text="Articles filter: look up the missing abstracts, then score every paper",
+                        variable=self.articles_filter, command=self._articles_filter_changed).pack(side="left")
+        ttk.Label(filters, foreground=_QUIET,
+                  text="·  slow (hours to days). Off: papers without an abstract are proposed as they are, "
+                       "and the extraction sorts them out").pack(side="left", padx=(6, 0))
 
         progress = ttk.Frame(host)
         progress.pack(fill="x", pady=(8, 6))
@@ -359,6 +370,10 @@ class WebPanel(Pausable, ttk.LabelFrame):
         except (OSError, ValueError) as error:
             self._no_job(f"This job file cannot be used — {error}")
             return
+        if os.path.abspath(path) != self._filter_job_path:  # another job file: its own articles filter
+            self._filter_job_path = os.path.abspath(path)
+            self.articles_filter.set(self.job.screen.articles_filter)
+        self.job.screen.articles_filter = self.articles_filter.get()
         self._follow_job()
         search = self.job.search
         years = f" · {search.years[0]}–{search.years[1]}" if search.years else ""
@@ -427,9 +442,20 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self._buttons()
         self.show_candidates()
 
+    def _articles_filter_changed(self) -> None:
+        """The articles filter ticked or unticked: it holds from the next step (a step under way goes on as it began)."""
+        on = self.articles_filter.get()
+        if self.job is not None and not self.running():
+            self.job.screen.articles_filter = on
+        self.status.set(("Articles filter on: missing abstracts are looked up and every paper is scored."
+                         if on else "Articles filter off: no abstract is looked up; papers without one are proposed.")
+                        + (" It holds from the next step." if self.running() else
+                           " Papers scored already change with “Re-screen with the settings…”."))
+
     def _harvest(self) -> Harvest:
         """The engine of the web side for this job (made on first use: it opens the ledger)."""
         assert self.job is not None
+        self.job.screen.articles_filter = self.articles_filter.get()
         if self.harvest is None:
             self.harvest = Harvest(self.job, self.output.get())
             self.harvest.watcher.say = lambda text: self.app.post(self.show_status, text)  # its countdown
@@ -703,8 +729,11 @@ class WebPanel(Pausable, ttk.LabelFrame):
         phases = [("keywords", "Searching the keywords", "searches")]
         if s.fulltext_queries:
             phases.append(("fulltext", "Searching the full texts (OpenAlex)", "papers"))
-        phases += [("records", "Completing the new papers' records (OpenAlex)", "papers"),
-                  ("abstracts", "Looking for the missing abstracts", "papers")]
+        phases.append(("records", "Completing the new papers' records (OpenAlex)", "papers"))
+        if self.articles_filter.get():
+            phases.append(("abstracts", "Looking for the missing abstracts", "papers"))
+        else:
+            self.activity.write("--- Articles filter off: no abstract is looked up; papers without one are proposed.")
         if s.snowball:
             phases.append(("snowball", "Snowballing", "papers kept"))
         phases.append(("screen", "Scoring the papers against the topic", "papers"))

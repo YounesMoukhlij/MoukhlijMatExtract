@@ -152,6 +152,9 @@ extraction.
    [Two ways in: keywords and DOIs](#two-ways-in-keywords-and-dois)). Then what was found is completed: a paper another source found is
    looked up in OpenAlex (its open copies, a retraction), and a paper whose record came without an
    abstract has one asked for (`search.abstract_sources`) — see [Missing abstracts](#missing-abstracts).
+   That lookup is the **articles filter** (`screen.articles_filter`, the “Articles filter” box of the window):
+   unticked, nobody is asked, and a paper without an abstract is proposed without a score (still not when it
+   is retracted, or closed without `screen.propose_closed`) — the extraction sorts those papers out.
 2. **Screen** — each candidate gets a score from its title and abstract (a topic word and a
    property word must both appear; a word in the title counts 2, in the abstract 1; each exclude
    word costs 3), and flags: `preprint`, `review`, `RETRACTED`, `no-abstract` (no service had one),
@@ -216,6 +219,7 @@ otherwise quietly keep its default).
 | `contact_email` | Sent to OpenAlex, Crossref and Unpaywall as the contact for polite use of their free APIs (Unpaywall requires one). Or set `MME_EMAIL`. It is never sent anywhere else |
 | `search.queries` / `ids_file` / `years` / `sources` | What to search for, papers you already know, `[first, last]` year, and where to search (default: all of [this table](#where-papers-are-searched-for)) |
 | `search.abstract_sources` | Who is asked, in this order, for the abstract a record lacked (default: `openaire, crossref, europepmc, semanticscholar, springernature, scopus, core, ads, ieee, plos`; `[]`: nobody) |
+| `screen.articles_filter` | `true` (default): missing abstracts are looked up and every paper is scored; `false`: nobody is asked, and papers without an abstract are proposed unscored |
 | `search.max_per_query`, `include_preprints` | How many candidates each source returns for each query (default 200) and whether preprints count |
 | `screen.topic_words`, `property_words`, `exclude_words`, `min_score` | The screening rule above |
 | `screen.review` | `false` (as in `sse.yaml`): fetch the proposals straight away — one command does everything. `true` (the default of a job file that does not say): stop after screening so you can review |
