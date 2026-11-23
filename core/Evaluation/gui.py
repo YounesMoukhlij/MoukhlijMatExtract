@@ -125,6 +125,13 @@ class EvaluationDialog(Dialog):
         bottom = ttk.Frame(body)
         bottom.pack(fill="x", pady=(6, 0))
         ttk.Button(bottom, text="Close", command=self.destroy).pack(side="right")
+        from LocalExtraction.gui.statistics import statistics_button
+        from .about import DEFAULT_DIR
+        from .stats import evaluation_charts
+        scores = self.scores
+        statistics_button(bottom, f"Evaluation · {part}",
+                          lambda: (f"evaluation-{scores.name}",
+                                   lambda: evaluation_charts(scores, DEFAULT_DIR / "benchmark")), side="right")
         from LocalExtraction.gui.design import keep_awake_switch  # drawing and scoring many papers takes time
         keep_awake_switch(bottom).pack(side="left")
         self._refresh()

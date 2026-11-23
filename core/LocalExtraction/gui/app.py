@@ -24,7 +24,14 @@ class App(Window):
 
     def header_buttons(self, bar: ttk.Frame) -> None:
         from .csv_browser import results_buttons  # its folder is read when a button is pressed
-        results_buttons(bar, "1 · Local extraction", lambda: self.panel.output_dir)
+        results_buttons(bar, "1 · Local extraction", lambda: self.panel.output_dir, statistics=self._statistics)
+
+    def _statistics(self):
+        """The charts of the database the window extracts into (📊 Statistics…)."""
+        from pathlib import Path
+        from ..stats import database_charts
+        folder = Path(self.panel.output_dir).expanduser()
+        return f"local-{folder.name}", lambda: database_charts(folder, f"the local database {folder.name}")
 
     def build_panel(self, parent: tk.Misc) -> ttk.Frame:
         return LocalPanel(parent, self, *self._folders)

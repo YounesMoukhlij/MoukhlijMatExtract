@@ -29,7 +29,16 @@ class App(Window):
         from LocalExtraction.gui.csv_browser import results_buttons
         ttk.Button(bar, text="API keys…", command=self._settings).pack(side="right")
         ttk.Button(bar, text="Coverage…", command=self._coverage).pack(side="right", padx=(0, 6))
-        results_buttons(bar, "2 · Web scraping", lambda: self.panel.output.get(), extra=lambda: self.panel.results_extra())
+        results_buttons(bar, "2 · Web scraping", lambda: self.panel.output.get(), extra=lambda: self.panel.results_extra(),
+                        statistics=self._statistics)
+
+    def _statistics(self):
+        """The charts of the job chosen in the window: its ledger, its downloads, its database (📊 Statistics…)."""
+        from ..stats import web_charts
+        job, output = self.panel.job, self.panel.output.get()
+        if job is None:
+            raise ValueError("choose a job file first")
+        return f"web-{job.name}", lambda: web_charts(job.name, job.fetch.folder, output)
 
     def build_panel(self, parent: tk.Misc) -> ttk.Frame:
         return WebPanel(parent, self, self._job_path, self._output_dir)

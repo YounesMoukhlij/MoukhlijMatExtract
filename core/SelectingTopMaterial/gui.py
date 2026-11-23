@@ -235,7 +235,8 @@ class App:
         delete_outputs_button(files, "rank", after=self._outputs_deleted).pack(side="right", padx=(4, 0))
         from LocalExtraction.gui.csv_browser import results_buttons
         self.open_folder_button, self.browse_button = results_buttons(files, "3 · Ranking",
-                                                                      lambda: self.out_var.get())
+                                                                      lambda: self.out_var.get(),
+                                                                      statistics=self._statistics)
 
         self.summary = tk.StringVar(value="")
         from LocalExtraction.gui.widgets import WrapLabel  # wraps at the window's width, whatever it is
@@ -755,6 +756,12 @@ class App:
         from LocalExtraction.gui.design import website_line
         website_line(window)
         return window
+
+    def _statistics(self):
+        """The charts of the ranking in the results folder (📊 Statistics…)."""
+        from .stats import ranking_charts
+        folder = Path(self.out_var.get()).expanduser()
+        return "ranking", lambda: ranking_charts(folder)
 
     def _open(self, suffix: str) -> None:
         """A file of the ranking of the tab in front (else of the first component that has one)."""

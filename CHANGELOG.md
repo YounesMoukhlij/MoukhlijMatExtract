@@ -8,6 +8,24 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
 
 ### Added
 
+- **“📊 Statistics…” in every window that has statistics**: a window of charts about the work done, read from that
+  window's own files (never changed), each chart's finding in its title (“1 in 229 papers found yields an activation
+  energy”), the numbers on the bars, light or dark like the windows. **Refresh** reads the files again (a running
+  search grows); the charts are read on a working thread, so the window never waits.
+  - **2 · Web scraping:** the corpus funnel (found → proposed → downloaded → extracted → with an activation energy),
+    where each paper is now, papers found per search source, papers by year, the ten publishers (proposed and
+    downloaded), why downloads failed, legal copies per source, searches finished per day; then the database's charts.
+  - **1 · Local extraction** (and the database of a web job): values per property, activation energies by transport
+    component, measured or computed and own or cited, their distribution against the electrolyte classes, the kind of
+    energy, the mobile ion, why values are flagged, the distribution of ionic conductivities, papers by year.
+  - **3 · Ranking:** for each component, materials per class, the 15 best materials, the evidence each rank rests on.
+    **4 · Classification:** materials per crystal-structure type and per structure family, the median activation
+    energy of each family. **5 · ML datasets** (after a dataset is made): the target's distribution, values per
+    material, why values were left out. **Evaluation…:** precision, recall and F1 per property, and the benchmark.
+  - **Save the charts (PNG 300 dpi + SVG):** every chart into `~/MoukhlijMatExtract/Statistics/PNG/` (300 dpi) and
+    `~/MoukhlijMatExtract/Statistics/SVG/`, named `<window>-<job>_<chart>_<date>_<time>` so nothing is overwritten;
+    always light, for print. **Open the Statistics folder** opens it.
+  - matplotlib is now a declared dependency (it was installed with pymatgen).
 - **Full-text search on OpenAlex: the papers that report the data, even when their abstract does not say so.**
   - **What:** a job's `search.fulltext_queries` (one per line, its phrases in quotes, e.g.
     `"activation energy" "ionic conductivity"`) finds every work whose full text holds each phrase exactly, from
