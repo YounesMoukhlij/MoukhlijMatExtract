@@ -818,8 +818,8 @@ class WebPanel(Pausable, ttk.LabelFrame):
         # Proposed: marked yes and not fetched yet, whatever screening left them as (screened or approved).
         proposed = sum(1 for c in everything if c.status in _REVIEWABLE and c.decision == YES)
         self.activity.write(f"Search {'stopped' if self.stop_event.is_set() else 'finished'}: {added} papers new to "
-                            f"the ledger; {proposed} proposed for download. Review them in the Candidates tab, then "
-                            "press “3 · Download”.")
+                            f"the ledger; {proposed} proposed for download by the screening. “3 · Download” takes "
+                            "them as they are; changing a decision in the Candidates tab first is optional.")
         self.filter_var.set(_FILTERS[0])
         self.book.select(self.review)
         self.card.show(self._search_card(added, proposed, everything))
@@ -828,9 +828,10 @@ class WebPanel(Pausable, ttk.LabelFrame):
         waiting = [c for c in everything if c.status in _REVIEWABLE and c.decision == YES]
         closed = sum(1 for c in everything if c.status in _REVIEWABLE and "no-open-copy-known" in (c.flags or []))
         best = sorted(waiting, key=lambda c: -c.score)[:3]
-        actions = [("Review the candidates", lambda: self.book.select(self.review))]
-        if waiting:
-            actions.append((f"Download the {number(len(waiting))} proposed", self.download))
+        # The screening has decided already: the download takes its proposals as they are. Checking them is optional.
+        actions = [(f"Download the {number(len(waiting))} proposed", self.download)] if waiting else []
+        actions.append(("Check the list first (optional)" if waiting else "Review the candidates",
+                        lambda: self.book.select(self.review)))
         if self.stop_event.is_set():
             return Card("Search stopped", WARNING,
                         f"{number(added)} new paper{'s' if added != 1 else ''} kept. Press “2 · Search” again to go on: "
@@ -843,8 +844,9 @@ class WebPanel(Pausable, ttk.LabelFrame):
                         f"The searches gave no paper the list did not have ({number(len(everything))} in it). Change "
                         "or add searches in “Search settings…”.", actions=actions, started=self._started)
         return Card("Search finished", "done",
-                    f"{number(added)} new paper{'s' if added != 1 else ''} found; {number(proposed)} proposed for download. "
-                    "Check the list in the Candidates tab, then download.",
+                    f"{number(added)} new paper{'s' if added != 1 else ''} found. The screening scored every paper and "
+                    f"proposes {number(proposed)} for download: download them now — checking or changing the list in the "
+                    "Candidates tab first is optional.",
                     [Stat(number(added), "new papers", hint=f"{number(len(everything))} in the list"),
                      Stat(number(len(waiting)), "proposed", GOOD, "waiting to be downloaded"),
                      Stat(number(closed), "no open copy known", GREY, "kept aside"),
@@ -1197,7 +1199,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
         if self.harvest is None:
             return []
         t = self.harvest.watcher.tally
-        waiting = len(self.harvest.ledger.watch_list(kind))
+        waiting = len(self.harvest.watcher.pending(kind))  # a search given up (refused too often) no longer waits
         if kind == "search":
             stats = [Stat(number(len(t.keywords)), "keywords checked",
                           hint=f"{number(t.searches_answered)} of {number(t.searches_asked)} searches answered")]
