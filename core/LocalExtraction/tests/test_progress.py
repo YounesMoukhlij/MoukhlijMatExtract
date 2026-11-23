@@ -117,6 +117,24 @@ class TrackerTests(unittest.TestCase):
         pace, _ = Timings(self.base / "timings.json").seconds("keywords")
         self.assertGreater(pace, 0.4)  # 22 searches timed (about 0.5 s each here), not 100
 
+    def test_how_far_counts_work_never_goes_back_and_is_the_same_for_every_reader(self):
+        t = self.tracker()
+        t.start({"keywords": 100}, before={"keywords": 78})
+        self.assertAlmostEqual(t.fraction(), 0.78, delta=0.01)  # a resumed step starts where it was
+        t.update("keywords", 90, 100)
+        first = t.fraction()
+        self.assertAlmostEqual(first, 0.90, delta=0.01)  # one phase known: its own share of the work
+        self.assertEqual(t.fraction(), first)  # read again later (the details window, every half second): unchanged
+        t.update("records", 1, 500)  # a phase whose size is known only now: more work, the number waits
+        self.assertGreaterEqual(t.fraction(), first)
+        t.finish("stopped")
+        self.assertGreaterEqual(t.fraction(), first)  # stopped: where it was, not 100 %
+        done = self.tracker()
+        done.start({"keywords": 10})
+        done.update("keywords", 10, 10)
+        done.finish("done")
+        self.assertEqual(done.fraction(), 1.0)
+
     def test_a_listener_that_fails_is_let_go(self):
         t = self.tracker()
         t.listeners.append(mock.Mock(side_effect=RuntimeError("gone")))

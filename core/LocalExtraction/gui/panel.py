@@ -10,7 +10,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING, List, Optional
 
-from .progress import Tracker, details_button, show_stop_note, stop_note, style_running
+from .progress import Tracker, details_button, show_fraction, show_stop_note, stop_note, style_running
 from .progress_text import Pace
 from .. import outputs
 from .. import runcontrol
@@ -178,11 +178,12 @@ class LocalPanel(Pausable, ttk.LabelFrame):
 
     def _paper_done(self, filename: str, paper: Optional[PaperData]) -> None:
         self._done += 1
-        self.progress.configure(value=self._done)
         if self.tracker is not None:
             self.tracker.update("extract", self._done, self._total, filename)
+            show_fraction(self.progress, self.tracker)  # the number the details window shows too
             self.show_status(self.tracker.line())
         else:
+            self.progress.configure(value=self._done)
             self.show_status(f"Extracting — {self._done:,} of {self._total:,} PDFs · {filename}"
                              + self._pace.left("extract", self._done, self._total))
         if paper is None:
