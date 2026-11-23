@@ -628,58 +628,147 @@ ANNOUNCEMENT_SECONDS = 7
 
 def announce_website(root, seconds: int = ANNOUNCEMENT_SECONDS):
     """A card over the top of the main window, each time it opens: the project has a website, to learn how to use
-    the program and to get an overview of the project, with its link. It closes by itself after `seconds`, or at
-    once with its ✕. Drawn inside the window (not a window of its own): it never takes the focus nor outlives the
-    hub. Returns the card; `card.close()` closes it."""
+    the program and to get an overview of the project, with its link. It slides in, counts down the seconds left
+    while a bar along its bottom shrinks with them, and closes by itself after `seconds` — or at once with its ✕.
+    The pointer on it holds the countdown (time to read); leaving it lets the countdown go on. Drawn inside the
+    window (not a window of its own): it never takes the focus nor outlives the hub. Returns the card; `card.close()`
+    closes it."""
+    import time
     import tkinter as tk
 
     from LocalExtraction.gui import design, theme
     colours = theme.palette(root)
-    paper = colours["card"]
+    # The button and the badge carry white: the deep blue of the chips reads well under it in light and dark alike.
+    paper, accent, garnet = colours["card"], colours["chip"], colours["garnet"]
     card = tk.Frame(root, background=paper, highlightthickness=1, highlightbackground=colours["line"],
                     highlightcolor=colours["line"])
-    tk.Frame(card, background=colours["garnet"], width=5).pack(side="left", fill="y")
-    inner = tk.Frame(card, background=paper, padx=16, pady=12)
+    tk.Frame(card, background=garnet, width=5).pack(side="left", fill="y")
+    column = tk.Frame(card, background=paper)
+    column.pack(side="left", fill="both", expand=True)
+    body = tk.Frame(column, background=paper, padx=16, pady=12)
+    body.pack(fill="both", expand=True)
+
+    # The badge: a globe, drawn (no emoji or image: the same in light and dark, on every system).
+    badge = tk.Canvas(body, width=44, height=44, background=paper, highlightthickness=0)
+    badge.pack(side="left", anchor="n", padx=(0, 14), pady=(2, 0))
+    badge.create_oval(2, 2, 42, 42, fill=accent, outline="")
+    for box in ((11, 11, 33, 33), (17, 11, 27, 33)):
+        badge.create_oval(*box, outline="white", width=1.5)
+    for y in (17, 22, 27):
+        badge.create_line(12 if y == 22 else 14, y, 32 if y == 22 else 30, y, fill="white", width=1.2)
+
+    inner = tk.Frame(body, background=paper)
     inner.pack(side="left", fill="both", expand=True)
     head = tk.Frame(inner, background=paper)
     head.pack(fill="x")
-    tk.Label(head, text="New: the MoukhlijMatExtract website", background=paper, foreground=colours["ink"],
+    tk.Label(head, text=" NEW ", background=garnet, foreground="white",
+             font=("TkDefaultFont", 9, "bold")).pack(side="left", padx=(0, 8))
+    tk.Label(head, text="The MoukhlijMatExtract website", background=paper, foreground=colours["ink"],
              font=("TkDefaultFont", 13, "bold")).pack(side="left")
     cross = tk.Label(head, text="✕", background=paper, foreground=colours["muted"], cursor="hand2",
                      font=("TkDefaultFont", 13), padx=4)
     cross.pack(side="right", anchor="n", padx=(16, 0))
     tk.Label(inner, background=paper, foreground=colours["ink"], justify="left", wraplength=420,
              text="Learn how to use the program, step by step, and get an overview of the project.").pack(
-        anchor="w", pady=(6, 8))
-    design.website_link(inner, size=12, background=paper).pack(anchor="w")
-    tk.Label(inner, text=f"Closes by itself in {seconds} s · the link stays at the bottom of every window.",
-             background=paper, foreground=colours["muted"], font=("TkDefaultFont", 9)).pack(anchor="w", pady=(8, 0))
+        anchor="w", pady=(6, 10))
+    actions = tk.Frame(inner, background=paper)
+    actions.pack(fill="x")
+    opener = tk.Label(actions, text="Open the website  ↗", background=accent, foreground="white", cursor="hand2",
+                      font=("TkDefaultFont", 11, "bold"), padx=12, pady=5)
+    opener.pack(side="left")
+    opener.bind("<Button-1>", lambda event: design.open_website())
+    design.website_link(actions, size=11, background=paper).pack(side="left", padx=(12, 0))
+    note = tk.Label(inner, background=paper, foreground=colours["muted"], font=("TkDefaultFont", 9))
+    note.pack(anchor="w", pady=(10, 0))
 
-    timer = []
+    # The time left, as a bar that shrinks from the right, along the bottom of the card.
+    bar = tk.Canvas(column, height=4, background=colours["line"], highlightthickness=0)
+    bar.pack(side="bottom", fill="x")
+    fill = bar.create_rectangle(0, 0, 0, 4, fill=garnet, outline="")
+
+    state = {"deadline": time.monotonic() + seconds, "held": None, "shown": None}
+    jobs = {}
+
+    def say(left: float) -> None:
+        whole = max(0, int(left + 0.999))  # 7, 6, … 1: the second under way, as a person counts
+        if whole != state["shown"]:
+            state["shown"] = whole
+            note.configure(text=(f"Closes in {whole} s" if state["held"] is None else "Held while the pointer is here")
+                           + " · the link stays at the bottom of every window.")
+
+    def tick() -> None:
+        if not card.winfo_exists():
+            return
+        now = time.monotonic()
+        left = (state["held"] if state["held"] is not None else state["deadline"] - now)
+        if left <= 0:
+            close()
+            return
+        width = bar.winfo_width()
+        bar.coords(fill, 0, 0, width * left / seconds, 4)
+        say(left)
+        jobs["tick"] = root.after(40, tick)  # 25 frames a second: a smooth bar
+
+    def hold(event=None) -> None:
+        if state["held"] is None:
+            state["held"] = max(0.0, state["deadline"] - time.monotonic())
+            state["shown"] = None
+
+    def release(event=None) -> None:
+        # Left only when the pointer leaves the card itself, not when it moves onto one of its parts.
+        if state["held"] is not None and not _pointer_inside(card):
+            state["deadline"] = time.monotonic() + state["held"]
+            state["held"], state["shown"] = None, None
 
     def close(event=None) -> None:
-        for job in timer:
+        for job in jobs.values():
             try:
                 root.after_cancel(job)
             except tk.TclError:
                 pass
-        timer.clear()
+        jobs.clear()
         if card.winfo_exists():
             card.destroy()
 
     cross.bind("<Button-1>", close)
     cross.bind("<Enter>", lambda event: cross.configure(foreground=colours["ink"]))
     cross.bind("<Leave>", lambda event: cross.configure(foreground=colours["muted"]))
-    card.close, card.cross = close, cross  # hooks for the tests
+    opener.bind("<Enter>", lambda event: opener.configure(background=garnet))
+    opener.bind("<Leave>", lambda event: opener.configure(background=accent))
+    card.bind("<Enter>", hold, add="+")
+    card.bind("<Leave>", release, add="+")
+    card.close, card.cross, card.bar, card.note = close, cross, bar, note  # hooks for the tests
 
     band = getattr(root, "_mme_band", None)
     root.update_idletasks()
     top = (band.winfo_height() + 3 if band is not None and band.winfo_exists() else 0) + 14
-    card.place(relx=0.5, y=top, anchor="n")
+
+    def slide(step: int = 0, steps: int = 10) -> None:
+        """In from a little above, slowing down as it lands (ease-out), in a quarter of a second."""
+        if not card.winfo_exists():
+            return
+        done = step / steps
+        card.place_configure(y=top - 24 * (1 - done) ** 3)
+        if step < steps:
+            jobs["slide"] = root.after(25, slide, step + 1, steps)
+
+    card.place(relx=0.5, y=top - 24, anchor="n")
     card.lift()
-    timer.append(root.after(int(seconds * 1000), close))
+    say(seconds)
+    slide()
+    jobs["tick"] = root.after(40, tick)
     root._mme_announcement = card
     return card
+
+
+def _pointer_inside(widget) -> bool:
+    """Whether the mouse pointer is over `widget` (or one of its parts)."""
+    try:
+        x, y = widget.winfo_pointerxy()
+        return (widget.winfo_rootx() <= x < widget.winfo_rootx() + widget.winfo_width()
+                and widget.winfo_rooty() <= y < widget.winfo_rooty() + widget.winfo_height())
+    except Exception:
+        return False
 
 
 # What the windows of the parts need, loaded behind the hub while it is read: pandas and each part's

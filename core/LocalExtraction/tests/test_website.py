@@ -121,6 +121,32 @@ class AnnouncementTests(unittest.TestCase):
         self.wait(1.6)
         self.assertFalse(card.winfo_exists())
 
+    def test_its_bar_shrinks_and_its_countdown_says_the_seconds_left(self):
+        card = self.hub.announce_website(self.root, seconds=3)
+        self.addCleanup(card.close)
+        self.wait(0.3)
+        self.assertIn("Closes in 3 s", card.note.cget("text"))
+        width = card.bar.winfo_width()
+        first = card.bar.coords(card.bar.find_all()[0])[2]
+        self.wait(1.2)
+        self.assertIn("Closes in 2 s", card.note.cget("text"))
+        later = card.bar.coords(card.bar.find_all()[0])[2]
+        self.assertLess(later, first)  # it shrank
+        self.assertAlmostEqual(later / width, 1.5 / 3, delta=0.15)  # in step with the time left
+
+    def test_the_pointer_on_it_holds_the_countdown(self):
+        card = self.hub.announce_website(self.root, seconds=1)
+        self.addCleanup(card.close)
+        self.root.update()
+        card.event_generate("<Enter>")
+        self.wait(1.4)
+        self.assertTrue(card.winfo_exists())  # held: still there after its second
+        self.assertIn("Held while the pointer is here", card.note.cget("text"))
+        with mock.patch.object(self.hub, "_pointer_inside", return_value=False):
+            card.event_generate("<Leave>")
+            self.wait(1.5)
+        self.assertFalse(card.winfo_exists())  # let go: it goes on and closes
+
     def test_its_cross_closes_it_at_once_and_the_timer_does_nothing_after(self):
         card = self.hub.announce_website(self.root, seconds=0.5)
         _click(card.cross)
