@@ -589,6 +589,31 @@ class ScreeningTests(unittest.TestCase):
         self.assertEqual((closed.decision, closed.access), ("no", "closed"))
         self.assertIn("no-open-copy-known", closed.flags)
 
+    def test_the_articles_filter_off_proposes_a_paper_without_an_abstract(self):
+        off = ScreenConfig(**{**vars(self.cfg), "articles_filter": False})
+        self.ledger.add(candidate(key="bare", doi="bare", title="Synthesis of a new oxide", abstract=""))
+        self.ledger.add(candidate(key="told", doi="told", title="Synthesis of a new oxide", abstract="Nothing on topic."))
+        self.ledger.add(candidate(key="gone", doi="gone", title="A new oxide", abstract="", is_retracted=True))
+        screening.screen(self.ledger, off)
+        bare = self.ledger.get("bare")
+        self.assertEqual(bare.decision, "yes")
+        self.assertIn("kept without an abstract (articles filter off)", bare.why)
+        self.assertIn("no-abstract", bare.flags)
+        self.assertEqual(self.ledger.get("told").decision, "no")  # a paper with an abstract is scored as before
+        self.assertEqual(self.ledger.get("gone").decision, "no")  # a retracted paper never is proposed
+
+    def test_the_articles_filter_on_judges_a_paper_without_an_abstract_on_its_title(self):
+        self.assertEqual(self.screen_one(title="Synthesis of a new oxide", abstract="").decision, "no")
+
+    def test_the_articles_filter_off_asks_nobody_for_abstracts(self):
+        job = Job(search=SearchConfig(queries=["q"], abstract_sources=["crossref"]),
+                  screen=ScreenConfig(**{**vars(self.cfg), "articles_filter": False}))
+        harvest = Harvest.__new__(Harvest)
+        harvest.job, harvest.ledger, harvest.client = job, self.ledger, None
+        with mock.patch("WebScraping.averageScrap.abstracts.complete", return_value=None) as complete:
+            harvest._complete_abstracts()
+        self.assertEqual(complete.call_args.args[2], [])
+
     def test_a_closed_paper_is_proposed_when_the_job_wants_the_repositories_asked(self):
         self.ledger.add(candidate(title="Garnet solid electrolytes ionic conductivity", oa_status="closed", access=""))
         screening.screen(self.ledger, ScreenConfig(**{**vars(self.cfg), "propose_closed": True}))

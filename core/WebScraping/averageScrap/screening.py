@@ -176,13 +176,16 @@ def _judge(candidate: Candidate, cfg: ScreenConfig, words, elsevier_ok: bool, wi
     score = topic_points + prop_points + _EXCLUDE_POINTS * len(exclude_found)
     access = access_of(candidate, elsevier_ok, wiley_ok)
     flags = _flags(candidate, access)
-    passes = (score >= cfg.min_score and (bool(topic_found) or not topic)
-              and (bool(prop_found) or not prop) and not candidate.is_retracted
-              and (access != "closed" or cfg.propose_closed))
+    # The articles filter off: a paper without an abstract cannot be judged fairly on its title, so it is kept.
+    unfiltered = not cfg.articles_filter and not candidate.abstract
+    words_ok = unfiltered or (score >= cfg.min_score and (bool(topic_found) or not topic)
+                              and (bool(prop_found) or not prop))
+    passes = words_ok and not candidate.is_retracted and (access != "closed" or cfg.propose_closed)
     why = "; ".join(part for part in (
         f"topic: {', '.join(topic_found)}" if topic_found else "",
         f"property: {', '.join(prop_found)}" if prop_found else "",
-        f"excluded: {', '.join(exclude_found)}" if exclude_found else "") if part)
+        f"excluded: {', '.join(exclude_found)}" if exclude_found else "",
+        "kept without an abstract (articles filter off)" if unfiltered else "") if part)
     return {"score": float(score), "why": why or "no topic or property word found", "flags": flags, "access": access,
             "decision": YES if passes else NO}
 

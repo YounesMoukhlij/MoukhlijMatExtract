@@ -203,6 +203,11 @@ class ScreenConfig:
     # Also propose a paper no open copy is known for yet: the fetch stage then asks the repositories
     # for one, and lists the paper as closed (to get by hand) when none has it.
     propose_closed: bool = False
+    # The articles filter. true: the abstract a paper's record came without is asked of search.abstract_sources
+    # (slow: hours to days for tens of thousands of papers), and every paper is scored on its title and abstract.
+    # false: nobody is asked, and a paper without an abstract is proposed without a score (retracted papers and,
+    # unless propose_closed, papers no free copy is known for are still left out): the extraction sorts them out.
+    articles_filter: bool = True
 
 
 @dataclass

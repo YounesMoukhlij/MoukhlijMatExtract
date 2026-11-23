@@ -160,7 +160,9 @@ class Harvest:
     def _complete_abstracts(self) -> Optional[int]:
         """The OpenAlex records and the abstracts the new papers lack, with their progress shown."""
         s = self.job.search
-        return abstracts.complete(self.ledger, self.client, s.abstract_sources, self.job.email(),
+        # The articles filter off: the OpenAlex records still (open copies, retractions), no service asked for abstracts.
+        asked = s.abstract_sources if self.job.screen.articles_filter else []
+        return abstracts.complete(self.ledger, self.client, asked, self.job.email(),
                                   records_progress=lambda done, total: self._progress("records", done, total),
                                   abstracts_progress=lambda done, total, found: self._progress(
                                       "abstracts", done, total, f"{found:,} found", 0))
