@@ -301,6 +301,11 @@ class MLWindow:
                    command=lambda: open_path(self.folder / "dataset.csv")).pack(side="left", padx=6)
         ttk.Button(self.open_row, text="Read the datasheet",
                    command=lambda: open_path(self.folder / "README.md")).pack(side="left")
+        from LocalExtraction.gui.statistics import statistics_button
+        from .stats import dataset_charts
+        folder = self.folder
+        statistics_button(self.open_row, "5 · ML datasets",
+                          lambda: (f"ml-{folder.name}", lambda: dataset_charts(folder)), side="left")
         return self.folder
 
 

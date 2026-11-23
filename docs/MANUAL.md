@@ -479,6 +479,13 @@ Each database folder holds linked tables, as CSV files, one workbook (`database.
 | `material_link` | how the value was tied to its material. `paragraph_topic` and `previous_sentence` (taken from the context) are the least reliable |
 | `sentence`, `page`, `section`, `source` | where to check the value in the paper |
 
+**Charts of the work done.** **📊 Statistics…**, beside **Browse the CSV files…** in Local extraction, Web scraping,
+Ranking and Classification (and in ML datasets once a dataset is made, and in **Evaluate…**), draws the statistics of
+that window's results: the corpus funnel, the sources and publishers, the values by property, component and origin,
+their distributions, the classes, the scores. **Save the charts** writes each one as a 300 dpi PNG into
+`~/MoukhlijMatExtract/Statistics/PNG/` and as an SVG into `~/MoukhlijMatExtract/Statistics/SVG/`, named after the
+window, the job, the chart, the date and the time.
+
 ---
 
 ## 8 · Measuring the accuracy

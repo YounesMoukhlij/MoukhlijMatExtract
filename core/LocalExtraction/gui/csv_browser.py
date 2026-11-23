@@ -36,10 +36,11 @@ _QUIET = "#8c8c8c"
 # ----------------------------------------------------------------------
 def results_buttons(bar: tk.Misc, part: str, folder: Callable[[], str],
                     extra: Optional[Callable[[], Sequence[Tuple[str, str]]]] = None,
-                    side: str = "right") -> Tuple[ttk.Button, ttk.Button]:
+                    side: str = "right", statistics=None) -> Tuple[ttk.Button, ttk.Button]:
     """"Open the results folder" and "Browse the CSV files…", packed in `bar`. `folder` gives the part's
     results folder when a button is pressed (it may change: a folder chosen in the window); `extra`
-    gives the part's other files to list, as (name, path)."""
+    gives the part's other files to list, as (name, path). `statistics` (gui/statistics.py: () → (name, charts))
+    adds "📊 Statistics…" beside them."""
     window = bar.winfo_toplevel()
 
     def open_folder() -> None:
@@ -68,6 +69,9 @@ def results_buttons(bar: tk.Misc, part: str, folder: Callable[[], str],
     else:
         open_button.pack(side=side, padx=(6, 0))
         browse_button.pack(side=side, padx=(6, 0))
+    if statistics is not None:
+        from .statistics import statistics_button
+        statistics_button(bar, part, statistics, side=side)
     return open_button, browse_button
 
 

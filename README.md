@@ -388,6 +388,8 @@ window shares the same design:
 - **Results card.** Each step ends with ✓ / ⚠ / ✕ / ○, the time taken, the key numbers and findings, and buttons for
   the next step.
 - **Verify tab.** Check values by hand next to their sentence and page, with filters for the values flagged.
+- **📊 Statistics…** Charts of the work done in each window (the corpus funnel, sources, publishers, values,
+  classes, scores), saved for articles as 300 dpi PNG and SVG in `~/MoukhlijMatExtract/Statistics/`.
 - **Results… / Browse the CSV files…** Every table of a part, sortable and searchable, even with hundreds of thousands
   of rows. A row opens its paper at doi.org.
 - **Guides built in:**

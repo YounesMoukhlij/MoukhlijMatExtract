@@ -265,12 +265,18 @@ class App:
         ttk.Button(buttons, text="Add a database…", command=self._pick_source).pack(side="left")
         self.classify_button = ttk.Button(buttons, text=CLASSIFY_ALL, command=self.classify, style="Next.TButton")
         self.classify_button.pack(side="right")
-        # How “Classify everything” works, drawn: family ▸ property ▸ type ▸ origin ▸ one table per branch.
-        ttk.Button(buttons, text="Classification flow…", command=self.show_flow).pack(side="right", padx=(0, 6))
         from LocalExtraction.gui.csv_browser import results_buttons
         results_buttons(buttons, "4 · Classification", lambda: str(_folder(self.out.get())))
         self.delete_button = delete_outputs_button(buttons, "classify", after=self._outputs_deleted)
         self.delete_button.pack(side="right")
+        # The views of the classes on a line of their own (the line above is full at the window's smallest):
+        # how “Classify everything” works, drawn (family ▸ property ▸ type ▸ origin ▸ one table per branch), and the
+        # statistics of the classes.
+        views = ttk.Frame(top)
+        views.pack(fill="x", pady=(4, 0))
+        ttk.Button(views, text="Classification flow…", command=self.show_flow).pack(side="left")
+        from LocalExtraction.gui.statistics import statistics_button
+        statistics_button(views, "4 · Classification", self._statistics, side="left")
         outputs.register("classify", self.busy, "a classification is running")
 
         line = ttk.Frame(top)
@@ -424,6 +430,12 @@ class App:
     # ------------------------------------------------------------------
     def busy(self) -> bool:
         return self._busy
+
+    def _statistics(self):
+        """The charts of the classification in the window's folder (📊 Statistics…)."""
+        from .stats import classification_charts
+        folder = _folder(self.out.get())
+        return "classification", lambda: classification_charts(folder)
 
     def show_flow(self) -> tk.Toplevel:
         """The window that draws the classification flow, with the numbers of the last classification."""
