@@ -304,6 +304,13 @@ class Ledger:
                                         (kind, item, service)).rowcount
         return gone > 0
 
+    def watch_get(self, kind: str, item: str, service: str) -> Optional[Dict[str, Any]]:
+        """One check of the watch list, or None when it is not on it."""
+        with self._lock:
+            row = self._db.execute("SELECT * FROM watch WHERE kind = ? AND item = ? AND service = ?",
+                                   (kind, item, service)).fetchone()
+        return dict(row) if row else None
+
     def watch_list(self, kind: Optional[str] = None) -> List[Dict[str, Any]]:
         """What is on the watch list (of one kind), oldest first."""
         with self._lock:

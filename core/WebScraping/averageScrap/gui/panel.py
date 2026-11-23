@@ -443,14 +443,17 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self.show_candidates()
 
     def _articles_filter_changed(self) -> None:
-        """The articles filter ticked or unticked: it holds from the next step (a step under way goes on as it began)."""
+        """The articles filter ticked or unticked. A search under way reads it when it gets to the abstracts and to the
+        scoring, so it holds for those phases if they have not begun (an abstract lookup under way goes on to its end)."""
         on = self.articles_filter.get()
-        if self.job is not None and not self.running():
-            self.job.screen.articles_filter = on
+        if self.job is not None:
+            self.job.screen.articles_filter = on  # the same job the search under way reads
         self.status.set(("Articles filter on: missing abstracts are looked up and every paper is scored."
                          if on else "Articles filter off: no abstract is looked up; papers without one are proposed.")
-                        + (" It holds from the next step." if self.running() else
+                        + (" The search under way follows it from its next phase." if self.running() else
                            " Papers scored already change with “Re-screen with the settings…”."))
+        self.activity.write(f"--- Articles filter {'on' if on else 'off'}"
+                            + (" (the search under way follows it from its next phase)." if self.running() else "."))
 
     def _harvest(self) -> Harvest:
         """The engine of the web side for this job (made on first use: it opens the ledger)."""

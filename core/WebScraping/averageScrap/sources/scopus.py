@@ -11,20 +11,18 @@ from typing import Any, Dict, Iterator, Optional, Tuple
 
 from WebScraping.averageScrap.ids import candidate_key, normalize_doi
 from WebScraping.averageScrap.ledger import Candidate
-from WebScraping.averageScrap.sources.common import Source, abstract_or_nothing, in_years, plain, year_of
+from WebScraping.averageScrap.sources.common import Source, abstract_or_nothing, in_years, plain, query_terms, year_of
 
 SEARCH = "https://api.elsevier.com/content/search/scopus"
 ABSTRACT = "https://api.elsevier.com/content/abstract/doi"
 _PAGE = 25            # the most one page of the standard view holds
 _MAX_OFFSET = 5000    # the most the search hands out for one query
-_TERM = re.compile(r'"([^"]+)"|(\S+)')
 _COPYRIGHT = re.compile(r'\s*(?:©|\(c\)|Copyright)\s*\d{4}.*$', re.IGNORECASE)
 
 
 def build_query(query: str) -> str:
     """Every word (or "phrase") in the title, abstract or keywords: TITLE-ABS-KEY(a AND "b c")."""
-    terms = [f'"{phrase}"' if phrase else word for phrase, word in _TERM.findall(query)]
-    return f"TITLE-ABS-KEY({' AND '.join(terms)})"
+    return f"TITLE-ABS-KEY({' AND '.join(query_terms(query))})"  # a formula's brackets are quoted
 
 
 def candidate_from_entry(entry: Dict[str, Any], found_by: str) -> Optional[Candidate]:
