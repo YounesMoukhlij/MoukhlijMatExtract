@@ -130,9 +130,12 @@ class AbstractFinder:
 
 
 def fill(ledger: Ledger, finder: AbstractFinder, workers: int = 4,
-         progress: Optional[Callable[[int, int, int], None]] = None) -> int:
+         progress: Optional[Callable[[int, int, int], None]] = None,
+         wanted: Callable[[], bool] = lambda: True) -> int:
     """Asks for the abstract of every paper that has none. A paper screened on its title alone and
-    waiting or declined is screened again (it goes back to "new"). Returns how many abstracts were found."""
+    waiting or declined is screened again (it goes back to "new"). Returns how many abstracts were found.
+    `wanted` turning false (the articles filter unticked meanwhile) ends the lookups: the papers not asked yet
+    are left as they are, for a later run."""
     todo = [c for c in ledger.all() if not c.abstract and c.doi and finder.pending(c)]
     if not todo:
         return 0
@@ -142,6 +145,8 @@ def fill(ledger: Ledger, finder: AbstractFinder, workers: int = 4,
 
     def one(candidate: Candidate) -> None:
         nonlocal found
+        if not wanted():
+            return  # the articles filter was turned off: nobody is asked any more
         text, by, answered = finder.find(candidate)
         changes: Dict[str, object] = {"abstract_asked": [*candidate.abstract_asked, *answered]}
         if text:
@@ -157,17 +162,21 @@ def fill(ledger: Ledger, finder: AbstractFinder, workers: int = 4,
         for done, _ in enumerate(pool.map(lambda c: runcontrol.task(control, one, c)(), todo), 1):
             if progress is not None:
                 progress(done, len(todo), found)
-            if done % 50 == 0 or done == len(todo):
+            if (done % 50 == 0 or done == len(todo)) and wanted():
                 logging.info(f"Abstracts: {done}/{len(todo)} asked, {found} found")
+    if not wanted():
+        logging.info(f"Abstracts: stopped (articles filter off) — {found} found; the papers not asked yet are left "
+                     "for a later run.")
     return found
 
 
 def complete(ledger: Ledger, client: PoliteClient, abstract_sources: List[str], contact: str = "",
              workers: int = 4, records_progress: Optional[Callable[[int, int], None]] = None,
-             abstracts_progress: Optional[Callable[[int, int, int], None]] = None) -> Optional[int]:
+             abstracts_progress: Optional[Callable[[int, int, int], None]] = None,
+             wanted: Callable[[], bool] = lambda: True) -> Optional[int]:
     """Both steps; returns how many abstracts were found (None when no service is to be asked). The progress
     callbacks get (done, total) of the OpenAlex lookups and (done, total, found) of the abstracts."""
     complete_from_openalex(ledger, client, contact, records_progress)
-    if not abstract_sources:
+    if not abstract_sources or not wanted():
         return None
-    return fill(ledger, AbstractFinder(client, abstract_sources, contact), workers, abstracts_progress)
+    return fill(ledger, AbstractFinder(client, abstract_sources, contact), workers, abstracts_progress, wanted)

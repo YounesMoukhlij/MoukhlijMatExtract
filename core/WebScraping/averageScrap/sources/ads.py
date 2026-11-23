@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from WebScraping.averageScrap.ids import ARXIV_DOI_PREFIX, arxiv_id, candidate_key, normalize_doi
 from WebScraping.averageScrap.ledger import Candidate
-from WebScraping.averageScrap.sources.common import Source, abstract_or_nothing, in_years, plain, year_of
+from WebScraping.averageScrap.sources.common import Source, abstract_or_nothing, in_years, plain, query_terms, year_of
 
 API = "https://api.adsabs.harvard.edu/v1/search/query"
 _FIELDS = "bibcode,doi,title,abstract,year,pub,author,identifier,doctype,esources"
@@ -50,7 +50,7 @@ class ADS(Source):
 
     def search(self, query: str, years: Optional[Tuple[int, int]] = None, limit: int = 200,
                include_preprints: bool = True) -> Iterator[Candidate]:
-        q = f"abs:({query})" + (f" year:{years[0]}-{years[1]}" if years else "") \
+        q = f"abs:({' '.join(query_terms(query))})" + (f" year:{years[0]}-{years[1]}" if years else "") \
             + ("" if include_preprints else " doctype:article")
         start, seen = 0, 0
         while seen < limit:

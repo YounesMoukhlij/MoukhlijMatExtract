@@ -5,12 +5,14 @@ of one keyword in one source, or the lookups and the download of one DOI. Such a
 for an answer ("nothing found", "no legal copy"): the watcher puts it on its watch list (kept in the
 ledger, so it survives the end of the run), checks it again after a pause — 2, 5, 10 then 15 minutes
 — and leaves what is still refused after the last round for the next run, which checks it first.
-A check refused MAX_TRIES times (a service that is gone, not busy) is given up: it counts as an answer.
+A search refused more than MAX_TRIES times (over every run: a service out of its quota, or gone) is given up: it
+stays on the list, is not asked again for SEARCH_KEPT_DAYS days (like a search answered), then is tried once more.
 
 It also counts what was checked, and says it at the end: how many keywords and searches, how many
 DOIs, how each ended, what a later try brought, what is still waiting — for this run, and in total."""
 
 import logging
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Set
 
@@ -18,12 +20,23 @@ import requests
 
 from LocalExtraction import runcontrol
 from WebScraping.averageScrap.http import HttpError
-from WebScraping.averageScrap.ledger import CLOSED, DOWNLOADED, EXTRACTED, FAILED, Ledger
+from WebScraping.averageScrap.ledger import CLOSED, DOWNLOADED, EXTRACTED, FAILED, SEARCH_KEPT_DAYS, Ledger
 
 SEARCH, DOWNLOAD = "search", "download"
 ROUNDS_MINUTES = (2, 5, 10, 15)  # the pauses before each new check of what was refused, within one run
 MAX_TRIES = 6                    # refusals of one check (over every run) before it is given up
 _TICK = 10                       # seconds between two updates of the countdown
+
+
+def _given_up(row: Dict) -> bool:
+    """A search refused more than MAX_TRIES times, the last time less than SEARCH_KEPT_DAYS days ago."""
+    if (row.get("tries") or 0) <= MAX_TRIES:
+        return False
+    try:
+        last = datetime.fromisoformat(row.get("last_at") or "")
+    except (TypeError, ValueError):
+        return False
+    return (datetime.now(timezone.utc) - last).total_seconds() < SEARCH_KEPT_DAYS * 86400
 
 
 def is_refusal(error: BaseException) -> bool:
@@ -76,11 +89,20 @@ class Watcher:
         return self.ledger.watch_remove(kind, item, service)
 
     def pending(self, kind: str) -> List[Dict[str, str]]:
-        return self.ledger.watch_list(kind)
+        """What waits to be checked again (a search given up does not)."""
+        return [row for row in self.ledger.watch_list(kind) if not (kind == SEARCH and _given_up(row))]
+
+    def given_up(self, kind: str, item: str, service: str) -> bool:
+        """Whether this search was refused more than MAX_TRIES times and is left alone for now."""
+        row = self.ledger.watch_get(kind, item, service)
+        return kind == SEARCH and row is not None and _given_up(row)
+
+    def given_up_count(self) -> int:
+        return sum(1 for row in self.ledger.watch_list(SEARCH) if _given_up(row))
 
     def forget(self, kind: str, keep: Callable[[Dict[str, str]], bool]) -> None:
         """Drops what no longer belongs to the job (a keyword or source taken out of it)."""
-        for row in self.pending(kind):
+        for row in self.ledger.watch_list(kind):
             if not keep(row):
                 self.ledger.watch_remove(kind, row["item"], row["service"])
 
@@ -168,4 +190,7 @@ class Watcher:
                      f"{counts.get(CLOSED, 0):,} with no legal copy, {counts.get(FAILED, 0):,} to try again); "
                      f"waiting on the watch list: {len(searches_waiting):,} searches "
                      f"({len({r['item'] for r in searches_waiting}):,} keywords) and {len(dois_waiting):,} DOIs.")
+        given_up = self.given_up_count()
+        if given_up:
+            lines.append(f"Given up for {SEARCH_KEPT_DAYS} days (refused more than {MAX_TRIES} times): {given_up:,} searches.")
         return lines

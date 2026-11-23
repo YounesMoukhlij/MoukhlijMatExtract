@@ -610,9 +610,74 @@ class ScreeningTests(unittest.TestCase):
                   screen=ScreenConfig(**{**vars(self.cfg), "articles_filter": False}))
         harvest = Harvest.__new__(Harvest)
         harvest.job, harvest.ledger, harvest.client = job, self.ledger, None
-        with mock.patch("WebScraping.averageScrap.abstracts.complete", return_value=None) as complete:
-            harvest._complete_abstracts()
-        self.assertEqual(complete.call_args.args[2], [])
+        with mock.patch("WebScraping.averageScrap.abstracts.fill") as fill, \
+                mock.patch("WebScraping.averageScrap.abstracts.complete_from_openalex", return_value=0) as records:
+            self.assertIsNone(harvest._complete_abstracts())
+        records.assert_called_once()  # the OpenAlex records still: open copies, retractions
+        fill.assert_not_called()
+
+    def test_unticking_the_articles_filter_during_the_lookups_ends_them(self):
+        from WebScraping.averageScrap import abstracts
+        for key in ("a", "b", "c"):
+            self.ledger.add(candidate(key=key, doi=key, abstract=""))
+        on = {"value": True}
+        finder = mock.Mock()
+        finder.pending.return_value = ["crossref"]
+
+        def find(paper):
+            on["value"] = False  # unticked while the first paper is asked
+            return "", "", ["crossref"]
+        finder.find.side_effect = find
+        abstracts.fill(self.ledger, finder, workers=1, wanted=lambda: on["value"])
+        self.assertEqual(finder.find.call_count, 1)
+
+    def test_a_search_refused_too_often_is_given_up_even_when_it_was_never_sent(self):
+        from WebScraping.averageScrap.watcher import MAX_TRIES, SEARCH, Watcher
+        watcher = Watcher(self.ledger)
+        for _ in range(MAX_TRIES + 1):
+            watcher.defer(SEARCH, "garnet", "springernature", "not asked: the source kept refusing")
+        watcher.defer(SEARCH, "nasicon", "springernature", "too many requests (HTTP 429)")
+        self.assertTrue(watcher.given_up(SEARCH, "garnet", "springernature"))
+        self.assertFalse(watcher.given_up(SEARCH, "nasicon", "springernature"))
+        self.assertEqual([row["item"] for row in watcher.pending(SEARCH)], ["nasicon"])  # the rounds skip it
+        self.assertIn("Given up for 30 days (refused more than 6 times): 1 searches.", watcher.report()[-1])
+
+    def test_a_given_up_search_is_not_asked_and_the_rest_still_are(self):
+        from WebScraping.averageScrap.watcher import MAX_TRIES, SEARCH
+        job = Job(search=SearchConfig(queries=["garnet", "nasicon"], abstract_sources=[]), screen=self.cfg)
+        harvest = Harvest.__new__(Harvest)
+        harvest.job, harvest.ledger, harvest._keyword_tally = job, self.ledger, None
+        from WebScraping.averageScrap.watcher import Watcher
+        harvest.watcher = Watcher(self.ledger)
+        harvest.on_progress = lambda *a: None
+        for _ in range(MAX_TRIES + 1):
+            harvest.watcher.defer(SEARCH, "garnet", "springernature", "not asked: the source kept refusing")
+        source = mock.Mock()
+        source.search.return_value = iter([])
+        harvest._search_queries(source, "springernature", ["garnet", "nasicon"], refresh=False)
+        self.assertEqual([c.args[0] for c in source.search.call_args_list], ["nasicon"])
+
+    def test_the_search_starts_from_the_answered_and_given_up_searches_and_says_what_was_not_answered(self):
+        from WebScraping.averageScrap.http import HttpError
+        from WebScraping.averageScrap.watcher import MAX_TRIES, SEARCH, Watcher
+        job = Job(search=SearchConfig(queries=["garnet", "nasicon", "llzo"], sources=["openalex"], abstract_sources=[]),
+                  screen=self.cfg)
+        harvest = Harvest.__new__(Harvest)
+        harvest.job, harvest.ledger, harvest._keyword_tally = job, self.ledger, None
+        harvest.watcher = Watcher(self.ledger, sleep=lambda s: None)
+        seen = []
+        harvest.on_progress = lambda *args: seen.append(args)
+        self.ledger.mark_searched(harvest._search_key("openalex", "garnet"), job.search.max_per_query)  # answered
+        for _ in range(MAX_TRIES + 1):
+            harvest.watcher.defer(SEARCH, "nasicon", "openalex", "too many requests (HTTP 429)")  # given up
+        source = mock.Mock()
+        source.search.side_effect = HttpError("u", 400, "bad query")  # "llzo": not answered
+        harvest._source = lambda name: source
+        with mock.patch("WebScraping.averageScrap.harvest.ROUNDS_MINUTES", ()):
+            harvest._search_all(refresh=False)
+        self.assertEqual(seen[0][1:3], (2, 3))  # started from the answered one and the given-up one
+        self.assertEqual([c.args[0] for c in source.search.call_args_list], ["llzo"])
+        self.assertEqual(seen[-1][1:4], (3, 3, "1 not answered (refused, key refused or cut short) — asked again next run"))
 
     def test_a_closed_paper_is_proposed_when_the_job_wants_the_repositories_asked(self):
         self.ledger.add(candidate(title="Garnet solid electrolytes ionic conductivity", oa_status="closed", access=""))

@@ -306,7 +306,7 @@ not "no legal copy". The watcher ([`watcher.py`](watcher.py)) puts it on its **w
 of `ledger.sqlite`, so it survives the end of the run), checks it again after **2, 5, 10 then 15
 minutes** — the status line counts down; Pause holds the wait and Stop ends it — and leaves what is
 still refused for the next run, which checks it first. A refused try does not count against a
-paper's three tries; a check refused six times (a service that is gone, not busy) is given up.
+paper's three tries; a search refused more than six times over every run — sent and refused, or pushed back unasked because its source kept refusing (a daily quota run out) — is given up for 30 days, then tried once more.
 A source that refuses three searches in a row is not asked the rest now: they go on the list unasked.
 
 **How a word is found.** A word is found in the title or the abstract whatever its case, with a space or a hyphen

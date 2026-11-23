@@ -161,11 +161,12 @@ class Harvest:
         """The OpenAlex records and the abstracts the new papers lack, with their progress shown."""
         s = self.job.search
         # The articles filter off: the OpenAlex records still (open copies, retractions), no service asked for abstracts.
-        asked = s.abstract_sources if self.job.screen.articles_filter else []
-        return abstracts.complete(self.ledger, self.client, asked, self.job.email(),
+        # It is read when the abstracts begin, and between two papers — so unticking it during a search holds too.
+        return abstracts.complete(self.ledger, self.client, s.abstract_sources, self.job.email(),
                                   records_progress=lambda done, total: self._progress("records", done, total),
                                   abstracts_progress=lambda done, total, found: self._progress(
-                                      "abstracts", done, total, f"{found:,} found", 0))
+                                      "abstracts", done, total, f"{found:,} found", 0),
+                                  wanted=lambda: self.job.screen.articles_filter)  # unticked meanwhile: lookups end
 
     # ------------------------------------------------------------------
     # 1. Discover
@@ -371,14 +372,25 @@ class Harvest:
                 # Every search of this source is handled now: asked, or (a source given up on) left for the watcher.
                 self._keyword_tally[0] = before + len(s.queries) - finished[name]
                 self._progress("keywords", self._keyword_tally[0], total, name, added)
+            # Handled is not answered: a search refused, cut short or whose source refused the key is asked again next
+            # run, so the next search starts from the answered ones — said now rather than discovered then.
+            unanswered = total - sum(self._finished_in(name) for name, _ in active)
+            if unanswered:
+                self._progress("keywords", total, total, f"{unanswered:,} not answered (refused, key refused or cut "
+                               "short) — asked again next run", added)
+                logging.info(f"Search: {total - unanswered:,} of the {total:,} searches answered (or given up); "
+                             f"{unanswered:,} were not answered and are asked again by the next search.")
         finally:
             self._keyword_tally = None
         return added + self._recheck_searches(refresh)
 
     def _finished_in(self, name: str) -> int:
-        """How many of the job's queries the source `name` answered in full in an earlier run (they are skipped)."""
+        """How many of the job's queries the source `name` answered in full in an earlier run, or refused so often
+        that they are given up (both are skipped)."""
         depth = self.job.search.max_per_query
-        return sum(1 for query in self.job.search.queries if self.ledger.searched(self._search_key(name, query), depth))
+        return sum(1 for query in self.job.search.queries
+                   if self.ledger.searched(self._search_key(name, query), depth)
+                   or self.watcher.given_up(SEARCH, query, name))
 
     def searches_planned(self) -> Tuple[int, int]:
         """(finished by an earlier run, in all) of the keyword searches the next search makes, over the sources that
@@ -451,20 +463,25 @@ class Harvest:
     def _search_queries(self, source, name: str, queries: List[str], refresh: bool, later: bool = False,
                         give_up_after: int = _RATE_LIMITED_IN_A_ROW) -> int:
         """One source asked these queries. A source that refuses `give_up_after` in a row is not asked
-        the rest: they go on the watch list unasked."""
-        added, refused = 0, 0
+        the rest: they go on the watch list unasked — each such push counts as a refusal, so a source out of its
+        quota run after run is given up too (watcher.MAX_TRIES)."""
+        added, refused, given_up = 0, 0, 0
         for index, query in enumerate(queries):
             if refused >= give_up_after:
-                rest = [q for q in queries[index:] if refresh or not self.ledger.searched(self._search_key(name, q),
-                                                                                           self.job.search.max_per_query)]
-                for q in rest:
-                    self.watcher.defer(SEARCH, q, name, "not asked: the source kept refusing")
+                rest = [q for q in queries[index:]
+                        if (refresh or not self.ledger.searched(self._search_key(name, q), self.job.search.max_per_query))
+                        and (refresh or not self.watcher.given_up(SEARCH, q, name))]
+                dropped = sum(self.watcher.defer(SEARCH, q, name, "not asked: the source kept refusing") > MAX_WATCH_TRIES
+                              for q in rest)
                 logging.warning(f"{name}: it keeps refusing (too many requests, or no answer), so it is not asked the "
-                                f"{len(rest)} other search(es) now; the watcher keeps them and asks again later.")
+                                f"{len(rest)} other search(es) now; the watcher keeps them and asks again later"
+                                + (f" — except {dropped} refused more than {MAX_WATCH_TRIES} times, given up for "
+                                   f"{SEARCH_KEPT_DAYS} days." if dropped else "."))
                 break
             state, new = self._search_one(source, name, query, refresh, later)
+            given_up += state == "given up"
             tally = self._keyword_tally
-            if tally is not None and not later and state != "skipped":  # a skipped search was counted at the start
+            if tally is not None and not later and state not in ("skipped", "given up"):  # counted at the start
                 tally[0] += 1
                 tally[2] += new
                 self._progress("keywords", tally[0], tally[1], f"{name}: “{query}”", tally[2])
@@ -472,6 +489,9 @@ class Harvest:
                 break
             refused = refused + 1 if state == "refused" else 0
             added += new
+        if given_up:
+            logging.info(f"{name}: {given_up} search(es) refused more than {MAX_WATCH_TRIES} times are not asked (given "
+                         f"up for {SEARCH_KEPT_DAYS} days after the last refusal, or searched again with --refresh).")
         return added
 
     def _search_key(self, name: str, query: str) -> str:
@@ -480,7 +500,8 @@ class Harvest:
 
     def _search_one(self, source, name: str, query: str, refresh: bool, later: bool = False) -> Tuple[str, int]:
         """One query asked of one source: "done", "skipped" (answered by an earlier run), "refused" (on
-        the watch list), "broken" (an answer that could not be read) or "key" (the key was refused).
+        the watch list), "given up" (refused too often: not asked), "broken" (an answer that could not be read)
+        or "key" (the key was refused).
         Also how many papers were new."""
         s = self.job.search
         search = self._search_key(name, query)
@@ -491,6 +512,8 @@ class Harvest:
             self.watcher.done(SEARCH, query, name)
             self.watcher.tally.searches_skipped += 1
             return "skipped", 0
+        if not refresh and self.watcher.given_up(SEARCH, query, name):
+            return "given up", 0  # refused more than MAX_WATCH_TRIES times: left alone for now (said once per source)
         runcontrol.check()  # between two searches: Pause holds here, Stop ends the search
         found = new = 0
         state = "done"
@@ -509,9 +532,9 @@ class Harvest:
                 return "key", new
             if is_refusal(error):
                 tries = self.watcher.defer(SEARCH, query, name, refusal_text(error))
-                if tries > MAX_WATCH_TRIES:  # refused run after run: a source that is gone, not busy
-                    self.watcher.done(SEARCH, query, name)
-                    logging.warning(f"{name}: the search for {query!r} was refused {tries} times — given up.")
+                if tries > MAX_WATCH_TRIES:  # refused run after run: out of its quota, or gone — not just busy
+                    logging.warning(f"{name}: the search for {query!r} was refused {tries} times — given up for "
+                                    f"{SEARCH_KEPT_DAYS} days.")
                 else:
                     logging.warning(f"{name}: {refusal_text(error)} — the search for {query!r} was cut short. What it "
                                     "found is kept; the watcher asks again later.")

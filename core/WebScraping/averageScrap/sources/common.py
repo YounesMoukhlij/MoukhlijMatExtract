@@ -5,7 +5,7 @@ and titles cleaned of the markup the services send, the job's years, licences in
 import html
 import os
 import re
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 from WebScraping.averageScrap.http import PoliteClient
 from WebScraping.averageScrap.ledger import Candidate
@@ -73,6 +73,19 @@ def year_of(text: object) -> int:
     """The year in "2024", "2024-05-01" or 2024; 0 when there is none."""
     match = re.search(r'(?<!\d)(1[89]\d\d|20\d\d)(?!\d)', str(text or ""))
     return int(match.group(1)) if match else 0
+
+
+# A keyword's words that a search syntax would read as its own (a formula's brackets, a field's colon): such a word
+# is sent as a "phrase", e.g. LiZr2(PO4)3 -> "LiZr2(PO4)3" — unquoted, Scopus and NASA ADS refuse the whole query.
+_SYNTAX = re.compile(r'[()\[\]{}:^~*?\\/!+&|<>=]')
+_QUERY_TERM = re.compile(r'"([^"]+)"|(\S+)')
+
+
+def query_terms(query: str) -> List[str]:
+    """The words and "phrases" of a keyword, each safe to put in a boolean query: a phrase or a word holding
+    characters of the syntax comes back in double quotes."""
+    return [f'"{phrase}"' if phrase else f'"{word}"' if _SYNTAX.search(word) else word
+            for phrase, word in _QUERY_TERM.findall(query)]
 
 
 class Source:

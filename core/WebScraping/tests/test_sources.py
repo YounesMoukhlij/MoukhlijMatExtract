@@ -236,6 +236,8 @@ class SearchTests(KeyedTestCase):
 
     def test_scopus(self):
         self.assertEqual(scopus_query('garnet "ionic conductivity"'), 'TITLE-ABS-KEY(garnet AND "ionic conductivity")')
+        # A formula's brackets are the query's own syntax: unquoted, Scopus refused the whole search (HTTP 400), every run.
+        self.assertEqual(scopus_query("LiZr2(PO4)3 NASICON"), 'TITLE-ABS-KEY("LiZr2(PO4)3" AND NASICON)')
         entry = {"dc:title": "Garnet LLZO", "prism:doi": "10.1016/j.ssi.2016.01.042", "prism:coverDate": "2016-04-01",
                  "prism:publicationName": "Solid State Ionics", "dc:creator": "Shao C.", "subtypeDescription": "Article"}
         session = FakeSession([
@@ -260,6 +262,8 @@ class SearchTests(KeyedTestCase):
                                                                          False, "Physical Review Materials"))
         self.assertEqual(session.calls[0][1]["q"], "abs:(argyrodite) year:2014-2026")
         self.assertEqual(session.calls[0][2], {"Authorization": "Bearer ads-token"})
+        list(ADS(client_for(session)).search("Na3Sc2(PO4)3 sodium diffusion", limit=1))
+        self.assertEqual(session.calls[-1][1]["q"], 'abs:("Na3Sc2(PO4)3" sodium diffusion)')  # quoted, like Scopus
 
     def test_ieee(self):
         articles = [{"doi": "10.1109/TEC.2021.1", "title": "Solid-state battery model", "abstract": ABSTRACT,

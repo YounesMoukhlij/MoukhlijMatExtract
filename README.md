@@ -513,35 +513,101 @@ it on first start; **Restore the job files** brings back a missing one without t
 
 ## Repository layout
 
+MME keeps two things apart:
+
+- **This repository holds the code.** It never holds papers or results.
+- **Your data lives in `~/MoukhlijMatExtract`** (see [Where your files go](#where-your-files-go)): your PDFs, the
+  databases, the rankings and the article's figures.
+
+### The folders
+
 ```
 MoukhlijMatExtract/
-├── core/                       the pipeline: the five parts that build and judge the database
-│   ├── LocalExtraction/        1 · the shared extraction engine: PDF reading, OCR, tables, quantities, units,
-│   │                           materials, context, plausibility, duplicates, provenance; the window toolkit (gui/)
-│   ├── WebScraping/            2 · Fetch_DOIs/, and averageScrap/ (search sources, screening, legal download,
-│   │                           ledger, watcher, coverage, its window)
-│   ├── SelectingTopMaterial/   3 · ranking: criteria (*.toml), selection, HTML report, Materials Project, window
-│   ├── Classification/         4 · structure types and families, property branches, window
-│   └── Evaluation/             accuracy: sheet, score, agree, reference, benchmark, gold
-├── export/                     turns the database into things to share
-│   ├── MLDataset/              5 · datasets for machine learning, and their step-by-step window
-│   └── Release/                the Zenodo-ready dataset
-├── app/                        the desktop application around the parts
-│   ├── mme_gui/                the main window, manual, make guide, process flow, macOS app
-│   └── mme_home/               sets up ~/MoukhlijMatExtract on first start
-├── resources/                  files the program ships with
-│   ├── configs/                the job files (one per domain and per electrolyte family)
-│   └── examples/               two CC BY papers and their expected values
-├── docs/                       manual, commands, data dictionary, limitations, evaluation protocol, families
-│   └── paper/                  the JOSS paper, the methodology and the data descriptor
-├── scripts/                    reproduce_paper.py, audit tools, icon
-├── Dockerfile · Makefile · requirements.lock · pyproject.toml · CITATION.cff · .zenodo.json
-└── .github/workflows/          tests on every push; publishing to PyPI
+├── core/                         the pipeline: the parts that build and judge the database
+│   ├── LocalExtraction/          1 · Extract: PDF → values with their source (the engine every part uses)
+│   ├── WebScraping/              2 · Find and download papers legally
+│   │   ├── Fetch_DOIs/               collect the DOIs of a topic
+│   │   └── averageScrap/             search sources, screening, legal download, ledger, watcher
+│   ├── SelectingTopMaterial/     3 · Rank the materials (criteria*.toml, HTML report)
+│   ├── Classification/           4 · Sort them by structure type, family and property
+│   └── Evaluation/               accuracy: annotation sheet, scores, benchmark, gold standard
+├── export/
+│   ├── MLDataset/                5 · Datasets for machine learning
+│   └── Release/                  the dataset ready to deposit (Zenodo), with legal checks
+├── app/
+│   ├── mme_gui/                  the desktop application: main window, manual, process flow
+│   └── mme_home/                 creates ~/MoukhlijMatExtract on first start
+├── resources/
+│   ├── configs/                  the job files: one per domain and per electrolyte family
+│   └── examples/                 two CC BY papers, their expected values, and the demo's output
+├── docs/                         manual, commands, data dictionary, limitations, evaluation protocol
+│   └── paper/                    the article (paper.md, paper.bib), methodology, data descriptor
+├── scripts/                      reproduce_paper.py (make paper), audit and job-file tools
+├── Makefile                      every task in one word: make install, demo, test, paper …
+├── requirements.lock · Dockerfile  the exact environment
+├── pyproject.toml                the package and its ten commands (mme, mme-local, mme-web …)
+├── CITATION.cff · .zenodo.json   how to cite it, and its archive record
+└── .github/workflows/            the tests on every push, and publishing to PyPI
 ```
 
+**Every part has the same shape**, so once you know one you know them all:
+
+| In each part | What it is |
+|---|---|
+| `README.md` | what the part does, its inputs and outputs, its options |
+| `cli.py` · `__main__.py` | its terminal command (`mme-local`, `mme-web`, `mme-rank` …), also `python -m <Part>` |
+| `gui/` or `gui.py` | its window in the desktop application |
+| `stats.py` | the figures of its statistics window |
+| `tests/` | its tests (about 940 in all, see [Platforms and tests](#platforms-and-tests)) |
+
 The folder names inside `core/`, `export/` and `app/` are the Python packages (`import LocalExtraction`,
-`python -m WebScraping`); the groups around them are only folders. Your own data lives apart, in
-`~/MoukhlijMatExtract`.
+`python -m WebScraping`). The groups around them (`core/`, `export/`, `app/`) are only folders.
+
+### Where to start
+
+| You want to | Do this | Read |
+|---|---|---|
+| Use the program | `make install`, then `mme-gui` | [Install](#install), [Quick start](#quick-start), [docs/MANUAL.md](docs/MANUAL.md) |
+| See it work in a minute, offline | `make demo` | [resources/examples/README.md](resources/examples/README.md) |
+| Extract from your own PDFs | put them in `~/MoukhlijMatExtract/LocalExtraction/papers/` | [core/LocalExtraction/README.md](core/LocalExtraction/README.md) |
+| Find and download papers on a topic | edit a job file in `~/MoukhlijMatExtract/configs/` | [core/WebScraping/averageScrap/README.md](core/WebScraping/averageScrap/README.md) |
+| Look up an option | `mme <command> --help` | [docs/COMMANDS.md](docs/COMMANDS.md) |
+| Understand a column of the database | | [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md) |
+| Change the code | `make install-locked`, then `make test` | [CONTRIBUTING.md](CONTRIBUTING.md) |
+
+### For reviewers
+
+**Checking it in four commands** (no API key needed):
+
+```bash
+make install-locked   # the exact package versions of the article (requirements.lock)
+make test             # the whole test suite
+make demo             # two CC BY papers → database, ranking, classes (compare with resources/examples/expected_values.csv)
+make paper PAPER_OPTS="--data <unzipped dataset>"   # every table and figure of the article, from the deposited data
+                                                    # (make paper-docker: the same in the pinned Docker image)
+```
+
+**From a claim of the article to the code and its test:**
+
+| Claim | Code | Tests |
+|---|---|---|
+| Values and units are read from sentences | [quantities.py](core/LocalExtraction/quantities.py), [normalizer.py](core/LocalExtraction/normalizer.py), [extractor.py](core/LocalExtraction/extractor.py) | [core/LocalExtraction/tests/](core/LocalExtraction/tests/) |
+| … and from tables | [tables.py](core/LocalExtraction/tables.py), [parser.py](core/LocalExtraction/parser.py) | same |
+| Each value gets its material, temperature, component and kind of energy | [chemistry.py](core/LocalExtraction/chemistry.py), [context.py](core/LocalExtraction/context.py), [transport.py](core/LocalExtraction/transport.py), [energy.py](core/LocalExtraction/energy.py) | same |
+| Doubtful values are flagged, never dropped | [review.py](core/LocalExtraction/review.py), [arrhenius.py](core/LocalExtraction/arrhenius.py), [scope.py](core/LocalExtraction/scope.py) | same |
+| One measurement is counted once | [duplicates.py](core/LocalExtraction/duplicates.py) | same |
+| Every result can be traced and remade | [provenance.py](core/LocalExtraction/provenance.py) (`run_manifest.json`), [schema.py](core/LocalExtraction/schema.py) (data dictionary) | same |
+| Papers come from legal sources only | [resolve.py](core/WebScraping/averageScrap/resolve.py), [fetch.py](core/WebScraping/averageScrap/fetch.py), [sidecar.py](core/WebScraping/averageScrap/sidecar.py) (the source of each PDF) | [core/WebScraping/tests/](core/WebScraping/tests/) |
+| Papers are screened by a transparent score | [screening.py](core/WebScraping/averageScrap/screening.py) | same |
+| Materials are ranked by fixed criteria | [selection.py](core/SelectingTopMaterial/selection.py), [criteria.toml](core/SelectingTopMaterial/criteria.toml) | [core/SelectingTopMaterial/tests/](core/SelectingTopMaterial/tests/) |
+| Materials are sorted by structure and family | [classify.py](core/Classification/classify.py), [branches.py](core/Classification/branches.py) | [core/Classification/tests/](core/Classification/tests/) |
+| The accuracy figures | [score.py](core/Evaluation/score.py), [compare.py](core/Evaluation/compare.py), [benchmark.py](core/Evaluation/benchmark.py), [baseline.py](core/Evaluation/baseline.py), [reference.py](core/Evaluation/reference.py) | [core/Evaluation/tests/](core/Evaluation/tests/) |
+| The released dataset holds only legally obtained papers | [release.py](export/Release/release.py) (papers without a legal source go to `excluded.csv`) | [export/Release/tests/](export/Release/tests/) |
+| The article's tables and figures | [scripts/reproduce_paper.py](scripts/reproduce_paper.py) | [core/LocalExtraction/tests/test_demo.py](core/LocalExtraction/tests/test_demo.py) (the demo's values) |
+
+**Read next:** [docs/paper/methodology.md](docs/paper/methodology.md) (the method),
+[docs/EVALUATION_PROTOCOL.md](docs/EVALUATION_PROTOCOL.md) (the held-out evaluation, written before the draw) and
+[docs/LIMITATIONS.md](docs/LIMITATIONS.md) (what MME does not do well, with the measurements).
 
 ---
 
