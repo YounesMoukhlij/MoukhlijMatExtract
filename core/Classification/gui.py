@@ -503,14 +503,16 @@ class App:
                 break
         if latest is not None:
             fraction, text, phase, done, total = latest
-            self.progress.configure(value=int(fraction * 1000))
             tracker = self.tracker
             if tracker is not None and phase in tracker.phases:
                 step = [key for key, _, _ in tracker.phases_spec].index(phase) + 1
                 detail = text.rsplit(": ", 1)[1] if ": " in text and phase in ("read", "by_property") else ""
                 tracker.update(phase, done, total, detail)
+                from LocalExtraction.gui.progress import show_fraction
+                show_fraction(self.progress, tracker)  # the number the details window shows too
                 self.status.configure(text=f"Step {step} of {len(tracker.phases_spec)} · " + tracker.line())
             else:
+                self.progress.configure(value=int(fraction * 1000))
                 self.status.configure(text=text + self._pace.left("classify", int(fraction * 1000), 1000))
         try:
             result = self._queue.get_nowait()

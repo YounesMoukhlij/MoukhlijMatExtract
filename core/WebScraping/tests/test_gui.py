@@ -75,6 +75,37 @@ class WindowTests(WindowTest):
         web.stop_event.clear()
         web._working = False
 
+    def test_the_window_and_progress_details_show_the_same_progress(self):
+        # A search started again at 78 %: the window's bar read 80 % while Progress details said 0 % (it measured the
+        # time spent against the time left). Both now show the tracker's one number, at every step.
+        from LocalExtraction.gui import progress
+        web = self.app.panel
+        phases = [("keywords", "Searching the keywords", "searches"), ("records", "Completing the records", "papers"),
+                  ("screen", "Scoring the papers against the topic", "papers")]
+        tracker = web._track("2 · Search", phases, {"keywords": 100}, "Searching", "the papers found so far are saved",
+                             before={"keywords": 78})
+        details = progress.open_details(self.root, tracker, "Web scraping")
+        details.attributes("-alpha", 0.0)
+        self.addCleanup(details.destroy)
+        web._working = True
+        web.stop_event.clear()
+
+        def both() -> tuple:
+            details.refresh()
+            return int(float(web.progress.cget("value"))) / 10, float(details.percent.cget("text").rstrip(" %"))
+
+        for done in (78, 85, 93, 100):
+            web._search_progress("keywords", done, 100, "OpenAlex: “garnet”", 0)
+            shown, said = both()
+            self.assertAlmostEqual(shown, said, delta=0.5, msg=f"after {done} searches")
+            self.assertGreaterEqual(shown, 77)  # never 0 %: the 78 searches finished before count
+        web._search_progress("records", 1, 40, "", 0)  # a later phase adds work: the bar waits, it never goes back
+        shown_after, said_after = both()
+        self.assertAlmostEqual(shown_after, said_after, delta=0.5)
+        self.assertGreaterEqual(shown_after, shown)
+        web._working = False
+        web._finished([])
+
     def test_a_step_starts_with_its_estimate_in_dark_yellow_and_is_followed(self):
         from LocalExtraction.gui import progress
         web = self.app.panel

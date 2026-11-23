@@ -160,6 +160,15 @@ All notable changes to MoukhlijMatExtract are recorded here. The format follows
     11,704 searches") and its details window start there. Only the searches asked move it.
   - **The time left:** it is measured on the searches this run asks. Skipped searches no longer make it look fast,
     nor shorten the estimates of the next runs.
+- **⏱ Progress details disagreed with its window** (the web window's bar at 80 %, the details window at 0 %). The
+  window's bar showed the phase under way by count; the details window measured the time spent against the time left,
+  near 0 % for a search started again with hours of searches ahead.
+  - **Now:** one number for both, in every window (Web scraping, Local extraction, Ranking, Classification): the work
+    done over the work known, each phase weighed by its time per item, the items an earlier run finished counted as
+    done. Worked out each time the step says how far it is, so the two views read the very same value.
+  - **It never goes back:** a phase whose size is known only when it starts adds work, and the bar waits for it to
+    catch up. A stopped step stays where it stopped (it read 100 %). The phase rows of the details window still show
+    each phase by count.
 - **⏱ Progress details stopped adding to its timeline after 2,000 events** (the number it keeps), which a long or
   resumed search reaches in minutes. The newest events now keep arriving at the top; the oldest go after 2,000.
 - **Linux, Windows and small screens** (found with the test runs of GitHub on Linux, Windows and macOS, failing since

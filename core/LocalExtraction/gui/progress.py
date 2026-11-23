@@ -135,6 +135,7 @@ class Tracker:
         self.listeners: List[Callable[[], None]] = []
         # Items of a phase an earlier run finished (searches already answered): counted as done, never timed.
         self.before: Dict[str, int] = {}
+        self._high = 0.0  # how far the step was said to be: the bar never goes back
         self._last_mark: Optional[float] = None  # the last moment something was said: where a new phase's clock starts
 
     # ---------------------------------------------------------------- what the window says
@@ -142,6 +143,7 @@ class Tracker:
         """`before`: items of a phase an earlier run finished (they are skipped): its progress starts there, and neither
         the estimate nor the pace counts them."""
         self.started, self.ended, self.outcome = time.time(), None, ""
+        self._high = 0.0
         self.before = {key: max(int(count), 0) for key, count in (before or {}).items() if key in self.phases}
         self._last_mark = self.started
         for key, total in (totals or {}).items():
@@ -150,6 +152,7 @@ class Tracker:
         for key, count in self.before.items():
             self.phases[key].done = count
         self.estimate, self.estimate_measured = self._estimate_all()
+        self._measure()
         if self.estimate is not None:
             self.event("", f"Started — estimated {duration(self.estimate)} "
                            f"({'from your earlier runs' if self.estimate_measured else 'a first guess'}), "
@@ -191,6 +194,7 @@ class Tracker:
         self.detail = detail
         self.samples.append((now, sum(q.done for q in self.phases.values())))
         self._last_mark = now
+        self._measure(now)
         self._tell()
 
     def event(self, phase: str, text: str) -> None:
@@ -237,20 +241,25 @@ class Tracker:
             return 0.0
         return (self.ended or time.time()) - self.started
 
+    def _pace_of(self, p: Phase, now: float) -> float:
+        """Seconds per item of a phase: this run's own once a few items set it, else the earlier runs'."""
+        pace, _ = self.timings.seconds(self._timing_key(p.key))
+        worked = p.done - p.first_done
+        if p.total and p.started is not None and worked >= 2 and now - p.started >= 4:
+            pace = (now - p.started) / worked
+        return pace
+
     def phase_left(self, p: Phase, now: Optional[float] = None) -> Optional[float]:
         """Seconds left of a phase: from its own pace once it has one, else from the pace of the earlier runs."""
         now = time.time() if now is None else now
         if p.ended is not None:
             return 0.0
-        pace, _ = self.timings.seconds(self._timing_key(p.key))
+        pace = self._pace_of(p, now)
         if not p.total:
             if p.unit:
                 return None  # counted, but how many is not known yet
             spent = now - p.started if p.started else 0.0
             return max(pace - spent, 0.0)
-        worked = p.done - p.first_done
-        if p.started is not None and worked >= 2 and now - p.started >= 4:
-            pace = (now - p.started) / worked
         return max(p.total - p.done, 0) * pace
 
     def left(self) -> Optional[float]:
@@ -270,14 +279,29 @@ class Tracker:
         return total if any_known else None
 
     def fraction(self) -> float:
-        """How far the whole step is, 0 to 1 (by time: each phase weighs what it takes)."""
+        """How far the whole step is, 0 to 1: worked out when the step starts and each time it says how far it is
+        (`_measure`), never in between, so the window's own bar and the details window (refreshed every half second)
+        always show the very same number (show_fraction)."""
         if self.ended is not None:
-            return 1.0
-        left = self.left()
-        if left is None:
-            return 0.0
-        spent = self.elapsed()
-        return spent / (spent + left) if spent + left > 0 else 0.0
+            return 1.0 if self.outcome == "done" else self._high
+        return self._high
+
+    def _measure(self, now: Optional[float] = None) -> None:
+        """The work done over the work known, each phase weighed by its time per item (a phase of slow searches counts
+        more than one of quick lookups), the items an earlier run finished counted as done. It never goes back: a
+        phase whose size is known only when it starts adds work, and the bar then waits for the work to catch up."""
+        now = time.time() if now is None else now
+        done = total = 0.0
+        for p in self.phases.values():
+            pace = self._pace_of(p, now) or 1.0
+            if p.total:
+                total += p.total * pace
+                done += min(p.done, p.total) * pace
+            elif not p.unit and p.started is not None:  # a phase of one run, no items: done once it ends
+                total += pace
+                done += pace if p.ended is not None else 0.0
+        if total > 0:
+            self._high = max(self._high, min(done / total, 1.0))
 
     def pace_parts(self) -> Tuple[str, str]:
         """(“3.1 s”, “per search”) or, when fast, (“1,795”, “searches / min”); ("–", "") before a pace is set."""
@@ -401,6 +425,18 @@ def details_button(parent, tracker_of: Callable[[], Optional[Tracker]], origin: 
             return
         open_details(parent.winfo_toplevel(), tracker, origin)
     return ttk.Button(parent, text="⏱ Progress details", command=open_it)
+
+
+def show_fraction(bar, tracker: Tracker) -> None:
+    """A window's progress bar set to how far the whole step is: the same number the details window shows, so the
+    two never disagree (a bar of the phase alone read 80 % while the details said 0 %)."""
+    import tkinter as tk
+    try:
+        if str(bar.cget("mode")) != "determinate":
+            bar.stop()
+        bar.configure(mode="determinate", maximum=1000, value=int(round(1000 * tracker.fraction())))
+    except tk.TclError:
+        pass  # the window was closed meanwhile
 
 
 # ------------------------------------------------------------------------------------------------ the details window

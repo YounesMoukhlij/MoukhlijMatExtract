@@ -23,7 +23,8 @@ from LocalExtraction.gui.result_card import BAD, FAILED as CARD_FAILED, GOOD, GR
 from LocalExtraction.gui.results import EnergiesView, pending_pdfs
 from LocalExtraction.gui.summary import final_summary, summarize_paper
 from LocalExtraction.gui import theme
-from LocalExtraction.gui.progress import Tracker, details_button, show_stop_note, stop_note, style_running
+from LocalExtraction.gui.progress import (Tracker, details_button, show_fraction, show_stop_note, stop_note,
+                                         style_running)
 from LocalExtraction.gui.progress_text import Pace
 from LocalExtraction.gui.widgets import FolderRow, LogPane, Pausable, Row, Stopped, Table, WrapLabel, open_path
 from LocalExtraction.models import PaperData
@@ -746,15 +747,16 @@ class WebPanel(Pausable, ttk.LabelFrame):
         is asking now, the new papers so far, the time left."""
         if total <= 0 or phase not in _SEARCH_PHASES or not self._working or self.stop_event.is_set():
             return  # (a line that arrives after the step, or once Stop is pressed, does not hide what is said then)
-        self.progress.stop()
-        self.progress.configure(mode="determinate", maximum=total, value=min(done, total))
         title, things = _SEARCH_PHASES[phase]
         tracker = self.tracker
         if tracker is not None and phase in tracker.phases:
             tracker.update(phase, done, total, detail,
                            {"new papers": new} if phase in ("keywords", "fulltext", "snowball") else None)
+            show_fraction(self.progress, tracker)  # the whole step: the number the details window shows too
             self.show_status(tracker.line())  # (a pause or a lost network stays said)
             return
+        self.progress.stop()
+        self.progress.configure(mode="determinate", maximum=total, value=min(done, total))
         text = f"{title} — {done:,} of {total:,} {things}"
         if detail:
             text += f" · {detail}"
@@ -972,13 +974,14 @@ class WebPanel(Pausable, ttk.LabelFrame):
         if not self._working or self.stop_event.is_set():
             return
         done_n, total_n = int(done), max(int(total), 1)
-        self.progress.stop()
-        self.progress.configure(mode="determinate", maximum=total_n, value=min(done_n, total_n))
         # (`so_far` is Fetch DOIs' own: “230”, or “230 of 500” when a number of DOIs was asked for)
         if self.tracker is not None and "dois" in self.tracker.phases:
             self.tracker.update("dois", done_n, total_n, "", {"new DOIs so far": so_far})
+            show_fraction(self.progress, self.tracker)
             self.show_status(self.tracker.line().replace("Fetch DOIs — ", "Fetch DOIs — search ", 1))
             return
+        self.progress.stop()
+        self.progress.configure(mode="determinate", maximum=total_n, value=min(done_n, total_n))
         self.show_status(f"Fetch DOIs — search {done_n:,} of {total_n:,} · new DOIs so far: {so_far}"
                          + self._pace.left("dois", done_n, total_n))
 
@@ -1132,13 +1135,14 @@ class WebPanel(Pausable, ttk.LabelFrame):
         open_once("browser-helper", "The browser helper", self, lambda: BrowserHelperDialog(self, self, rows))
 
     def _paper_fetched(self, key: str, outcome: Outcome, done: int, total: int) -> None:
-        self.progress.configure(maximum=max(total, 1), value=done)
         if self.tracker is not None and "download" in self.tracker.phases:
             got = "downloaded" if outcome.status == DOWNLOADED else outcome.status
             self.tracker.update("download", done, total, f"{key}: {got}" + (f" via {outcome.service}" if
                                                                            outcome.service and got == "downloaded" else ""))
+            show_fraction(self.progress, self.tracker)
             self.show_status(self.tracker.line())
         else:
+            self.progress.configure(maximum=max(total, 1), value=done)
             self.show_status(f"Downloading — {done:,} of {total:,} papers" + self._pace.left("download", done, total))
         refused = bool(outcome.refused) and outcome.status != DOWNLOADED
         # The line of the paper is the engine's own ("[3/40] downloaded: … via osti"), shown in the Activity tab.
@@ -1223,17 +1227,20 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self._total, self._done, self._papers, self._failed = total, 0, [], 0
         if self.tracker is not None and "extract" in self.tracker.phases:
             self.tracker.update("extract", 0, total)
-        self.progress.configure(mode="determinate", maximum=max(total, 1), value=0)
+            show_fraction(self.progress, self.tracker)
+        else:
+            self.progress.configure(mode="determinate", maximum=max(total, 1), value=0)
         self.status.set(f"Extracting {total} downloaded article(s) …" if total else "Every downloaded article is in the database already.")
         self.activity.write(f"--- Extraction of {folder} into {output}: {total} new PDF(s)")
 
     def _paper_extracted(self, filename: str, paper: Optional[PaperData]) -> None:
         self._done += 1
-        self.progress.configure(value=self._done)
         if self.tracker is not None and "extract" in self.tracker.phases:
             self.tracker.update("extract", self._done, self._total, filename)
+            show_fraction(self.progress, self.tracker)
             self.show_status(self.tracker.line())
         else:
+            self.progress.configure(value=self._done)
             self.show_status(f"Extracting — {self._done:,} of {self._total:,} PDFs · {filename}"
                              + self._pace.left("extract", self._done, self._total))
         if paper is None:

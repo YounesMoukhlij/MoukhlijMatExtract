@@ -467,7 +467,7 @@ class App:
         self.rank_progress.configure(mode="indeterminate", value=0)
         self.rank_progress.pack(side="left", padx=(8, 0), after=self.rank_button)
         self.rank_progress.start(12)
-        from LocalExtraction.gui.progress import Tracker, style_running
+        from LocalExtraction.gui.progress import Tracker, show_fraction, style_running
         will_write = self.write_var.get() if write is None else write
         phases = [("rank", "Reading the databases and ranking", "")]
         if will_write:
@@ -524,12 +524,9 @@ class App:
                 if steps:
                     phase, step_done, total, name = steps[-1]
                     try:
-                        if total and str(self.rank_progress.cget("mode")) != "determinate":
-                            self.rank_progress.stop()
-                            self.rank_progress.configure(mode="determinate")
-                        if total:
-                            self.rank_progress.configure(value=int(1000 * step_done / total))
                         tracker.update(phase, step_done, total, name)
+                        if total:  # the whole ranking: the number the details window shows too
+                            show_fraction(self.rank_progress, tracker)
                         self.summary.set(tracker.line())
                     except tk.TclError:
                         return  # the window was closed meanwhile
