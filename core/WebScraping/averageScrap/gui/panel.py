@@ -1218,10 +1218,13 @@ class WebPanel(Pausable, ttk.LabelFrame):
     def _tell_missed(self, results: Dict[str, int], email_problem: str) -> None:
         """A message when the download did not get every paper: the e-mail Unpaywall refused, if that is
         why; else which papers have no legal copy, and what can still be done."""
-        missed = self._missed
+        # The papers still waiting on a busy site are counted and listed too ("Site busy or not answering"): the
+        # window and the download's own message then speak of the same papers.
+        waiting = set(getattr(self.harvest, "waiting_keys", None) or ())
+        missed = self._missed + [(key, FAILED) for key in sorted(waiting - {key for key, _ in self._missed})]
         if not missed:
             return
-        asked = sum(results.get(status, 0) for status in (DOWNLOADED, FAILED, CLOSED)) or len(missed)
+        asked = sum(results.get(status, 0) for status in (DOWNLOADED, FAILED, CLOSED, "waiting")) or len(missed)
         if email_problem:
             email = self.job.email() if self.job is not None else ""
             in_job_file = bool(self.job is not None and self.job.contact_email)
