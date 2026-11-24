@@ -610,6 +610,16 @@ class Harvest:
                                error=(f"{outcome.error}; {note}" if outcome.error else note)[:500])
             self.watcher.fetched(candidate.key, FAILED, refused=False, later=later)
             return FAILED
+        if outcome.skipped and not outcome.refused and outcome.status != DOWNLOADED:
+            # Lookups left alone for a few minutes (they kept failing) were not asked: the paper was not checked
+            # everywhere, yet nothing is to be had from waiting minutes for them. It is filed with what the others
+            # answered (on the hand list with its real reason); the try does not count, and the next download asks.
+            self.watcher.done(DOWNLOAD, candidate.key)
+            note = f"not checked: {', '.join(outcome.skipped)} (left alone for a few minutes) — asked again next download"
+            self.ledger.update(candidate.key, status=FAILED,
+                               error=(f"{outcome.error}; {note}" if outcome.error else note)[:500])
+            self.watcher.fetched(candidate.key, FAILED, refused=False, later=later)
+            return FAILED
         if outcome.refused and outcome.status != DOWNLOADED:
             services = ", ".join(outcome.refused)
             tries = self.watcher.defer(DOWNLOAD, candidate.key, "", services)
@@ -668,6 +678,7 @@ class Harvest:
         self.not_entitled = 0  # papers a publisher refused: the subscription is not reached from here
         self.blocks = SiteBlocks()  # the sites that refuse programs (HTTP 403), left alone for the rest of this run
         self.down: set = set()  # the services that did not answer at all this run
+        self.waiting_keys: set = set()  # the papers of this download still refused by a busy site at its end
         if not todo:
             logging.info("Nothing to fetch.")
             self.write_hand_list()
@@ -711,7 +722,8 @@ class Harvest:
             still = [row for row in self.watcher.pending(DOWNLOAD) if row["item"] in tried]
             if rounds and still:
                 self.notice(f"{len(still)} paper(s) still refused by {refusers(still)} after {rounds} round(s) at the end "
-                            "of this download: they stay on the watch list, and the next “3 · Download” tries them first.")
+                            "of this download: they are among the papers not downloaded (“Site busy or not answering”), "
+                            "and the next “3 · Download” tries them first.")
             elif rounds:
                 self.notice("The papers a busy service refused were tried again at the end of this download: none is "
                             "left waiting.")
@@ -719,8 +731,9 @@ class Harvest:
             logging.info("Stopped — what was downloaded is kept; the DOIs the watcher was waiting for stay on its "
                          "list for the next run.")
         t = self.watcher.tally
+        self.waiting_keys = {row["item"] for row in self.watcher.pending(DOWNLOAD)} & tried
         results = {DOWNLOADED: len(t.downloaded & tried), CLOSED: len(t.no_copy & tried), FAILED: len(t.failed & tried),
-                   "waiting": len({row["item"] for row in self.watcher.pending(DOWNLOAD)} & tried)}
+                   "waiting": len(self.waiting_keys)}
         missed = results[CLOSED] + results[FAILED]
         if self.email_problem:
             logging.warning(email_advice(self.job.email(), self.email_problem, bool(self.job.contact_email))

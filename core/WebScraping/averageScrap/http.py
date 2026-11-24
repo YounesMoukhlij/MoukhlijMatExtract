@@ -225,17 +225,19 @@ class PoliteClient:
     # Requests
     # ------------------------------------------------------------------
     def get(self, url: str, params: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None,
-            stream: bool = False, api: bool = True, no_retry: Container[int] = ()) -> requests.Response:
+            stream: bool = False, api: bool = True, no_retry: Container[int] = (),
+            timeout: Optional[float] = None) -> requests.Response:
         """GET with spacing and retries. A page or a file (`api=False`) is only fetched if the
         site's robots.txt allows it. Statuses in `no_retry` come straight back (an exhausted quota
-        will not clear in a few seconds). Returns the last response whatever its status; only a
-        network failure that outlasts the retries raises."""
+        will not clear in a few seconds). `timeout`: the seconds this request may wait for an answer, for a
+        service known to answer slowly (the client's own otherwise). Returns the last response whatever its
+        status; only a network failure that outlasts the retries raises."""
         host = urlsplit(url).netloc.lower()
         if not api:
             if not self.allowed(url):
                 raise Disallowed(f"robots.txt of {host} does not allow {url}")
         return self._send(host, no_retry, lambda: self.session.get(url, params=params, headers=headers, stream=stream,
-                                                                   timeout=self.timeout))
+                                                                   timeout=timeout or self.timeout))
 
     def post_json(self, url: str, body: Any = None, headers: Optional[Dict[str, str]] = None, data: Optional[str] = None) -> Any:
         """POST to an API (a JSON `body`, or a text `data`), with the same spacing and retries as get;
@@ -293,8 +295,8 @@ class PoliteClient:
                      f"every {after:g} s to it for the rest of this run.")
 
     def get_json(self, url: str, params: Optional[Dict[str, Any]] = None,
-                 headers: Optional[Dict[str, str]] = None) -> Any:
-        response = self.get(url, params=params, headers=headers)
+                 headers: Optional[Dict[str, str]] = None, timeout: Optional[float] = None) -> Any:
+        response = self.get(url, params=params, headers=headers, timeout=timeout)
         if response.status_code != 200:
             raise HttpError(url, response.status_code, response.text[:200].replace("\n", " "))
         return response.json()

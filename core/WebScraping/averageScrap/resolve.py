@@ -23,6 +23,7 @@ import logging
 import os
 import re
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 from urllib.parse import urlsplit
@@ -134,6 +135,16 @@ _PMC_PDF = re.compile(r'<Key>((PMC\d+)\.(\d+)/\2\.\3\.pdf)</Key>')
 _OWN_SOURCE = {"api.elsevier.com", "api.wiley.com"}
 _MAX_COPIES = 5   # repository pages tried for one paper
 _PATIENCE = 3     # lookups in a row a service may fail (too many requests, an error, no answer) before it is left alone
+# How long a service that failed _PATIENCE times running is left alone: then it is asked again. Left alone for the whole
+# run, one bad minute of Europe PMC at the start of a 14-hour download kept every paper of the run from it.
+_BENCH_SECONDS = 10 * 60
+# Services that answer slowly but do answer: the seconds one of their answers may take (the client's 30 s otherwise).
+# Europe PMC took 12 to 39 s for one DOI query (November 2026) — past 30 s it was taken for down.
+_TIMEOUTS = {"Europe PMC": 90.0}
+# A copy CORE serves from core.ac.uk ("https://core.ac.uk/download/669539435.pdf"): the site and CORE's own download
+# endpoint turn programs away (a browser challenge), but CORE's API says which repository the copy was harvested from.
+_CORE_COPY = re.compile(r"^https?://core\.ac\.uk/(?:download|reader)/(?:pdf/)?(\d+)(?:\.pdf)?/?$", re.IGNORECASE)
+CORE_OUTPUTS = "https://api.core.ac.uk/v3/outputs"
 
 
 # arXiv's own bulk copy of every PDF, kept current in a public Google Cloud bucket (the one the arXiv dataset on
@@ -185,13 +196,17 @@ class Resolver:
         self.email_problem = ""
         self._lock = threading.Lock()
         self._failed: Dict[str, int] = {}  # service -> lookups in a row that got no usable answer
-        self._local = threading.local()    # the services that refused while this thread looked up its paper
+        self._benched_at: Dict[str, float] = {}  # service -> when it was left alone (_BENCH_SECONDS)
+        self._clock = time.monotonic
+        # The services that refused while this thread looked up its paper, and those it did not ask (left alone).
+        self._local = threading.local()
         # The services that did not answer at all this run (down, not busy): a few minutes' wait will not bring
         # them back, so the papers only they refused are left for the next run (harvest.worth_waiting).
         self.down: set = set()
 
     def options(self, candidate: Candidate) -> Iterator[FetchOption]:
         self._local.refused = []
+        self._local.skipped = []
         seen = set()
         for service in self.sources:
             for option in getattr(self, f"_{service}")(candidate):
@@ -201,6 +216,12 @@ class Resolver:
                     if bulk and bulk not in seen:
                         seen.add(bulk)
                         yield FetchOption(option.service, bulk, license="arxiv")
+                core = _CORE_COPY.match(option.url)
+                if core:  # a copy on core.ac.uk: first from the repository CORE harvested it from
+                    for url in self._core_origins(core.group(1), candidate):
+                        if url not in seen:
+                            seen.add(url)
+                            yield FetchOption("repository", url, license=option.license, landing=True)
                 if option.url not in seen:
                     seen.add(option.url)
                     yield option
@@ -216,9 +237,32 @@ class Resolver:
                     for m in [re.fullmatch(re.escape(prefix) + r"(\d+)\.pdf", name)] if m]
         return ARXIV_BULK_FILES + max(versions)[1] if versions else ""
 
+    def _core_origins(self, identifier: str, c: Candidate) -> List[str]:
+        """The files of the repositories CORE harvested its copy number `identifier` from (CORE's API, which needs
+        CORE_API_KEY): the deposit itself, served by its repository, not CORE's copy of it. The publisher's page
+        and the DOI link are left out — they are tried as such."""
+        if not self._core_key:
+            return []
+        data = self._ask("CORE", f"{CORE_OUTPUTS}/{identifier}", headers=self._core_key)
+        if not isinstance(data, dict) or normalize_doi(data.get("doi") or "") not in ("", c.doi):
+            return []
+        publisher = urlsplit(c.landing_url).netloc.lower()
+        origins: List[str] = []
+        for url in data.get("sourceFulltextUrls") or []:
+            host = urlsplit(url or "").netloc.lower()
+            if host and host not in _NOT_A_COPY and host not in ("doi.org", "dx.doi.org", "core.ac.uk", publisher) \
+                    and url not in origins:
+                origins.append(url)
+        return origins[:_MAX_COPIES]
+
+    def skipped(self) -> List[str]:
+        """The services not asked about the current paper: left alone for a few minutes after failing again and again
+        (_BENCH_SECONDS). The paper was not checked there; it is not held for them either — the next download asks."""
+        return list(dict.fromkeys(getattr(self._local, "skipped", [])))
+
     def refused(self) -> List[str]:
-        """The services that refused (too many requests, busy, no answer) or were left alone while the
-        current paper was looked up: the paper was not really checked there, and is to be checked again."""
+        """The services that refused the current paper's own lookup (too many requests, busy, no answer): the
+        paper was not really checked there, and is to be checked again."""
         return list(dict.fromkeys(getattr(self._local, "refused", [])))
 
     def _note_refused(self, service: str) -> None:
@@ -226,18 +270,26 @@ class Resolver:
         if refused is not None:
             refused.append(service)
 
+    def _note_skipped(self, service: str) -> None:
+        skipped = getattr(self._local, "skipped", None)
+        if skipped is not None:
+            skipped.append(service)
+
     def _ask(self, service: str, url: str, params: Optional[Dict[str, Any]] = None,
              headers: Optional[Dict[str, str]] = None) -> Any:
         """What a lookup service answers about a paper, or None: a service that does not know the
         paper offers nothing. One that is out of requests or out of order — still, after the
-        client's own retries, and for several papers running — is left alone for the rest of the
-        run, so that a long run does not wait on it paper after paper."""
+        client's own retries, and for several papers running — is left alone for _BENCH_SECONDS,
+        so that a long run does not wait on it paper after paper; then it is asked again."""
         with self._lock:
             if self._failed.get(service, 0) >= _PATIENCE:
-                self._note_refused(service)  # left alone for this run: this paper was not checked there
-                return None
+                if self._clock() - self._benched_at.get(service, 0.0) < _BENCH_SECONDS:
+                    self._note_skipped(service)  # left alone for now: this paper is not checked there
+                    return None
+                self._failed[service] = 0  # its time is up: asked again
+                logging.info(f"Asking {service} again, after {_BENCH_SECONDS // 60} minutes left alone.")
         try:
-            answer = self.client.get_json(url, params=params, headers=headers)
+            answer = self.client.get_json(url, params=params, headers=headers, timeout=_TIMEOUTS.get(service))
         except HttpError as error:
             if error.status == 429 or error.status >= 500:
                 self._note_refused(service)
@@ -259,6 +311,7 @@ class Resolver:
             return None
         with self._lock:
             self._failed[service] = 0
+            self.down.discard(service)  # it answers again
         return answer
 
     def _strike(self, service: str, why: str, at_once: bool = False) -> None:
@@ -268,7 +321,10 @@ class Resolver:
                 return
             self._failed[service] = _PATIENCE if at_once else before + 1
             if self._failed[service] == _PATIENCE:
-                logging.warning(f"Not asking {service} for the rest of this run: {why}.")
+                self._benched_at[service] = self._clock()
+                logging.warning(f"Not asking {service} for the next {_BENCH_SECONDS // 60} minutes: {why}. The papers "
+                                "looked up meanwhile are filed with what the other sources answered, and the next "
+                                "download asks it again.")
 
     # ------------------------------------------------------------------
     # A publisher's own interface for programs
@@ -468,14 +524,16 @@ class Resolver:
         web pages turn scripts away): the paper's PMC number, then the PDF of its newest version."""
         if not c.doi:
             return
+        # "lite" (the PMC number and the DOI are all this needs): several times quicker than "core".
         data = self._ask("Europe PMC", EUROPE_PMC, {"query": f'DOI:"{c.doi}"', "format": "json",
-                                                    "resultType": "core", "pageSize": 3})
+                                                    "resultType": "lite", "pageSize": 3})
         for record in ((data or {}).get("resultList") or {}).get("result") or []:
             number = record.get("pmcid") or ""
             if number and (record.get("doi") or "").lower() == c.doi:
                 file = self._pmc_file(number)
                 if file:
-                    yield FetchOption("pmc", f"{PMC_CLOUD}/{file}", license=_license(record.get("license") or ""))
+                    yield FetchOption("pmc", f"{PMC_CLOUD}/{file}",
+                                      license=_license(record.get("license") or "") or c.license)
                 return
 
     def _pmc_file(self, number: str) -> str:

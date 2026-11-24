@@ -826,6 +826,9 @@ class StubResolver:
     def refused(self):
         return []
 
+    def skipped(self):
+        return []
+
 
 class DownloaderTests(unittest.TestCase):
     def setUp(self):
@@ -1028,6 +1031,60 @@ class ResolverTests(unittest.TestCase):
         self.assertIsNone(resolver._ask("Busy", "https://busy.example.org/api"))
         self.assertEqual(resolver.down, {"OSTI"})
         self.assertEqual(resolver.refused(), ["OSTI", "Busy"])  # neither checked the paper: both still refused
+
+    def test_a_service_left_alone_is_skipped_not_refused_and_asked_again_after_a_while(self):
+        """A service that keeps failing is left alone for a few minutes, not for the whole run. The papers looked up
+        meanwhile were not refused by it (it was not asked): they are told apart, so that they are not held as
+        waiting — one bad minute of Europe PMC once held 1,262 papers of a 14-hour download."""
+        from WebScraping.averageScrap import resolve
+        session = FakeSession([("busy.example.org", FakeResponse(503))])
+        resolver = Resolver(client_for(session), [], "")
+        now = [1000.0]
+        resolver._clock = lambda: now[0]
+        resolver._local.refused, resolver._local.skipped = [], []
+        for _ in range(resolve._PATIENCE):
+            resolver._ask("Busy", "https://busy.example.org/api")
+        self.assertEqual((resolver.refused(), resolver.skipped()), (["Busy"], []))
+        asked = session.hits("busy.example.org")
+        resolver._local.refused, resolver._local.skipped = [], []  # the next paper
+        self.assertIsNone(resolver._ask("Busy", "https://busy.example.org/api"))
+        self.assertEqual((resolver.refused(), resolver.skipped()), ([], ["Busy"]))
+        self.assertEqual(session.hits("busy.example.org"), asked)  # not asked
+        now[0] += resolve._BENCH_SECONDS + 1
+        session.routes = [("busy.example.org", FakeResponse(200, json_data={"ok": True}))]
+        self.assertEqual(resolver._ask("Busy", "https://busy.example.org/api"), {"ok": True})  # asked again
+
+    def test_europe_pmc_is_asked_the_light_way_and_given_time_to_answer(self):
+        """Europe PMC answers a DOI query in 12 to 39 s ("core" results): past the client's 30 s it was taken for
+        down. It is asked for the "lite" results — the PMC number and the DOI, all that is needed — with 90 s."""
+        timeouts = []
+
+        class Timed(FakeSession):
+            def get(self, url, params=None, headers=None, stream=False, timeout=None):
+                timeouts.append((url, timeout))
+                return super().get(url, params, headers, stream, timeout)
+
+        session = Timed([("europepmc", FakeResponse(200, json_data={"resultList": {"result": []}}))])
+        self.options(candidate(), ["pmc"], session=session)
+        url, params, _ = session.calls[0]
+        self.assertIn("europepmc", url)
+        self.assertEqual(params["resultType"], "lite")
+        self.assertEqual(timeouts[0][1], 90.0)
+
+    def test_a_copy_on_core_is_first_asked_of_the_repository_core_harvested_it_from(self):
+        """core.ac.uk and CORE's download endpoint turn programs away with a browser challenge; CORE's API says which
+        repository holds the deposit, and that repository serves its own file."""
+        record = {"doi": "10.1000/test", "sourceFulltextUrls": [
+            "https://eprints.example.ac.uk/1/paper.pdf", "https://doi.org/10.1000/test"]}
+        session = FakeSession([("api.core.ac.uk/v3/outputs/669539435", FakeResponse(200, json_data=record))])
+        resolver = Resolver(client_for(session), ["openalex"], "")
+        resolver._core_key = {"Authorization": "Bearer k"}
+        c = candidate(oa_urls=["https://core.ac.uk/download/669539435.pdf"])
+        self.assertEqual([(o.service, o.url) for o in resolver.options(c)],
+                         [("repository", "https://eprints.example.ac.uk/1/paper.pdf"),
+                          ("openalex", "https://core.ac.uk/download/669539435.pdf")])
+        resolver._core_key = None  # without a key: CORE's own link only
+        self.assertEqual([o.url for o in resolver.options(c)], ["https://core.ac.uk/download/669539435.pdf"])
 
     def test_the_order_is_the_jobs(self):
         c = candidate(oa_urls=["https://a/p.pdf"], arxiv_id="2001.00001", landing_url="https://a/landing")
@@ -1436,6 +1493,21 @@ class HarvestTests(unittest.TestCase):
         outcome = Outcome("10.1000/both", FAILED, error="osti: HTTP 429", refused=["Semantic Scholar", "OSTI"])
         self.assertEqual(self.harvest._record(self.harvest.ledger.get("10.1000/both"), outcome), "waiting")
         self.assertEqual([row["item"] for row in self.harvest.watcher.pending("download")], ["10.1000/both"])
+
+    def test_a_paper_a_left_alone_lookup_did_not_see_is_filed_with_its_real_reason(self):
+        """Lookups left alone for a few minutes were not asked about the paper: it is not held as waiting for them
+        (nothing comes of waiting), but filed with what the others answered, the try not counted."""
+        self.harvest.ledger.add(Candidate(key="10.1000/skip", doi="10.1000/skip", status=APPROVED, decision="yes"))
+        outcome = Outcome("10.1000/skip", FAILED, error="openalex: www.mdpi.com refuses automated downloads (HTTP 403)",
+                          skipped=["Europe PMC", "DataCite"])
+        self.assertEqual(self.harvest._record(self.harvest.ledger.get("10.1000/skip"), outcome), FAILED)
+        paper = self.harvest.ledger.get("10.1000/skip")
+        self.assertEqual((paper.status, paper.attempts), (FAILED, 0))
+        self.assertTrue(paper.error.startswith("openalex: www.mdpi.com"))
+        self.assertIn("not checked: Europe PMC, DataCite", paper.error)
+        self.assertEqual(self.harvest.watcher.pending("download"), [])
+        from WebScraping.averageScrap.by_hand import BLOCKED, reason_of
+        self.assertEqual(reason_of(paper), BLOCKED)
 
     def test_a_round_at_the_end_never_runs_longer_than_its_budget(self):
         """At 30 s apart, a round of 30 minutes holds 60 papers; here a budget of 60 s holds 2 of 5: the others are

@@ -180,6 +180,9 @@ class Outcome:
     # The services and sites that refused (too many requests, busy, no answer) while this paper was
     # looked for: it was not really checked, and the watcher checks it again later.
     refused: List[str] = field(default_factory=list)
+    # The lookups not asked about this paper, being left alone for a few minutes after failing again and again: the
+    # paper was not checked there, but it is not held for them — filed with what the others answered, asked next run.
+    skipped: List[str] = field(default_factory=list)
     # Every site that had this paper was skipped, being blocked for the run (SiteBlocks): the paper itself
     # was not asked for, so the try does not count against it.
     not_asked: bool = False
@@ -350,12 +353,14 @@ class Downloader:
             return self._save(candidate, option, data, check)
         refused = list(dict.fromkeys([*self.resolver.refused(),
                                       *(t.split(":", 1)[0] for t in tried if _NOT_NOW.search(t))]))
+        lookups_skipped = self.resolver.skipped()
         if refused:  # not an answer: a lookup or a site said "not now"
             return Outcome(candidate.key, FAILED, error="; ".join(tried)[:500] or "not checked: " + ", ".join(refused),
-                           refused=refused)
+                           refused=refused, skipped=lookups_skipped)
         if not offered:
-            return Outcome(candidate.key, CLOSED, error="no legal copy found: needs a manual PDF")
-        return Outcome(candidate.key, FAILED, error="; ".join(tried)[:500], not_asked=skipped == len(tried) > 0)
+            return Outcome(candidate.key, CLOSED, error="no legal copy found: needs a manual PDF", skipped=lookups_skipped)
+        return Outcome(candidate.key, FAILED, error="; ".join(tried)[:500], not_asked=skipped == len(tried) > 0,
+                       skipped=lookups_skipped)
 
     def _save(self, candidate: Candidate, option: FetchOption, data: bytes, check: PdfCheck,
               path: Optional[str] = None) -> Outcome:
