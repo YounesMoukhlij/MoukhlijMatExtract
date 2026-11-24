@@ -12,6 +12,7 @@ import os
 import shutil
 import sys
 import tempfile
+import threading
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -1794,6 +1795,31 @@ class HarvestTests(unittest.TestCase):
         self.assertEqual((results[DOWNLOADED], results["waiting"]), (1, 0))
         self.assertEqual(waits, [])  # no round of the watcher was needed
         self.assertIn("left for the end of this batch: repo.example.org", "\n".join(said.output))
+
+    def test_a_paper_set_aside_when_the_download_is_stopped_is_kept_for_the_next_download(self):
+        """Stop pressed while a paper waits for its site's turn (that site answered 429): the paper is not lost — it is
+        filed as waiting, on the watcher's list, its try not counted; the next download asks that site first."""
+        good = self.session.routes[1]
+        stop = threading.Event()
+
+        def busy_then_stop(url, params, headers):
+            stop.set()  # Stop pressed as the site says "too many requests"
+            return FakeResponse(429)
+        self.session.routes[1] = ("repo.example.org/good.pdf", busy_then_stop)
+        self.run_stage(start="discover")
+        self.harvest.watcher.sleep, self.harvest.watcher.say = (lambda seconds: None), (lambda text: None)
+        results = self.harvest.fetch(stop_event=stop)
+        paper = self.harvest.ledger.get("10.1000/good")
+        self.assertEqual((paper.status, paper.attempts), (FAILED, 0))
+        self.assertTrue(paper.error.startswith("waiting: the download was stopped before repo.example.org"), paper.error)
+        self.assertEqual([row["item"] for row in self.harvest.ledger.watch_list("download")], ["10.1000/good"])
+        self.assertEqual(results["waiting"], 1)
+        self.assertEqual(self.harvest.waiting_keys, {"10.1000/good"})
+        # the next download: the site has its turn, the paper comes
+        self.session.routes[1] = good
+        self.harvest.fetch()
+        self.assertEqual(self.harvest.ledger.get("10.1000/good").status, DOWNLOADED)
+        self.assertEqual(self.harvest.ledger.watch_list("download"), [])
 
     def test_a_paper_a_busy_site_refuses_waits_on_the_watch_list_and_is_fetched_on_a_later_round(self):
         """HTTP 503 (busy) or 429 is not an answer: the paper is not counted as a failed try, nor closed;

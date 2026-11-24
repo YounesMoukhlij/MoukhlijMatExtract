@@ -10,7 +10,7 @@ import logging
 import os
 import threading
 import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import CancelledError, ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
@@ -600,6 +600,16 @@ class Harvest:
     # ------------------------------------------------------------------
     def _record(self, candidate: Candidate, outcome: Outcome, later: bool = False) -> str:
         """Files how a paper's download ended; returns its status ("waiting" when a site refused)."""
+        if outcome.later and outcome.status != DOWNLOADED:
+            # Set aside for a site that asked for time, and the download stopped before that site's turn: kept on the
+            # watcher's list, so the next download asks that site first. The try does not count against the paper.
+            hosts = ", ".join(sorted({_host(option.url) for option in outcome.later}))
+            self.watcher.defer(DOWNLOAD, candidate.key, "", hosts)
+            self.ledger.update(candidate.key, status=FAILED, error=(
+                f"waiting: the download was stopped before {hosts} (which asked for time) was asked — the next "
+                f"download asks it first. Tried before: {', '.join(outcome.tried) or 'nothing else'}")[:500])
+            self.watcher.fetched(candidate.key, FAILED, refused=True, later=later)
+            return "waiting"
         if outcome.refused and outcome.status != DOWNLOADED and set(outcome.refused) <= SUPPLEMENTARY_LOOKUPS:
             # Only a supplementary lookup said "not now": the paper is filed with what the others answered (on the
             # hand list with its real reason), not held for the rounds. The try does not count against it, and the
@@ -728,8 +738,9 @@ class Harvest:
                 self.notice("The papers a busy service refused were tried again at the end of this download: none is "
                             "left waiting.")
         except runcontrol.StepStopped:
-            logging.info("Stopped — what was downloaded is kept; the DOIs the watcher was waiting for stay on its "
-                         "list for the next run.")
+            logging.info("Stopped — every paper that ended is saved in the ledger (what was downloaded is kept); the "
+                         "papers set aside for a busy site, and those the watcher was waiting for, stay on its list "
+                         "and the next “3 · Download” asks them first; the papers not started yet are next.")
         t = self.watcher.tally
         self.waiting_keys = {row["item"] for row in self.watcher.pending(DOWNLOAD)} & tried
         results = {DOWNLOADED: len(t.downloaded & tried), CLOSED: len(t.no_copy & tried), FAILED: len(t.failed & tried),
@@ -816,6 +827,8 @@ class Harvest:
             except Exception as error:  # the record must not stop the download
                 logging.warning(f"download_log.csv could not be written: {error}")
             detail = (f"via {outcome.service}" if outcome.status == DOWNLOADED else
+                      "set aside for a site that asked for time — stopped before its turn, asked first next download"
+                      if outcome.later else
                       f"refused by {', '.join(outcome.refused)} — tried again at the end of this download"
                       if status == "waiting" else outcome.error[:120])
             logging.info(f"[{done}/{len(todo)}] {status}: {candidate.key} {detail}")
@@ -843,36 +856,44 @@ class Harvest:
                     break
                 outcome = run(candidate)
                 if outcome is not None and outcome.later:  # one paper at a time already: its site's turn is waited
-                    outcome = run(candidate, outcome)
+                    try:
+                        outcome = run(candidate, outcome)
+                    except runcontrol.StepStopped:  # stopped before the site's turn: kept for the next download
+                        finish(candidate, outcome, done)
+                        raise
                 finish(candidate, outcome, done)
         else:
             done = 0
             later: List[Tuple[Candidate, Outcome]] = []  # papers whose sites wanted time: taken up at the end
 
             def drain(futures: Dict) -> bool:
-                """Files the papers as they end; False when a stop was asked (the papers not started are cancelled)."""
+                """Files the papers as they end; False when a stop was asked. On a stop, the papers not started are
+                cancelled, and those under way are still waited for (moments: they stop at their next check), so
+                that a PDF that came in meanwhile is filed as downloaded. A paper set aside for a site that asked for
+                time is filed as waiting — on the watcher's list, asked first by the next download — not lost."""
                 nonlocal done
+                stop_said = False
                 for future in as_completed(futures):
-                    candidate = futures[future]
+                    candidate, earlier = futures[future]  # earlier: the outcome a resumed paper was set aside with
                     try:
                         outcome = future.result()
-                    except runcontrol.StepStopped:  # stopped while it was under way: tried again next run
-                        outcome = None
-                    if outcome is not None and outcome.later:
+                    except (runcontrol.StepStopped, CancelledError):  # stopped under way or before it started
+                        outcome = earlier  # a resumed paper keeps its place; a new one is tried again next run
+                    if outcome is not None and outcome.later and earlier is None and not stopped():
                         later.append((candidate, outcome))
-                    else:
+                    elif outcome is not None:
                         done += 1
                         finish(candidate, outcome, done)
-                    if stopped():
+                    if stopped() and not stop_said:
+                        stop_said = True
                         for pending in futures:
                             pending.cancel()
-                        logging.info("Stop requested — the papers not yet started were cancelled; the next download "
-                                     "goes on with them.")
-                        return False
-                return True
+                        logging.info("Stop requested — the papers not yet started were cancelled (the next download "
+                                     "goes on with them); the papers under way are filed as they end.")
+                return not stop_said
 
             with ThreadPoolExecutor(max_workers=self.job.fetch.workers) as pool:
-                if drain({pool.submit(run, c): c for c in todo}) and later:
+                if drain({pool.submit(run, c): (c, None) for c in todo}) and later:
                     sites = Counter(_host(option.url) for _, outcome in later for option in outcome.later)
                     logging.info(f"{len(later)} paper(s) were left for the end of this batch: "
                                  + ", ".join(f"{host} ({n})" for host, n in sites.most_common(5))
@@ -881,7 +902,11 @@ class Harvest:
                     # The site ready soonest first, so that no worker waits while another site could be asked.
                     resumed, later[:] = sorted(later, key=lambda item: min(
                         self.client.wait_for(_host(option.url)) for option in item[1].later)), []
-                    drain({pool.submit(run, c, outcome): c for c, outcome in resumed})
+                    drain({pool.submit(run, c, outcome): (c, outcome) for c, outcome in resumed})
+                for candidate, outcome in later:  # set aside, and the step stopped before their sites' turn
+                    done += 1
+                    finish(candidate, outcome, done)
+                later.clear()
         self.email_problem = self.email_problem or resolver.email_problem
         self.down = getattr(self, "down", set()) | resolver.down
         return missed
