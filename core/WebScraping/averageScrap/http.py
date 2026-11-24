@@ -45,6 +45,8 @@ _MAX_WAIT = 60.0
 # of the run, instead of the same pace that ran into the limit.
 _SLOWED = 6.0
 _MAX_SLOWED = 30.0
+# A host slowed by a 429 that has had this long without a request from us has had its rest: it is back to its own pace.
+_RELIEF = 10 * 60.0
 
 
 class HttpError(RuntimeError):
@@ -177,20 +179,34 @@ class PoliteClient:
         self._next: Dict[str, float] = {}
         self._robots: Dict[str, Optional[_Robots]] = {}
         self._crawl_delay: Dict[str, float] = {}
-        self._slowed: Dict[str, float] = {}  # host -> the interval a 429 asked for (this run)
+        self._slowed: Dict[str, float] = {}  # host -> the interval a 429 asked for (until it has had _RELIEF of rest)
+        self._last: Dict[str, float] = {}    # host -> when its last request was sent (or is to be)
 
     # ------------------------------------------------------------------
     # Spacing
     # ------------------------------------------------------------------
     def _wait(self, host: str) -> None:
-        interval = max(_MIN_INTERVAL.get(host, _DEFAULT_INTERVAL), self._crawl_delay.get(host, 0.0),
-                       self._slowed.get(host, 0.0))
+        relieved = 0.0
         with self._lock:  # reserve a slot under the lock, sleep outside it so other hosts aren't held up
             now = self._clock()
+            if host in self._slowed and now - self._last.get(host, now) >= _RELIEF:
+                relieved = self._slowed.pop(host)  # it has had its rest
+            interval = max(_MIN_INTERVAL.get(host, _DEFAULT_INTERVAL), self._crawl_delay.get(host, 0.0),
+                           self._slowed.get(host, 0.0))
             slot = max(now, self._next.get(host, 0.0))
             self._next[host] = slot + interval
+            self._last[host] = slot
+        if relieved:
+            logging.info(f"{host} has had {_RELIEF / 60:g} minutes without a request: back to its own pace (it was one "
+                         f"request every {relieved:g} s).")
         if slot > now:
             self._sleep(slot - now)
+
+    def wait_for(self, host: str) -> float:
+        """The seconds before the next request to `host` may be sent (0: now). The download asks before it waits:
+        a host that wants time is left for later, and other sites are asked meanwhile."""
+        with self._lock:
+            return max(0.0, self._next.get(host, 0.0) - self._clock())
 
     # ------------------------------------------------------------------
     # robots.txt (RFC 9309: no robots.txt or a 4xx = everything allowed; a 5xx or no answer = nothing)
@@ -291,8 +307,10 @@ class PoliteClient:
             if after <= self._slowed.get(host, 0.0):
                 return
             self._slowed[host] = after
+            self._next[host] = max(self._next.get(host, 0.0), self._clock() + after)  # its rest starts now
         logging.info(f"{host} asked to slow down (HTTP 429, too many requests from this network): one request "
-                     f"every {after:g} s to it for the rest of this run.")
+                     f"every {after:g} s to it, until it has had {_RELIEF / 60:g} minutes without one. The download "
+                     "goes on with the other sites meanwhile and comes back to it.")
 
     def get_json(self, url: str, params: Optional[Dict[str, Any]] = None,
                  headers: Optional[Dict[str, str]] = None, timeout: Optional[float] = None) -> Any:
