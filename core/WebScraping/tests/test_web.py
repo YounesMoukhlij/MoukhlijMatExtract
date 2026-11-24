@@ -917,6 +917,55 @@ class DownloaderTests(unittest.TestCase):
         blocks.refused("repo.example.org")
         self.assertFalse(blocks.blocked("repo.example.org"))
 
+    def test_a_site_that_wants_time_is_left_for_later_and_the_other_sources_are_asked_meanwhile(self):
+        """A site slowed by a 429 (or a long crawl delay) is not waited for: the paper's next source is asked at once."""
+        import time
+        d = self.downloader(
+            [("slow.example.org", FakeResponse(200, self.pdf, {"Content-Type": "application/pdf"})),
+             ("quick.example.org", FakeResponse(200, self.pdf, {"Content-Type": "application/pdf"}))],
+            [FetchOption("openalex", "https://slow.example.org/p.pdf"), FetchOption("unpaywall", "https://quick.example.org/p.pdf")])
+        d.client._next["slow.example.org"] = time.monotonic() + 60  # its next request may go in a minute
+        outcome = d.fetch(candidate())
+        self.assertEqual((outcome.status, outcome.service), (DOWNLOADED, "unpaywall"))
+        self.assertEqual(self.session.hits("slow.example.org"), 0)  # never waited for
+
+    def test_a_paper_only_a_busy_site_has_is_taken_up_again_on_that_site_alone(self):
+        """No other source has it: the paper is not filed, its link is left for later (`later`); taken up again, only
+        that link is asked — the sources that failed before are not asked twice."""
+        import time
+        d = self.downloader(
+            [("gone.example.org", FakeResponse(404)),
+             ("slow.example.org", FakeResponse(200, self.pdf, {"Content-Type": "application/pdf"}))],
+            [FetchOption("openalex", "https://gone.example.org/p.pdf"), FetchOption("repository", "https://slow.example.org/p.pdf")])
+        d.client._next["slow.example.org"] = time.monotonic() + 60
+        first = d.fetch(candidate())
+        self.assertEqual([o.url for o in first.later], ["https://slow.example.org/p.pdf"])
+        self.assertIn("left for later: slow.example.org", first.error)
+        d.client._next["slow.example.org"] = 0.0  # it has had its rest
+        second = d.fetch(candidate(), first)
+        self.assertEqual((second.status, second.service), (DOWNLOADED, "repository"))
+        self.assertEqual(self.session.hits("gone.example.org/p.pdf"), 1)
+
+    def test_too_many_requests_is_not_waited_out_paper_by_paper(self):
+        """A 429 while downloading comes straight back (no 15-60 s wait in the worker): the link is left for later."""
+        d = self.downloader([("busy.example.org", FakeResponse(429))], [FetchOption("openalex", "https://busy.example.org/p.pdf")])
+        outcome = d.fetch(candidate())
+        self.assertEqual(self.session.hits("busy.example.org/p.pdf"), 1)
+        self.assertEqual([o.url for o in outcome.later], ["https://busy.example.org/p.pdf"])
+        self.assertGreater(d.client.wait_for("busy.example.org"), 0)  # its rest has started
+        resumed = d.fetch(candidate(), outcome)  # taken up again: now it is waited for (the retries of the client)
+        self.assertEqual((resumed.later, resumed.refused), ([], ["openalex"]))  # still busy: the watcher's rounds
+
+    def test_a_slowed_site_that_had_its_rest_is_back_to_its_own_pace(self):
+        now = [0.0]
+        client = PoliteClient(session=FakeSession(), sleep=lambda seconds: None, clock=lambda: now[0])
+        client._slow_down("busy.example.org")
+        self.assertIn("busy.example.org", client.slowed())
+        client._wait("busy.example.org")
+        now[0] += 11 * 60  # eleven minutes without a request
+        client._wait("busy.example.org")
+        self.assertNotIn("busy.example.org", client.slowed())
+
     def test_a_publisher_apis_403_is_about_the_subscription_and_blocks_nothing(self):
         blocks = SiteBlocks(after=1)
         self.session = FakeSession([("api.elsevier.com", FakeResponse(403))])
@@ -1053,6 +1102,25 @@ class ResolverTests(unittest.TestCase):
         now[0] += resolve._BENCH_SECONDS + 1
         session.routes = [("busy.example.org", FakeResponse(200, json_data={"ok": True}))]
         self.assertEqual(resolver._ask("Busy", "https://busy.example.org/api"), {"ok": True})  # asked again
+
+    def test_semantic_scholar_is_asked_about_a_whole_download_in_batches_not_paper_by_paper(self):
+        """One request a paper ran into Semantic Scholar's limit (HTTP 429) download after download: its batch endpoint
+        answers 500 DOIs in one request. Its answers are then used as they are — a paper it does not know is not asked
+        again on its own."""
+        from WebScraping.averageScrap import resolve
+        def batch(url, body, headers):
+            return FakeResponse(200, json_data=[
+                {"externalIds": {"ArXiv": "2101.00001"}, "openAccessPdf": None} if i == "DOI:10.1/a" else None
+                for i in body["ids"]])
+        session = FakeSession([("paper/batch", batch)])
+        resolver = Resolver(client_for(session), ["semanticscholar"], "")
+        papers = [candidate(key=f"10.1/{x}", doi=f"10.1/{x}") for x in "abc"]
+        with mock.patch.object(resolve, "S2_BATCH_SIZE", 2):
+            self.assertEqual(resolver.prefetch(papers), 3)
+        self.assertEqual(session.hits("paper/batch"), 2)  # 3 DOIs, 2 a request
+        self.assertEqual([o.url for o in resolver.options(papers[0])], ["https://arxiv.org/pdf/2101.00001"])
+        self.assertEqual(list(resolver.options(papers[1])), [])
+        self.assertEqual(session.hits("graph/v1/paper/DOI:"), 0)  # nothing asked paper by paper
 
     def test_europe_pmc_is_asked_the_light_way_and_given_time_to_answer(self):
         """Europe PMC answers a DOI query in 12 to 39 s ("core" results): past the client's 30 s it was taken for
@@ -1711,6 +1779,21 @@ class HarvestTests(unittest.TestCase):
         for expected in (FAILED, FAILED, CLOSED):
             self.run_stage(start="fetch")
             self.assertEqual(self.harvest.ledger.get("10.1000/good").status, expected)
+
+    def test_a_paper_whose_site_asks_for_time_is_downloaded_at_the_end_of_the_same_batch(self):
+        """A 429 while downloading: the paper is left for the end of the batch (the others go first), then its site is
+        asked again at its own pace — the paper comes in the same batch, without waiting minutes for a round."""
+        good = self.session.routes[1]
+        self.session.routes[1] = ("repo.example.org/good.pdf", [FakeResponse(429), good[1]])
+        self.run_stage(start="discover")
+        waits = []
+        self.harvest.watcher.sleep, self.harvest.watcher.say = waits.append, lambda text: None
+        with self.assertLogs(level="INFO") as said:
+            results = self.harvest.fetch()
+        self.assertEqual(self.harvest.ledger.get("10.1000/good").status, DOWNLOADED)
+        self.assertEqual((results[DOWNLOADED], results["waiting"]), (1, 0))
+        self.assertEqual(waits, [])  # no round of the watcher was needed
+        self.assertIn("left for the end of this batch: repo.example.org", "\n".join(said.output))
 
     def test_a_paper_a_busy_site_refuses_waits_on_the_watch_list_and_is_fetched_on_a_later_round(self):
         """HTTP 503 (busy) or 429 is not an answer: the paper is not counted as a failed try, nor closed;

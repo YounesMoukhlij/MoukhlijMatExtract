@@ -21,7 +21,7 @@ from LocalExtraction import runcontrol
 from WebScraping.averageScrap import screening
 from WebScraping.averageScrap import abstracts, by_hand, download_log, learn, sources
 from WebScraping.averageScrap.elsevier import Elsevier
-from WebScraping.averageScrap.fetch import HAND_LIST, NOT_ENTITLED_MARK, Downloader, Outcome, SiteBlocks
+from WebScraping.averageScrap.fetch import HAND_LIST, NOT_ENTITLED_MARK, Downloader, Outcome, SiteBlocks, _host
 from WebScraping.averageScrap.http import HttpError, PoliteClient
 from WebScraping.averageScrap.ids import arxiv_id, candidate_key, normalize_doi
 from WebScraping.averageScrap.job import KEY_SIGNUP, Job
@@ -795,6 +795,12 @@ class Harvest:
             self.blocks = SiteBlocks()
         downloader = Downloader(self.folder, self.client, resolver, self.job.fetch.max_pdf_mb, blocks=self.blocks)
         missed = 0
+        try:  # Semantic Scholar asked about every paper at once (500 a request), not paper by paper
+            resolver.prefetch([c for c in todo if not (stop_event is not None and stop_event.is_set())])
+        except runcontrol.StepStopped:
+            raise
+        except Exception as error:  # a prefetch that fails leaves the lookups to be made one by one
+            logging.info(f"Semantic Scholar could not be asked ahead: {error}")
 
         def finish(candidate: Candidate, outcome: Optional[Outcome], done: int) -> None:
             nonlocal missed
@@ -819,36 +825,63 @@ class Harvest:
                 except Exception as error:  # what shows the progress must not stop the run
                     logging.warning(f"progress_callback raised for {candidate.key}: {error}")
 
-        def run(candidate: Candidate) -> Optional[Outcome]:
+        def run(candidate: Candidate, resume: Optional[Outcome] = None) -> Optional[Outcome]:
             try:
-                return runcontrol.task(stop_event, downloader.fetch, candidate)()
+                return runcontrol.task(stop_event, downloader.fetch, candidate,
+                                       *([resume] if resume is not None else []))()
             except runcontrol.StepStopped:  # stopped while it was under way: tried again next run
                 raise
             except Exception as error:  # one bad paper must not stop a long run
                 return Outcome(candidate.key, FAILED, error=f"{type(error).__name__}: {error}")
 
+        stopped = lambda: stop_event is not None and stop_event.is_set()  # noqa: E731
         if spacing:
             for done, candidate in enumerate(todo, 1):
                 if done > 1:
                     self.client.pause(spacing)
-                if stop_event is not None and stop_event.is_set():
+                if stopped():
                     break
-                finish(candidate, run(candidate), done)
+                outcome = run(candidate)
+                if outcome is not None and outcome.later:  # one paper at a time already: its site's turn is waited
+                    outcome = run(candidate, outcome)
+                finish(candidate, outcome, done)
         else:
-            with ThreadPoolExecutor(max_workers=self.job.fetch.workers) as pool:
-                futures = {pool.submit(run, c): c for c in todo}
-                for done, future in enumerate(as_completed(futures), 1):
+            done = 0
+            later: List[Tuple[Candidate, Outcome]] = []  # papers whose sites wanted time: taken up at the end
+
+            def drain(futures: Dict) -> bool:
+                """Files the papers as they end; False when a stop was asked (the papers not started are cancelled)."""
+                nonlocal done
+                for future in as_completed(futures):
+                    candidate = futures[future]
                     try:
                         outcome = future.result()
                     except runcontrol.StepStopped:  # stopped while it was under way: tried again next run
                         outcome = None
-                    finish(futures[future], outcome, done)
-                    if stop_event is not None and stop_event.is_set():
+                    if outcome is not None and outcome.later:
+                        later.append((candidate, outcome))
+                    else:
+                        done += 1
+                        finish(candidate, outcome, done)
+                    if stopped():
                         for pending in futures:
                             pending.cancel()
                         logging.info("Stop requested — the papers not yet started were cancelled; the next download "
                                      "goes on with them.")
-                        break
+                        return False
+                return True
+
+            with ThreadPoolExecutor(max_workers=self.job.fetch.workers) as pool:
+                if drain({pool.submit(run, c): c for c in todo}) and later:
+                    sites = Counter(_host(option.url) for _, outcome in later for option in outcome.later)
+                    logging.info(f"{len(later)} paper(s) were left for the end of this batch: "
+                                 + ", ".join(f"{host} ({n})" for host, n in sites.most_common(5))
+                                 + " asked for time, so the other papers and sources went first. They are taken up "
+                                 "now, each site at its own pace.")
+                    # The site ready soonest first, so that no worker waits while another site could be asked.
+                    resumed, later[:] = sorted(later, key=lambda item: min(
+                        self.client.wait_for(_host(option.url)) for option in item[1].later)), []
+                    drain({pool.submit(run, c, outcome): c for c, outcome in resumed})
         self.email_problem = self.email_problem or resolver.email_problem
         self.down = getattr(self, "down", set()) | resolver.down
         return missed

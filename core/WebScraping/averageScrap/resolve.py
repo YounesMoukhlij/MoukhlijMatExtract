@@ -69,6 +69,10 @@ NOT_FOUND_ADVICE = (
     "  • your library, or a request to the authors — put the PDF in WebScraping/papers/ and “4 · Extract” "
     "reads it.")
 SEMANTIC_SCHOLAR = "https://api.semanticscholar.org/graph/v1/paper"
+# Up to 500 papers in one request (Semantic Scholar's batch endpoint): a download of 1,749 papers asks 4 times, not
+# 1,749 — one request a paper ran into its limit ("too many requests", HTTP 429) download after download.
+SEMANTIC_SCHOLAR_BATCH = f"{SEMANTIC_SCHOLAR}/batch?fields=externalIds,openAccessPdf"
+S2_BATCH_SIZE = 500
 SPRINGER_OA = "https://api.springernature.com/openaccess/json"
 OPENALEX_WORKS = "https://api.openalex.org/works"
 # What ties a paper to the US Department of Energy, in OpenAlex's records: the DOE (OpenAlex funder F4320306084) or one
@@ -185,6 +189,9 @@ class Resolver:
         self.elsevier, self.wiley = elsevier, wiley
         key = os.environ.get("SEMANTIC_SCHOLAR_API_KEY", "").strip()
         self._semantic_scholar_key = {"x-api-key": key} if key else None
+        # Semantic Scholar's answers asked ahead for a whole download (prefetch): DOI -> its record, None when it does
+        # not know the paper. A DOI not in it is asked on its own.
+        self._s2_known: Dict[str, Optional[Dict[str, Any]]] = {}
         key = os.environ.get("CORE_API_KEY", "").strip()
         self._core_key = {"Authorization": f"Bearer {key}"} if key else None
         self._springer_oa_key = os.environ.get("SPRINGER_NATURE_OA_KEY", "").strip()
@@ -485,14 +492,45 @@ class Resolver:
         if c.arxiv_id:
             yield FetchOption("arxiv", f"https://arxiv.org/pdf/{c.arxiv_id}", license="arxiv")
 
+    def prefetch(self, candidates: List[Candidate]) -> int:
+        """Semantic Scholar asked about the DOIs of these papers ahead, S2_BATCH_SIZE in one request (its batch
+        endpoint), instead of one request a paper during the download. Returns how many DOIs it answered for. A batch
+        it refuses or that fails ends the prefetch: the papers left are asked one by one, as before."""
+        if "semanticscholar" not in self.sources:
+            return 0
+        dois = list(dict.fromkeys(c.doi for c in candidates if c.doi and c.doi not in self._s2_known))
+        answered = 0
+        for start in range(0, len(dois), S2_BATCH_SIZE):
+            chunk = dois[start:start + S2_BATCH_SIZE]
+            try:
+                records = self.client.post_json(SEMANTIC_SCHOLAR_BATCH, {"ids": [f"DOI:{doi}" for doi in chunk]},
+                                                headers=self._semantic_scholar_key)
+            except (HttpError, requests.RequestException, ValueError) as error:
+                logging.info(f"Semantic Scholar: the batch of {len(chunk)} DOIs was not answered ({error}); the papers "
+                             "left are asked one by one.")
+                break
+            if not isinstance(records, list) or len(records) != len(chunk):
+                logging.info("Semantic Scholar: its batch answer could not be read; the papers left are asked one by one.")
+                break
+            with self._lock:
+                for doi, record in zip(chunk, records):
+                    self._s2_known[doi] = record if isinstance(record, dict) else None
+            answered += len(chunk)
+        if answered:
+            logging.info(f"Semantic Scholar: {answered:,} DOI(s) asked in {-(-answered // S2_BATCH_SIZE)} request(s).")
+        return answered
+
     def _semanticscholar(self, c: Candidate) -> Iterator[FetchOption]:
         """The arXiv version of a journal paper, which Semantic Scholar matches to it, and the
         repository copy it knows of. (The publisher's own link it lists for an open-access paper is
-        the one OpenAlex gave already.)"""
+        the one OpenAlex gave already.) Its answer asked ahead (prefetch) when there is one."""
         if not c.doi:
             return
-        data = self._ask("Semantic Scholar", f"{SEMANTIC_SCHOLAR}/DOI:{c.doi}",
-                         {"fields": "externalIds,openAccessPdf"}, self._semantic_scholar_key)
+        if c.doi in self._s2_known:
+            data = self._s2_known[c.doi]
+        else:
+            data = self._ask("Semantic Scholar", f"{SEMANTIC_SCHOLAR}/DOI:{c.doi}",
+                             {"fields": "externalIds,openAccessPdf"}, self._semantic_scholar_key)
         if not isinstance(data, dict):
             return
         preprint = arxiv_id(str((data.get("externalIds") or {}).get("ArXiv") or ""))

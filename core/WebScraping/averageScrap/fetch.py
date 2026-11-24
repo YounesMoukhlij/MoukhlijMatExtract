@@ -58,6 +58,10 @@ _NOT_ENTITLED = {
 # papers to download by hand (HAND_LIST).
 BLOCK_AFTER = 3
 SITE_BLOCKED_MARK = "refuses automated downloads"
+# A site whose next request may not go for this many seconds (it asked to slow down, or its robots.txt asks for a
+# crawl delay) is not waited for: the paper's other sources are asked meanwhile, and the paper comes back to that site
+# at the end of the batch, when it has had its rest.
+DEFER_SECONDS = 10.0
 # Addresses that only send a request on to the publisher (a DOI link): the site that refused is the one they led to.
 _REDIRECTORS = {"doi.org", "dx.doi.org", "hdl.handle.net", "linkinghub.elsevier.com"}
 
@@ -183,6 +187,14 @@ class Outcome:
     # The lookups not asked about this paper, being left alone for a few minutes after failing again and again: the
     # paper was not checked there, but it is not held for them — filed with what the others answered, asked next run.
     skipped: List[str] = field(default_factory=list)
+    # The links left for later, their site wanting time (DEFER_SECONDS, or a 429): the paper is not filed yet — it is
+    # taken up again at the end of the batch (Downloader.fetch with `resume`), on these links only.
+    later: List[FetchOption] = field(default_factory=list)
+    # What the first pass found, for the second: why each link it tried failed, the lookups that refused, and how many
+    # links it skipped for a blocked site.
+    tried: List[str] = field(default_factory=list)
+    lookups_refused: List[str] = field(default_factory=list)
+    blocked_skips: int = 0
     # Every site that had this paper was skipped, being blocked for the run (SiteBlocks): the paper itself
     # was not asked for, so the try does not count against it.
     not_asked: bool = False
@@ -236,11 +248,12 @@ class Downloader:
             if time.monotonic() - started > DOWNLOAD_SECONDS:
                 return None, f"too slow: not in whole after {DOWNLOAD_SECONDS // 60} minutes"
 
-    def _attempt(self, option: FetchOption) -> Tuple[Optional[bytes], str]:
-        """The bytes an option gives, or (None, why not)."""
+    def _attempt(self, option: FetchOption, patient: bool = True) -> Tuple[Optional[bytes], str]:
+        """The bytes an option gives, or (None, why not). Not `patient`, a "too many requests" (429) comes straight
+        back, instead of being waited out: the link is left for later and the other sources are asked meanwhile."""
         try:
             response = self.client.get(option.url, headers=option.headers or None, stream=True, api=option.api,
-                                       no_retry={429} if option.service in _ALLOWANCE else ())
+                                       no_retry={429} if option.service in _ALLOWANCE or not patient else ())
         except Disallowed:
             return None, "robots.txt does not allow it"
         except requests.RequestException as error:
@@ -279,7 +292,7 @@ class Downloader:
                     finder.feed(body.decode("utf-8", errors="replace"))
                     if finder.url:
                         return self._attempt(FetchOption(option.service, urljoin(option.url, finder.url),
-                                                         license=option.license))
+                                                         license=option.license), patient)
                     return None, "a web page that links to no PDF"
                 return None, "a web page, not a PDF"
             return body, ""
@@ -313,7 +326,14 @@ class Downloader:
             return False
         return service not in UNRECORDED_SOURCES
 
-    def fetch(self, candidate: Candidate) -> Outcome:
+    def fetch(self, candidate: Candidate, resume: Optional[Outcome] = None) -> Outcome:
+        """The paper's PDF from the first of its options that gives it. A site that wants time (DEFER_SECONDS, or
+        a "too many requests") is not waited for: its link is left for later and the other options are tried; when
+        none gave the paper, the outcome carries the links left (`later`) and the paper is not filed yet. `resume`
+        (that outcome) takes the paper up again on those links only, waiting for each site's turn."""
+        if resume is not None:
+            return self._walk(candidate, iter(resume.later), patient=True, tried=list(resume.tried), offered=True,
+                              skipped=resume.blocked_skips, earlier=resume)
         existing = self._on_disk(candidate)
         if existing and self._legal_record(existing):
             with open(existing, "rb") as f:
@@ -325,17 +345,28 @@ class Downloader:
                 from LocalExtraction.fileurls import file_url  # a link right on every system
                 return self._save(candidate, FetchOption("already in the folder", file_url(existing)), data,
                                   check, path=existing)
-        tried, offered, skipped = [], False, 0
-        for option in self.resolver.options(candidate):
+        return self._walk(candidate, self.resolver.options(candidate), patient=False, tried=[], offered=False, skipped=0)
+
+    def _walk(self, candidate: Candidate, options, patient: bool, tried: List[str], offered: bool, skipped: int,
+              earlier: Optional[Outcome] = None) -> Outcome:
+        later: List[FetchOption] = []
+        for option in options:
             if option.service in self._disabled:
                 continue
             offered = True
-            if option.service not in _NOT_ENTITLED and self.blocks.blocked(_host(option.url)):
-                tried.append(f"{option.service}: {_host(option.url)} {SITE_BLOCKED_MARK} (HTTP 403), skipped this run")
+            host = _host(option.url)
+            if option.service not in _NOT_ENTITLED and self.blocks.blocked(host):
+                tried.append(f"{option.service}: {host} {SITE_BLOCKED_MARK} (HTTP 403), skipped this run")
                 skipped += 1
                 continue
-            data, reason = self._attempt(option)
+            if not patient and option.service not in _ALLOWANCE and self.client.wait_for(host) > DEFER_SECONDS:
+                later.append(option)  # its site wants time: the other options first
+                continue
+            data, reason = self._attempt(option, patient)
             if data is None:
+                if reason == "HTTP 429" and not patient and option.service not in _ALLOWANCE:
+                    later.append(option)  # "too many requests": the other options first, this one again at the end
+                    continue
                 tried.append(f"{option.service}: {reason}")
                 continue
             check = check_pdf(data, candidate.title)
@@ -351,9 +382,13 @@ class Downloader:
                 tried.append(f"{option.service}: {check.reason}")
                 continue
             return self._save(candidate, option, data, check)
-        refused = list(dict.fromkeys([*self.resolver.refused(),
-                                      *(t.split(":", 1)[0] for t in tried if _NOT_NOW.search(t))]))
-        lookups_skipped = self.resolver.skipped()
+        lookups_refused = earlier.lookups_refused if earlier is not None else self.resolver.refused()
+        lookups_skipped = earlier.skipped if earlier is not None else self.resolver.skipped()
+        if later:  # not filed yet: taken up again at the end of the batch, on these links
+            hosts = ", ".join(dict.fromkeys(_host(option.url) for option in later))
+            return Outcome(candidate.key, FAILED, error=f"left for later: {hosts} asked for time", later=later,
+                           tried=tried, lookups_refused=lookups_refused, skipped=lookups_skipped, blocked_skips=skipped)
+        refused = list(dict.fromkeys([*lookups_refused, *(t.split(":", 1)[0] for t in tried if _NOT_NOW.search(t))]))
         if refused:  # not an answer: a lookup or a site said "not now"
             return Outcome(candidate.key, FAILED, error="; ".join(tried)[:500] or "not checked: " + ", ".join(refused),
                            refused=refused, skipped=lookups_skipped)
