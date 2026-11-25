@@ -126,5 +126,22 @@ if os.name == "nt":  # Windows: a window drawn fully transparent is skipped by â
             return _attributes(self, *args, **kwargs)
 
         _tk.Wm.wm_attributes = _tk.Wm.attributes = _seen_by_windows
+
+        _tk_init = _tk.Tk.__init__
+
+        def _tk_started(self, *args, **kwargs):
+            """On the Windows runners of GitHub, starting Tk now and then fails with "Can't find a usable init.tcl"
+            (or tk.tcl) although the files are there â€” a different test each time, one in about a thousand windows.
+            That failure, and only that one, is tried again (three times, a moment apart): any other error is raised."""
+            import time
+            for attempt in range(3):
+                try:
+                    return _tk_init(self, *args, **kwargs)
+                except _tk.TclError as error:
+                    if "Can't find a usable" not in str(error) or attempt == 2:
+                        raise
+                    time.sleep(0.5)
+
+        _tk.Tk.__init__ = _tk_started
     except ImportError:
         pass
