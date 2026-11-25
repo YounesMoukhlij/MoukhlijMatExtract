@@ -111,9 +111,11 @@ workbook for that. The judgements behind this table are kept with the audit, not
   value goes to LiBH4. A material named in a role that is never the sample takes no value — an electrode of
   a battery ("NCA//Li", "a LiFePO4 full cell"), a reagent ("NaH2PO4 as a phosphate source"), a filler, the
   salt of a polymer electrolyte, a group of a longer name ("TpPa-SO3Li"); such a value is kept without a
-  material (`unassigned_values.csv`). A doped sample a paper calls by its parent's name ("the Ta-doped
-  LLZO") is given to the parent compound, and flagged (`needs_check`: doped sample). The worked example
-  (`examples/`) shows the first case.
+  material (`unassigned_values.csv`). A doped sample a paper names after its parent ("Ta-LLZO", "the
+  Ta-doped LLZO", "Al-substituted Li7La3Zr2O12") is a material of its own, `Ta-doped Li7La3Zr2O12`, ranked
+  apart from the parent; it carries the parent's composition, since the dopant's amount is not in its name. A
+  value whose sentence speaks of a doped sample without naming it is flagged (`needs_check`: doped sample). The
+  worked example (`resources/examples/`) shows the first case.
 - **Transport component.** Bulk / grain boundary / total / surface is taken from the paper's words and from
   table headers (Ea,bulk, σ gb, σ tot); without them it is assumed (total for a conductivity) and the basis
   column says so. Filter on `n_assumed` before drawing conclusions from a component.

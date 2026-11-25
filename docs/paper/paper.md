@@ -25,7 +25,7 @@ bibliography: paper.bib
 # Summary
 
 MoukhlijMatExtract (MME) builds databases of ion-transport properties from the scientific literature on battery
-materials: solid-state electrolytes, cathodes and anodes. It searches 25 open bibliographic services and
+materials: solid-state electrolytes, cathodes and anodes. It searches 25 bibliographic services and
 OpenAlex's full-text index for the papers that report activation energies, ionic and electronic conductivities and
 diffusion coefficients. It downloads only legally available copies (open access, publishers' text-and-data-mining
 interfaces, institutional repositories) and extracts every value with its unit converted, its material resolved to
@@ -50,7 +50,7 @@ MME is built for materials scientists without a text-mining background, and for 
 check any number. Its design choices follow from that audience:
 
 - **Scale, legally.** Each job file targets a domain or family. Keyword searches, citation snowballing and
-  full-text searches find the candidate papers; a transparent score proposes them; seventeen copy sources are tried
+  full-text searches find the candidate papers; a transparent score proposes them; eighteen copy sources are tried
   in turn. Rate limits, `robots.txt` and refusals are respected, and no paywall or bot check is bypassed.
 - **Traceability.** Every value can be traced to its sentence and table cell, and every assumption (for example a
   component inferred rather than stated) is recorded in a `basis` column. Each run writes a manifest with the
@@ -78,7 +78,7 @@ MME is written in Python. PDFs are read with PyMuPDF, scanned pages with Tessera
 parsed with spaCy [@spaCy] or scispaCy [@Neumann2019]. Discovery uses OpenAlex [@Priem2022] and 24 further services;
 compositions can be linked to Materials Project entries [@Jain2013]. The packages are: `LocalExtraction` (the
 extraction engine), `WebScraping` (discovery, screening, legal download, resumable ledger), `SelectingTopMaterial`
-(ranking), `Classification`, `MLDataset`, `Evaluation` and `Release`. A test suite of about 940 tests runs on every
+(ranking), `Classification`, `MLDataset`, `Evaluation` and `Release`. A test suite of about 1,000 tests runs on every
 push on Linux (Python 3.11–3.13), Windows and macOS; a pinned lock file and a Dockerfile reproduce the environment,
 and `make paper` regenerates every table and figure of a study from its data.
 
@@ -89,7 +89,7 @@ papers, downloaded 918 legal copies and extracted 1,041 activation energies and 
 930 papers. Full-text search adds the papers whose abstracts do not mention the property: in a test on garnets it
 re-proposed 229 papers the abstract-based screening had turned down.
 
-The number itself is read correctly for about 95 % of values, but assigning it to the right material is harder: in
+The number itself was read correctly for 76 of 80 values (95 %; Wilson interval 88–98 %), but assigning it to the right material is harder: in
 an independent audit of activation energies, 37–41 % of values were correct in every attribute (number, material,
 component, origin, kind of energy), and recall against curated databases is limited by values reported only in
 figures. These measurements, and how to reproduce them, are documented with the software; the `needs_check`

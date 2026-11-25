@@ -5,15 +5,15 @@ installation gives the results it should. It extracts the values of two open-acc
 materials and classifies them:
 
 ```bash
-make demo        # from the source folder; the results go to examples/output/
+make demo        # from the source folder; the results go to resources/examples/output/
 ```
 
 or, step by step, from the source folder:
 
 ```bash
-mme-local extract -i "$PWD/examples/papers" -o "$PWD/examples/output/database" --offline
-mme-rank     --source "$PWD/examples/output/database" --out "$PWD/examples/output/ranking"
-mme-classify --source "$PWD/examples/output/database" --out "$PWD/examples/output/classes"
+mme-local extract -i "$PWD/resources/examples/papers" -o "$PWD/resources/examples/output/database" --offline
+mme-rank     --source "$PWD/resources/examples/output/database" --out "$PWD/resources/examples/output/ranking"
+mme-classify --source "$PWD/resources/examples/output/database" --out "$PWD/resources/examples/output/classes"
 ```
 
 The commands work from the project folder `~/MoukhlijMatExtract`, so a relative path is read from there;
