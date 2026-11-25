@@ -280,6 +280,10 @@ class EvaluationDialog(Dialog):
 
 def evaluate_button(parent: tk.Misc, source: Callable[[], str], part: str, title: str) -> ttk.Button:
     """The “Evaluate…” button of a part's window: opens the evaluation of the results folder `source()` gives."""
-    return ttk.Button(parent, text="Evaluate…",
-                      command=lambda: open_once(f"evaluate:{part}", f"Evaluate — {title}", parent,  # once per part
-                                                lambda: EvaluationDialog(parent, os.path.abspath(source()), part, title)))
+    def open_it() -> None:
+        # Once per results folder: another job's folder (each web job has its own) opens its own evaluation, not the
+        # window left open on the folder of the job chosen before.
+        folder = os.path.abspath(source())
+        open_once(f"evaluate:{part}:{folder}", f"Evaluate — {title}", parent,
+                  lambda: EvaluationDialog(parent, folder, part, title))
+    return ttk.Button(parent, text="Evaluate…", command=open_it)

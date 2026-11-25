@@ -1434,6 +1434,40 @@ class HarvestTests(unittest.TestCase):
             code = self.harvest.run(job_path="job.yaml", **kwargs)
         return code, out.getvalue(), pipeline
 
+    def test_the_whole_pipeline_is_counted_and_said_after_the_search_and_the_download(self):
+        """Found → scored → proposed → tried → downloaded → extracted, every run together, with what is left."""
+        from WebScraping.averageScrap.harvest import pipeline_counts, pipeline_text
+        self.assertIn("no paper found yet", pipeline_text(pipeline_counts(self.harvest.ledger)))
+        with self.assertLogs(level="INFO") as said:
+            self.run_stage(start="discover")
+        self.assertIn("Whole pipeline: 2 papers found → 2 scored → 1 proposed for download (1 turned down) → 0 tried",
+                      "\n".join(said.output))
+        self.harvest.ledger.add(Candidate(key="10.1000/new", doi="10.1000/new"))  # found, not scored yet
+        with self.assertLogs(level="INFO") as said:
+            self.harvest.fetch()
+        counts = pipeline_counts(self.harvest.ledger)
+        self.assertEqual({name: counts[name] for name in ("found", "scored", "not_scored", "proposed", "tried",
+                                                          "downloaded", "to_download", "turned_down")},
+                         {"found": 3, "scored": 2, "not_scored": 1, "proposed": 1, "tried": 1, "downloaded": 1,
+                          "to_download": 0, "turned_down": 1})
+        self.assertIn("3 papers found → 2 scored (1 not yet) → 1 proposed for download (1 turned down) → 1 tried → "
+                      "1 downloaded (100 % of those tried) → 0 extracted.", "\n".join(said.output))
+
+    def test_the_search_rounds_do_not_wait_for_a_source_that_cannot_be_asked(self):
+        """A search waiting on a source whose key is missing (or was refused this run) would be refused again however
+        long the wait: no round waits minutes for it; it stays listed for the next run."""
+        self.job.search.sources = ["openalex", "scopus"]  # Scopus: ELSEVIER_API_KEY, not set here
+        self.harvest.watcher.defer("search", "solid electrolyte", "scopus", "too many requests (HTTP 429)")
+        waits = []
+        self.harvest.watcher.sleep, self.harvest.watcher.say = waits.append, lambda text: None
+        self.assertEqual(self.harvest._recheck_searches(refresh=False), 0)
+        self.assertEqual(waits, [])
+        self.assertEqual([row["service"] for row in self.harvest.watcher.pending("search")], ["scopus"])
+        self.harvest._keys_refused = {"openalex"}  # a key refused this run: the same
+        self.harvest.watcher.defer("search", "solid electrolyte", "openalex", "too many requests (HTTP 429)")
+        self.assertEqual(self.harvest._recheck_searches(refresh=False), 0)
+        self.assertEqual(waits, [])
+
     def test_a_paper_refused_for_where_it_is_asked_from_keeps_its_tries(self):
         from WebScraping.averageScrap.fetch import Outcome
         self.harvest.ledger.add(Candidate(key="10.1016/j.a.1", doi="10.1016/j.a.1", status=APPROVED, decision="yes"))

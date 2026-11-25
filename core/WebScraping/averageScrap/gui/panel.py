@@ -58,6 +58,7 @@ CANDIDATES_INFO = ("ⓘ  Every paper the searches found for this job, with its s
                    "✗ No (or the y and n keys); double-click one for everything known about it.")
 _REVIEWABLE = (SCREENED, APPROVED, REJECTED)  # not fetched yet: its decision can still change
 _FETCHED = (DOWNLOADED, EXTRACTED)
+_PIPELINE_EVERY = 3.0  # seconds between two counts of the whole pipeline while a step runs
 _MARK = {YES: "✓", NO: "✗"}
 
 
@@ -231,6 +232,11 @@ class WebPanel(Pausable, ttk.LabelFrame):
         self._step_texts: Dict[str, str] = {"keywords": "① Keyword search", "check": "② Check the new papers",
                                             "snowball": "③ Citations", "screen": "④ Score and propose"}
         self._show_step(None, done=False)
+        # The whole pipeline, every run together: found → scored → proposed → tried → downloaded → extracted, and what
+        # is left. Kept up to date while a step runs, so the step under way is seen within the whole.
+        self.pipeline_note = tk.StringVar()
+        WrapLabel(host, textvariable=self.pipeline_note, font=_BOLD_FONT).pack(fill="x", pady=(4, 0))
+        self._pipeline_at = 0.0  # when it was last counted (a running step counts it at most every few seconds)
         options = ttk.Frame(host)
         options.pack(fill="x", pady=(6, 0))
         # 2 · Search can go on by itself into 3 · Download, and 3 · Download into 4 · Extract.
@@ -549,6 +555,8 @@ class WebPanel(Pausable, ttk.LabelFrame):
                 f"the selected rows · {sum(c.decision == YES for c in waiting)} yes, {sum(c.decision == NO for c in waiting)} no"
                 f" · {sum(c.status in _FETCHED for c in candidates)} downloaded · "
                 f"{sum(c.status in (FAILED, CLOSED) for c in candidates)} failed/closed · {len(self.table)} of {len(candidates)} shown")
+        if reload or papers is not None:
+            self.show_pipeline(force=True)
         if not self.running():
             self.status.set(f"Ledger: {self.harvest.summary()}." if self.harvest is not None else "")
 
@@ -632,6 +640,32 @@ class WebPanel(Pausable, ttk.LabelFrame):
             self._notice_label.pack(fill="x", pady=(0, 6), after=self._notice_after)
         elif not text and self._notice_label.winfo_manager():
             self._notice_label.pack_forget()
+
+    def show_pipeline(self, force: bool = False) -> None:
+        """The line of the whole pipeline (Harvest.pipeline): counted again at once when `force`, else at most every
+        _PIPELINE_EVERY seconds (a running step calls it after each paper or search)."""
+        note = getattr(self, "pipeline_note", None)
+        now = time.monotonic()
+        if note is None or (not force and now - getattr(self, "_pipeline_at", 0.0) < _PIPELINE_EVERY):
+            return
+        self._pipeline_at = now
+        if self.harvest is None:
+            note.set("")
+            return
+        try:
+            note.set(self.harvest.pipeline())
+        except Exception as error:  # a ledger closed meanwhile (another job): the line waits for the next count
+            logging.debug(f"The pipeline could not be counted: {error}")
+
+    def _pipeline_lines(self) -> List[str]:
+        """The whole pipeline, for a card: the step just done seen within every run together."""
+        if self.harvest is None:
+            return []
+        try:
+            return [self.harvest.pipeline()]
+        except Exception as error:
+            logging.debug(f"The pipeline could not be counted: {error}")
+            return []
 
     def _run(self, work: Callable[..., None], *arguments: object) -> None:
         """Starts a step on its own thread; `_finished` puts the buttons back whatever happens."""
@@ -779,6 +813,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
         is asking now, the new papers so far, the time left."""
         if total <= 0 or phase not in _SEARCH_PHASES or not self._working or self.stop_event.is_set():
             return  # (a line that arrives after the step, or once Stop is pressed, does not hide what is said then)
+        self.show_pipeline()
         title, things = _SEARCH_PHASES[phase]
         tracker = self.tracker
         if tracker is not None and phase in tracker.phases:
@@ -838,7 +873,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
                         "the searches already answered are skipped, the one cut short is run again.",
                         [Stat(number(added), "new papers", hint=f"{number(len(everything))} in the list"),
                          Stat(number(len(waiting)), "proposed", GOOD, "waiting to be downloaded")],
-                        [], [("Search again", self.search), *actions], self._started)
+                        self._pipeline_lines(), [("Search again", self.search), *actions], self._started)
         if not added:
             return Card("Search finished — nothing new", NOTHING,
                         f"The searches gave no paper the list did not have ({number(len(everything))} in it). Change "
@@ -853,7 +888,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
                      Stat(number(_count_lines(self._doi_txt())), "DOIs searched with", hint="saved by “1 · Fetch DOIs”"),
                      *self._watch_stats("search")],
                     [f"Best match: {c.title or c.key} ({c.year or 'year ?'}, score {c.score:g})" for c in best]
-                    + self._watch_lines(), actions, self._started)
+                    + self._watch_lines() + self._pipeline_lines(), actions, self._started)
 
     # Re-screen ------------------------------------------------------------
     def rescreen(self) -> None:
@@ -905,7 +940,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
             [Stat(number(counts["proposed"]), "newly proposed", GOOD),
              Stat(number(counts["dropped"]), "no longer proposed", GREY),
              Stat(number(len(waiting)), "proposed in all", GOOD, "waiting to be downloaded")],
-            [], actions, self._started))
+            self._pipeline_lines(), actions, self._started))
 
     # With DOIs --------------------------------------------------------------
     def results_extra(self) -> List[Tuple[str, str]]:
@@ -1129,7 +1164,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
                if by_hand_count else []), *self._watch_stats("download")],
             ([self.notice.get()[2:]] if self.notice.get() else [])
             + [f"From {service}: {number(n)}" for service, n in self._services.most_common(3)]
-            + [f"Saved: {title}" for title in self._fetched_titles[:2]] + self._watch_lines(),
+            + [f"Saved: {title}" for title in self._fetched_titles[:2]] + self._watch_lines() + self._pipeline_lines(),
             actions, self._started))
 
     def _hand_rows(self, keys: Optional[set] = None) -> List[Dict[str, str]]:
@@ -1193,6 +1228,7 @@ class WebPanel(Pausable, ttk.LabelFrame):
             self._candidates[key] = candidate
             self.table.update_row(_row(candidate))
         self.downloads.show()  # its line in the Downloads tab (the log is read at most every 1.5 s)
+        self.show_pipeline()
 
     def _watch_stats(self, kind: str) -> List[Stat]:
         """The watcher's numbers for a card: what was checked, and what a site refused and still waits."""
