@@ -121,6 +121,40 @@ def worth_waiting(rows: List[Dict[str, str]], down: set) -> List[Dict[str, str]]
     return [row for row in rows if not services(row) or not services(row) <= down]
 
 
+def pipeline_counts(ledger: Ledger) -> Dict[str, int]:
+    """Where every paper of the ledger stands in the whole pipeline (every run together): found, scored, proposed for
+    download, tried, downloaded, extracted — and what is left: to download, to try again, with no legal copy."""
+    by = ledger.counts_by_decision()
+
+    def count(*statuses: str, yes: Optional[bool] = None) -> int:
+        return sum(n for (status, decision), n in by.items()
+                   if status in statuses and (yes is None or (decision == YES) == yes))
+    counts = {"found": sum(by.values()), "not_scored": count(NEW),
+              "to_download": count(SCREENED, APPROVED, yes=True),
+              "turned_down": count(REJECTED) + count(SCREENED, APPROVED, yes=False),
+              "downloaded": count(DOWNLOADED, EXTRACTED), "extracted": count(EXTRACTED),
+              "no_copy": count(CLOSED), "to_retry": count(FAILED)}
+    counts["scored"] = counts["found"] - counts["not_scored"]
+    counts["tried"] = counts["downloaded"] + counts["no_copy"] + counts["to_retry"]
+    counts["proposed"] = counts["to_download"] + counts["tried"]
+    return counts
+
+
+def pipeline_text(counts: Dict[str, int]) -> str:
+    """The whole pipeline in one line: "85,412 papers found → 84,900 scored → 5,100 proposed → … downloaded (61 %)"."""
+    c = counts
+    if not c.get("found"):
+        return "Whole pipeline: no paper found yet — “1 · Fetch DOIs”, then “2 · Search”."
+    rate = f" ({100 * c['downloaded'] / c['tried']:.0f} % of those tried)" if c["tried"] else ""
+    left = [f"{c[name]:,} {what}" for name, what in (("to_download", "to download"), ("to_retry", "to try again"),
+                                                    ("no_copy", "with no legal copy")) if c[name]]
+    return (f"Whole pipeline: {c['found']:,} papers found → {c['scored']:,} scored"
+            + (f" ({c['not_scored']:,} not yet)" if c["not_scored"] else "")
+            + f" → {c['proposed']:,} proposed for download ({c['turned_down']:,} turned down) → {c['tried']:,} tried"
+            + f" → {c['downloaded']:,} downloaded{rate} → {c['extracted']:,} extracted."
+            + (f" Left: {', '.join(left)}." if left else ""))
+
+
 class Harvest:
     def __init__(self, job: Job, output_dir: str, client: Optional[PoliteClient] = None,
                  ledger: Optional[Ledger] = None):
@@ -150,6 +184,7 @@ class Harvest:
         # shows it as its progress bar and status line; nothing is done with it in the terminal.
         self.on_progress: Callable[[str, int, int, str, int], None] = lambda *args: None
         self._keyword_tally: Optional[List[int]] = None  # [done, total, new] while the keywords are searched
+        self._keys_refused: set = set()  # the search sources that refused their key this run (HTTP 401/403)
 
     def _progress(self, phase: str, done: int, total: int, detail: str = "", new: int = 0) -> None:
         try:
@@ -188,7 +223,7 @@ class Harvest:
                 continue
             found = (openalex.lookup(doi) if doi and not identifier else None) \
                 or (arxiv.lookup(identifier) if identifier else None) \
-                or (openalex.lookup(doi) if doi else None)
+                or (openalex.lookup(doi) if doi and identifier else None)
             if found is None:  # unknown to both: keep it anyway, Unpaywall or Elsevier may still have it
                 key = candidate_key(doi, identifier)
                 if not key:
@@ -354,6 +389,7 @@ class Harvest:
         them — the watcher's rounds. Returns how many papers were new. The progress starts at the searches an earlier
         run finished (they are skipped), so a search stopped at 78 % and started again shows 78 %, not 0 %."""
         s = self.job.search
+        self._keys_refused = set()
         # What waits from an earlier run and no longer belongs to the job is forgotten.
         self.watcher.forget(SEARCH, lambda row: row["item"] in s.queries and row["service"] in s.sources)
         added = 0
@@ -529,6 +565,7 @@ class Harvest:
                 said = (f"the key was refused (HTTP {error.status}) — is {key} right?" if key
                         else f"it refused the search (HTTP {error.status}).")
                 logging.warning(f"{name}: {said} This source is skipped for the rest of the run.")
+                self._keys_refused.add(name)
                 return "key", new
             if is_refusal(error):
                 tries = self.watcher.defer(SEARCH, query, name, refusal_text(error))
@@ -553,18 +590,24 @@ class Harvest:
         """The watcher's rounds for the searches a site refused: a pause, then each one asked again
         (a source that refuses twice in a round is left for the next round)."""
         added = 0
+        made: Dict[str, object] = {}  # each source made once (a source without its key says so once)
         for number, minutes in enumerate(ROUNDS_MINUTES, 1):
-            waiting = self.watcher.pending(SEARCH)
+            # Only what can be asked in this run is waited for: a source whose key is missing, or whose key it refused
+            # this run, would refuse again however long the wait — its searches stay listed for the next run.
+            by_source: Dict[str, List[str]] = {}
+            for row in self.watcher.pending(SEARCH):
+                name = row["service"]
+                if name not in made:
+                    made[name] = self._source(name)
+                if made[name] is not None and name not in self._keys_refused:
+                    by_source.setdefault(name, []).append(row["item"])
+            waiting = sum(len(queries) for queries in by_source.values())
             if not waiting:
                 break
-            self.watcher.wait(minutes, f"{len(waiting)} search(es)", number)
-            by_source: Dict[str, List[str]] = {}
-            for row in waiting:
-                by_source.setdefault(row["service"], []).append(row["item"])
+            self.watcher.wait(minutes, f"{waiting} search(es)", number)
             for name, queries in by_source.items():
-                source = self._source(name)
-                if source is not None:
-                    added += self._search_queries(source, name, queries, refresh, later=True, give_up_after=2)
+                if name not in self._keys_refused:
+                    added += self._search_queries(made[name], name, queries, refresh, later=True, give_up_after=2)
         return added
 
     # ------------------------------------------------------------------
@@ -579,9 +622,12 @@ class Harvest:
                          progress=lambda done, total: self._progress("screen", done, total))
         after = self.ledger.counts()
         if after == before and os.path.exists(self.review_path):
+            self.log_pipeline()
             return after.get(SCREENED, 0)  # nothing new was scored: the review list (and edits not read yet) kept
         learn.refresh(self.ledger)  # the papers waiting ordered by the model of the decisions by hand
-        return self.ledger.write_review(self.review_path)
+        waiting = self.ledger.write_review(self.review_path)
+        self.log_pipeline()
+        return waiting
 
     def rescreen(self) -> Dict[str, int]:
         """Decides again, with the job's screening settings of now, the papers not downloaded yet (screening.rescreen),
@@ -593,6 +639,7 @@ class Harvest:
         self.ledger.write_review(self.review_path)
         logging.info(f"Re-screened {counts['rescored']:,} paper(s) not downloaded yet with the job's settings: "
                      f"{counts['proposed']:,} newly proposed, {counts['dropped']:,} no longer proposed.")
+        self.log_pipeline()
         return counts
 
     # ------------------------------------------------------------------
@@ -755,6 +802,7 @@ class Harvest:
             logging.warning(NOT_ENTITLED_ADVICE.format(n=self.not_entitled))
         self.write_hand_list()
         self.log_report()
+        self.log_pipeline()
         return results
 
     def notice(self, text: str) -> None:
@@ -794,6 +842,16 @@ class Harvest:
         """The watcher's report, in the log: what was checked this run and in total, what still waits."""
         for line in self.watcher.report():
             logging.info(line)
+
+    def pipeline(self) -> str:
+        """Where the whole pipeline stands (every run together), in one line (pipeline_text)."""
+        return pipeline_text(pipeline_counts(self.ledger))
+
+    def log_pipeline(self) -> None:
+        try:
+            logging.info(self.pipeline())
+        except Exception as error:  # a count must not stop a step
+            logging.debug(f"The pipeline could not be counted: {error}")
 
     def _fetch_batch(self, todo: List[Candidate], stop_event: Optional[threading.Event],
                      progress_callback: Optional[Callable[[Candidate, Outcome, int, int], None]],

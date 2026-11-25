@@ -366,6 +366,12 @@ class Ledger:
             return {row["status"]: row["n"] for row in
                     self._db.execute("SELECT status, COUNT(*) AS n FROM candidates GROUP BY status")}
 
+    def counts_by_decision(self) -> Dict[Tuple[str, str], int]:
+        """How many papers have each (status, decision): one query, for the counts of the whole pipeline."""
+        with self._lock:
+            return {(row["status"], row["decision"] or ""): row["n"] for row in self._db.execute(
+                "SELECT status, decision, COUNT(*) AS n FROM candidates GROUP BY status, decision")}
+
     # ------------------------------------------------------------------
     # The review list
     # ------------------------------------------------------------------
